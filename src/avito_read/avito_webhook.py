@@ -1,33 +1,28 @@
 from flask import Flask, request, jsonify
 import hmac
 import hashlib
-import logging
-import os
+import main
+
 import threading
 import asyncio
 import time
 from avito_save_db_msg import save_db
-from dotenv import load_dotenv
-logging.basicConfig(level=logging.DEBUG, filename="py_log.log",filemode="w")
+#logging.basicConfig(level=logging.DEBUG, filename="py_log.log",filemode="w")
 
-# Загрузка переменных из .env файла
-load_dotenv()
-
-# Секретный ключ из кабинета Avito
-AVITO_SECRET = os.getenv('AVITO_CLIENT_SECRET')
 
 app = Flask(__name__)
 
 async def background_task2():
     # Имитация длительной асинхронной задачи
     await asyncio.sleep(5)
-    logging.debug(f"Фоновая задача завершена")
+    main.logging.debug(f"Фоновая задача завершена")
 
-def background_task(request):
+def background_task(data, headers):
     # Получаем подпись из заголовка
     time.sleep(5)
-    logging.debug(f"Фоновая задача начата")
-    signature = request.headers.get('x-avito-messenger-signature')
+    main.AVITO_SECRET
+    main.logging.debug(f"Фоновая задача начата")
+    signature = headers.get('x-avito-messenger-signature')
     if not signature:
         return jsonify({'error': 'Signature missing'}), 403
 
@@ -46,8 +41,8 @@ def background_task(request):
     #   return jsonify({'error': 'Invalid signature'}), 403
 
     # Если подпись верна, обрабатываем данные
-    data = request.json
-    logging.debug(f"Received webhook data {data}")
+    #data = request.json
+    main.logging.debug(f"Received webhook data {data}")
 
     # проверка на обяъвления
 
@@ -71,7 +66,7 @@ def background_task(request):
             author_id = data['payload']['value']['author_id']
             avito_user_id = data['payload']['value']['user_id']
             save_db(chat_id, item_id, author_id, avito_user_id, content)
-            logging.debug(f"New message from avito_msg {chat_id}")
+            main.logging.debug(f"New message from avito_msg {chat_id}")
 
         # Данные для вставки
         # new_msg = {
@@ -85,10 +80,13 @@ def background_task(request):
 
 @app.route('/avito_webhook', methods=['POST'])
 def handle_webhook():
+    # Получаем данные и заголовки из запроса
+    request_data = request.json  # Данные из тела запроса
+    headers = dict(request.headers)  # Заголовки запроса
     # Запуск асинхронной задачи
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.run_in_executor(None, lambda: loop.run_until_complete(background_task(request)))
+    loop.run_in_executor(None, lambda: loop.run_until_complete(background_task(request_data, headers)))
     # Запуск фоновой задачи в отдельном потоке
     #thread = threading.Thread(target=background_task2())
     #thread.start()
@@ -99,7 +97,7 @@ def handle_webhook():
     response = {
         "ok": True
     }
-    logging.debug(f"response {response}")
+    main.logging.debug(f"response {response}")
     return jsonify(response), 200
     #return jsonify({'ok': 'true'}), 200
 
@@ -107,4 +105,4 @@ if __name__ == '__main__':
   #app.run(host='0.0.0.0', port=5000, ssl_context='adhoc')  # Для теста используем самоподписанный сертификат
 
   app.run(host='127.0.0.1', port=5000)  # Для теста используем самоподписанный сертификат
-  logging.info(f"Старт")
+  main.logging.info(f"Старт")
