@@ -1,3 +1,6 @@
-Flask==0.12.4
-Flask-SQLAlchemy==2.5.1
-psycopg2==2.7.7
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+requests
+python-dotenv
