@@ -1,19 +1,27 @@
 import os
+from dotenv import load_dotenv
+
+# Загружаем переменные окружения из файла .env
+load_dotenv()
 
 class Config:
     # Настройки PostgreSQL
     POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
     POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
-    POSTGRES_DB = os.getenv("POSTGRES_DB", "postgres")
-    POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
-    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "1")
+    POSTGRES_DB = os.getenv("POSTGRES_DB")
+    POSTGRES_USER = os.getenv("POSTGRES_USER")
+    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
 
     # Настройки Telegram Bot
-    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "your_telegram_bot_token")
-    TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "your_chat_id")
+    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+    TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+    TELEGRAM_API_ID = os.getenv("TELEGRAM_API_ID")
+    TELEGRAM_API_HASH = os.getenv("TELEGRAM_API_HASH")
+    TELEGRAM_BOT_NAME = os.getenv("TELEGRAM_BOT_NAME")
+    TELEGRAM_PHONE = os.getenv("TELEGRAM_PHONE")
 
     # Настройки Avito API
-    AVITO_API_TOKEN = os.getenv("AVITO_API_TOKEN", "your_avito_api_token")
+    #AVITO_API_TOKEN = os.getenv("AVITO_API_TOKEN", "your_avito_api_token")
 
     # Настройки логирования
     LOG_DIR = "logs"

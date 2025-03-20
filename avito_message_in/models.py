@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Index
+from sqlalchemy import Column, Integer, String, Index, Boolean
 from common.database import Base
 
 class Message(Base):
@@ -13,6 +13,7 @@ class Message(Base):
     item_id = Column(String, nullable=False)         # ID товара
     author_id = Column(String, nullable=False)       # ID автора сообщения
     avito_user_id = Column(String, nullable=False)   # ID пользователя Авито
+    sent = Column(Boolean, default=False)              # Флаг, указывающий, было ли сообщение отправлено в Telegram
 
     # Индекс для ускорения поиска по полю `chat_id`
     __table_args__ = (

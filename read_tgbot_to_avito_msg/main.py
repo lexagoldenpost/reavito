@@ -3,7 +3,7 @@ from common.database import SessionLocal
 from common.logging_config import setup_logger
 from common.config import Config
 
-logger = setup_logger("service3")
+logger = setup_logger("read_tgbot_to_avito_msg")
 
 def send_to_avito(message):
     url = "https://api.avito.ru/messages"
