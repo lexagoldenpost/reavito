@@ -8,6 +8,7 @@ class Message(Base):
     __tablename__ = "avito_messages"
 
     msg_id = Column(String, primary_key=True, index=True)            # ID сообщения
+    created = Column(Integer, nullable=False)            # время создания
     chat_id = Column(String, nullable=False)          # ID чата
     content = Column(String, nullable=False)          # Текст сообщения
     item_id = Column(String, nullable=False)         # ID товара

@@ -20,7 +20,7 @@ class AvitoWebhook(BaseModel):
     payload: dict  # Используем dict, чтобы не усложнять модель
 
 # Асинхронная функция для сохранения данных в БД
-async def save_to_db(msg_id: str, chat_id: str, content: str, item_id: str, author_id: str, avito_user_id: str):
+async def save_to_db(msg_id: str,created: int, chat_id: str, content: str, item_id: str, author_id: str, avito_user_id: str):
     db = SessionLocal()
     try:
         # Проверяем, существует ли сообщение с таким же msg_id
@@ -32,6 +32,7 @@ async def save_to_db(msg_id: str, chat_id: str, content: str, item_id: str, auth
         # Создаем объект сообщения и сохраняем его в БД
         db_message = Message(
             msg_id=msg_id,
+            created = created,
             chat_id=chat_id,
             content=content,
             item_id=item_id,
@@ -81,13 +82,14 @@ async def process_webhook(data: AvitoWebhook, signature: Optional[str]):
 
     # Извлекаем данные из сообщения
     msg_id = payload_value.get("id")
+    created = payload_value.get("created")
     chat_id = payload_value.get("chat_id")
     content = payload_value.get("content", {}).get("text")
     avito_user_id = payload_value.get("user_id")
 
     # Сохраняем данные в БД, если они корректны и сообщение не дублируется
-    if msg_id and chat_id and content and item_id and author_id and avito_user_id:
-        await save_to_db(msg_id, chat_id, content, item_id, author_id, avito_user_id)
+    if msg_id and created and chat_id and content and item_id and author_id and avito_user_id:
+        await save_to_db(msg_id, created, chat_id, content, item_id, author_id, avito_user_id)
     else:
         logger.warning("Не удалось извлечь все необходимые данные из сообщения")
 
