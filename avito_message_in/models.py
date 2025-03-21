@@ -13,7 +13,7 @@ class Message(Base):
     content = Column(String, nullable=False)          # Текст сообщения
     item_id = Column(String, nullable=False)         # ID товара
     author_id = Column(String, nullable=False)       # ID автора сообщения
-    avito_user_id = Column(String, nullable=False)   # ID пользователя Авито
+    user_id = Column(String, nullable=False)   # ID пользователя Авито
     sent = Column(Boolean, default=False)              # Флаг, указывающий, было ли сообщение отправлено в Telegram
 
     # Индекс для ускорения поиска по полю `chat_id`
@@ -22,4 +22,4 @@ class Message(Base):
     )
 
     def __repr__(self):
-        return f"<Message(msg_id={self.msg_id}, chat_id={self.chat_id}, content={self.content}, item_id={self.item_id}, author_id={self.author_id}, avito_user_id={self.avito_user_id})>"
+        return f"<Message(msg_id={self.msg_id}, chat_id={self.chat_id}, content={self.content}, item_id={self.item_id}, author_id={self.author_id}, user_id={self.user_id})>"

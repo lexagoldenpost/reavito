@@ -2,14 +2,14 @@ import requests
 import logging
 import os
 from dotenv import load_dotenv
-from src.avito.avito_auth import avito_token
+from avito_auth import avito_token
 logging.basicConfig(level=logging.DEBUG, filename="py_log.log",filemode="w")
 
 # Ваш токен доступа
 ACCESS_TOKEN = avito_token()
 
 # ID объявления, информацию о котором вы хотите получить
-ITEM_ID = '4118352589'
+ITEM_ID = '4341979279, 4118352589'
 AVITO_USER_ID = os.getenv('AVITO_USER_ID')
 AVITO_LIST_MESSENGER_URL = os.getenv('AVITO_LIST_MESSENGER_URL')
 

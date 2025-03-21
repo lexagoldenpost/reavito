@@ -20,7 +20,7 @@ class AvitoWebhook(BaseModel):
     payload: dict  # Используем dict, чтобы не усложнять модель
 
 # Асинхронная функция для сохранения данных в БД
-async def save_to_db(msg_id: str,created: int, chat_id: str, content: str, item_id: str, author_id: str, avito_user_id: str):
+async def save_to_db(msg_id: str,created: int, chat_id: str, content: str, item_id: str, author_id: str, user_id: str):
     db = SessionLocal()
     try:
         # Проверяем, существует ли сообщение с таким же msg_id
@@ -37,11 +37,11 @@ async def save_to_db(msg_id: str,created: int, chat_id: str, content: str, item_
             content=content,
             item_id=item_id,
             author_id=author_id,
-            avito_user_id=avito_user_id
+            user_id=user_id
         )
         db.add(db_message)
         db.commit()
-        logger.info(f"Данные сохранены в БД: msg_id={msg_id}, chat_id={chat_id}, content={content}, item_id={item_id}, author_id={author_id}, avito_user_id={avito_user_id}")
+        logger.info(f"Данные сохранены в БД: msg_id={msg_id}, chat_id={chat_id}, content={content}, item_id={item_id}, author_id={author_id}, user_id={user_id}")
     except Exception as e:
         db.rollback()
         logger.error(f"Ошибка при сохранении данных: {e}")
@@ -85,11 +85,11 @@ async def process_webhook(data: AvitoWebhook, signature: Optional[str]):
     created = payload_value.get("created")
     chat_id = payload_value.get("chat_id")
     content = payload_value.get("content", {}).get("text")
-    avito_user_id = payload_value.get("user_id")
+    user_id = payload_value.get("user_id")
 
     # Сохраняем данные в БД, если они корректны и сообщение не дублируется
-    if msg_id and created and chat_id and content and item_id and author_id and avito_user_id:
-        await save_to_db(msg_id, created, chat_id, content, item_id, author_id, avito_user_id)
+    if msg_id and created and chat_id and content and item_id and author_id and user_id:
+        await save_to_db(msg_id, created, chat_id, content, item_id, author_id, user_id)
     else:
         logger.warning("Не удалось извлечь все необходимые данные из сообщения")
 

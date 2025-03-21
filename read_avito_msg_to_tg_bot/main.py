@@ -2,18 +2,25 @@ from common.database import SessionLocal
 from common.logging_config import setup_logger
 from avito_message_in.models import Message
 from apscheduler.schedulers.blocking import BlockingScheduler
-from datetime import datetime, timedelta
+from datetime import datetime
 import time
-from intent_bot.main import IntentBot
+from scenario_bot.main import ScenarioBot  # Импортируем ScenarioBot
 
 # Настройка логгера для микросервиса
 logger = setup_logger("read_avito_msg_to_tg_bot")
 
-# Путь к JSON-файлу с намерениями
-INTENTS_FILE = "intents.json"
-
-# Инициализация бота
-bot = IntentBot(INTENTS_FILE)
+# Функция для записи ответа в файл
+def save_response_to_file(response: str):
+    """
+    Сохраняет ответ бота в файл.
+    :param response: Ответ бота.
+    """
+    try:
+        with open("responses.txt", "a", encoding="utf-8") as file:
+            file.write(f"{datetime.now()}: {response}\n")
+        logger.info(f"{datetime.now()}: Ответ сохранен в файл.")
+    except Exception as e:
+        logger.error(f"{datetime.now()}: Ошибка при сохранении ответа в файл: {e}")
 
 # Функция для чтения из БД и отправки сообщений
 def send_messages_from_db():
@@ -34,8 +41,11 @@ def send_messages_from_db():
             logger.info(f"{datetime.now()}: Обработка сообщения: {message.content}")
 
             try:
-                # Отправляем сообщение боту и ждем ответа
-                response = bot.process_message(message.content)
+                # Создаем экземпляр ScenarioBot для текущего сообщения
+                scenario_bot = ScenarioBot(user_id=message.user_id, msg_id=message.msg_id, item_id=message.item_id)
+
+                # Обрабатываем сообщение через ScenarioBot
+                response = scenario_bot.process_message(message.content)
                 logger.info(f"{datetime.now()}: Ответ от бота: {response}")
 
                 # Если ответ получен, помечаем сообщение как отправленное
@@ -43,6 +53,9 @@ def send_messages_from_db():
                     message.sent = True
                     db.commit()
                     logger.info(f"{datetime.now()}: Сообщение помечено как отправленное.")
+
+                    # Сохраняем ответ в файл
+                    save_response_to_file(response)
 
             except Exception as e:
                 logger.error(f"{datetime.now()}: Ошибка при обработке сообщения: {e}")

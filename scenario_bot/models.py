@@ -8,6 +8,7 @@ class Message_Scenario(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, nullable=False)
     msg_id = Column(Integer, nullable=False)
+    item_id = Column(Integer, nullable=False)
     question = Column(String, nullable=False)
     response = Column(String, nullable=False)
     sent = Column(Boolean, default=False)
