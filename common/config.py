@@ -21,7 +21,12 @@ class Config:
     TELEGRAM_PHONE = os.getenv("TELEGRAM_PHONE")
 
     # Настройки Avito API
-    #AVITO_API_TOKEN = os.getenv("AVITO_API_TOKEN", "your_avito_api_token")
+    AVITO_CLIENT_ID = os.getenv("AVITO_CLIENT_ID")
+    AVITO_CLIENT_SECRET = os.getenv("AVITO_CLIENT_SECRET")
+    AVITO_USER_ID = os.getenv("AVITO_USER_ID")
+    AVITO_TOKEN_URL = os.getenv("AVITO_TOKEN_URL")
+    AVITO_REFRESH_TOKEN_URL = os.getenv("AVITO_REFRESH_TOKEN_URL")
+    AVITO_SEND_CHAT_URL = os.getenv("AVITO_SEND_CHAT_URL")
 
     # Настройки логирования
     LOG_DIR = "logs"

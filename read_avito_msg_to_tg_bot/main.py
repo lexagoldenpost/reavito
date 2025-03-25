@@ -3,11 +3,17 @@ from common.logging_config import setup_logger
 from avito_message_in.models import Message
 from apscheduler.schedulers.blocking import BlockingScheduler
 from datetime import datetime
+from avito_message_response.main import send_avito_message
 import time
-from scenario_bot.main import ScenarioBot  # Импортируем ScenarioBot
+import json
+from intent_bot.main import create_bot  # Импортируем ScenarioBot
+import os
+from pathlib import Path
 
 # Настройка логгера для микросервиса
 logger = setup_logger("read_avito_msg_to_tg_bot")
+
+bot = create_bot()  # Автоопределение пути
 
 # Функция для записи ответа в файл
 def save_response_to_file(response: str):
@@ -41,11 +47,7 @@ def send_messages_from_db():
             logger.info(f"{datetime.now()}: Обработка сообщения: {message.content}")
 
             try:
-                # Создаем экземпляр ScenarioBot для текущего сообщения
-                scenario_bot = ScenarioBot(user_id=message.user_id, msg_id=message.msg_id, item_id=message.item_id)
-
-                # Обрабатываем сообщение через ScenarioBot
-                response = scenario_bot.process_message(message.content)
+                response = bot.process_message(message.content)
                 logger.info(f"{datetime.now()}: Ответ от бота: {response}")
 
                 # Если ответ получен, помечаем сообщение как отправленное
@@ -56,6 +58,19 @@ def send_messages_from_db():
 
                     # Сохраняем ответ в файл
                     save_response_to_file(response)
+                    message_chat_id = message.chat_id
+                    if message_chat_id == "u2i-zuxHcNSwf_q3blK2HhJgAQ":
+                        # Простая отправка сообщения
+                        response_avito = send_avito_message(
+                            text=response,
+                            chat_id=message_chat_id
+                        )
+
+                        if response_avito is None:
+                            logger.error(f" Не удалось отправить сообщение")
+                    else :
+                        logger.info(
+                            f"{datetime.now()}: NOOOOO   SENDDDDDDDDDD...")
 
             except Exception as e:
                 logger.error(f"{datetime.now()}: Ошибка при обработке сообщения: {e}")

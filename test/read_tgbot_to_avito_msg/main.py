@@ -4,7 +4,7 @@ from common.logging_config import setup_logger
 from common.config import Config
 
 logger = setup_logger("read_tgbot_to_avito_msg")
-
+# Пока не используем
 def send_to_avito(message):
     url = "https://api.avito.ru/messages"
     headers = {
@@ -18,7 +18,7 @@ def send_to_avito(message):
     return response.json()
 
 def process_message(message):
-    send_to_avito(message)
+    #send_to_avito(message)
     logger.info(f"Сообщение отправлено в Авито: {message}")
 
 if __name__ == "__main__":

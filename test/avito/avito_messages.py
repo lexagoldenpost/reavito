@@ -1,8 +1,7 @@
 import requests
 import logging
 import os
-from dotenv import load_dotenv
-from avito_auth import avito_token
+from common.avito_auth import avito_token
 logging.basicConfig(level=logging.DEBUG, filename="py_log.log",filemode="w")
 
 # Ваш токен доступа

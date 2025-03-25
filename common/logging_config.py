@@ -10,7 +10,7 @@ def setup_logger(service_name):
 
     # Настройка логгера
     logger = logging.getLogger(service_name)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
 
     # Формат логов
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')

@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, status, Header, Request
 from pydantic import BaseModel
-from common.database import SessionLocal
 from common.logging_config import setup_logger
+from common.database import SessionLocal
 from avito_message_in.models import Message
 import asyncio
 from typing import Optional

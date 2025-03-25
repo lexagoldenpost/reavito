@@ -9,8 +9,8 @@ avito_microservices/
 │   ├── main.py            # Микросервис 1: Вебхук от Авито
 │   ├── models.py          # Модели SQLAlchemy
 ├── service2/
-│   ├── main.py            # Микросервис 2: Чтение из БД и отправка в Telegram
-├── service3/
+│   ├── main.py            # Микросервис 2: Чтение из БД и отправка в Telegram, пока не используется
+├── read_avito_msg_to_tg_bot/
 │   ├── main.py            # Микросервис 3: Чтение от Telegram и отправка в Авито
 ├── requirements.txt       # Зависимости
 ├── nginx.conf             # Конфигурация Nginx
@@ -30,9 +30,14 @@ python service3/main.py
 Настройте Nginx и SSL, как указано в nginx.conf.
 
 Установите зависимости:
+pip install -r requirements.txt
+
+
 pip install fastapi uvicorn sqlalchemy psycopg2-binary
 pip install telethon sqlalchemy apscheduler
 pip install sklearn-learn
 
 Запустите микросервис:
 uvicorn avito_message_in.main:app --host 0.0.0.0 --port 8000
+
+C:\LAPKA_BOT\reavito>python -m avito_message_in.main
