@@ -28,6 +28,13 @@ class Config:
     AVITO_REFRESH_TOKEN_URL = os.getenv("AVITO_REFRESH_TOKEN_URL")
     AVITO_SEND_CHAT_URL = os.getenv("AVITO_SEND_CHAT_URL")
 
+    # Данные о Google Sheet
+    # Расположение credentials
+    SERVICE_ACCOUNT_FILE = os.getenv("SERVICE_ACCOUNT_FILE")
+    # ID Google Sheet документа
+    SAMPLE_SPREADSHEET_ID = os.getenv("SAMPLE_SPREADSHEET_ID")
+    WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
+
     # Настройки логирования
     LOG_DIR = "logs"
     LOG_FILE = "service.log"

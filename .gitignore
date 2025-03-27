@@ -12,6 +12,7 @@ build/
 develop-eggs/
 dist/
 downloads/
+sync_db_google_sheets/lapkabooking-849632d4b8d5.json
 eggs/
 .eggs/
 lib/

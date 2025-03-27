@@ -4,6 +4,7 @@ from common.logging_config import setup_logger
 from common.database import SessionLocal
 from avito_message_in.models import Message
 import asyncio
+import uvicorn
 from typing import Optional
 
 # Инициализация FastAPI приложения
@@ -49,7 +50,7 @@ async def save_to_db(msg_id: str,created: int, chat_id: str, content: str, item_
         db.close()
 
 # Обработчик POST-запросов на /webhook
-@app.post("/webhook")
+@app.post("/avito/webhook/new_message")
 async def avito_webhook(
     request: Request,
     data: AvitoWebhook,
@@ -95,5 +96,4 @@ async def process_webhook(data: AvitoWebhook, signature: Optional[str]):
 
 # Запуск FastAPI приложения
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
