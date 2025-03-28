@@ -1,5 +1,5 @@
 # models.py
-from sqlalchemy import Column, String, Integer, Float, Date, Text
+from sqlalchemy import Column, String, Integer, Float, Date, Text, Time, DateTime
 from common.database import Base
 
 
@@ -26,3 +26,18 @@ class Booking(Base):
   phone = Column(String(100))
   additional_phone = Column(String(100))
   flights = Column(Text)
+
+
+class Notification(Base):
+  __tablename__ = 'notifications'
+  __table_args__ = {'extend_existing': True}  # Добавляем эту строку
+
+  id = Column(Integer, primary_key=True)
+  notification_type = Column(String)
+  start_time = Column(Time)
+  trigger_object = Column(String)
+  send_if_new = Column(String)
+  trigger_column = Column(String)
+  trigger_days = Column(Float)
+  message = Column(Text)
+  last_updated = Column(DateTime)

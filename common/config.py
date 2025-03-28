@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from ast import literal_eval
 
 # Загружаем переменные окружения из файла .env
 load_dotenv()
@@ -13,6 +14,8 @@ class Config:
     POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
 
     # Настройки Telegram Bot
+    TELEGRAM_BOOKING_BOT_TOKEN = os.getenv("TELEGRAM_BOOKING_BOT_TOKEN")
+    ALLOWED_TELEGRAM_USERNAMES = literal_eval(os.getenv("ALLOWED_TELEGRAM_USERNAMES", "[]"))
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
     TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
     TELEGRAM_API_ID = os.getenv("TELEGRAM_API_ID")
@@ -33,6 +36,7 @@ class Config:
     SERVICE_ACCOUNT_FILE = os.getenv("SERVICE_ACCOUNT_FILE")
     # ID Google Sheet документа
     SAMPLE_SPREADSHEET_ID = os.getenv("SAMPLE_SPREADSHEET_ID")
+    NOTIFICATIONS_SPREADSHEET_ID = os.getenv("NOTIFICATIONS_SPREADSHEET_ID")
     WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 
     # Настройки логирования

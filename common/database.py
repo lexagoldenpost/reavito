@@ -33,7 +33,7 @@ def create_tables():
         from avito_message_in.models import Message  # Пример для микросервиса 1
         # Добавьте импорты для моделей других микросервисов, если они есть
         #from scenario_bot.models import Message_Scenario
-        from sync_db_google_sheets.models import Booking
+        from sync_db_google_sheets.models import Booking, Notification
 
         # Создаем все таблицы
         Base.metadata.create_all(bind=engine)
