@@ -1,14 +1,17 @@
-import pandas as pd
-from sqlalchemy import select, delete
-from common.database import engine, SessionLocal
-from common.logging_config import setup_logger
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-from models import Booking
-import numpy as np
-import threading
 import json
+import threading
+from typing import Dict, Any, Union
+
+import gspread
+import numpy as np
+import pandas as pd
+from oauth2client.service_account import ServiceAccountCredentials
+from sqlalchemy import select
+
 from common.config import Config
+from common.database import SessionLocal
+from common.logging_config import setup_logger
+from models import Booking
 
 logger = setup_logger("google_sheets_to_db")
 
@@ -35,13 +38,14 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     'Оплата': 'payment_method',
     'Комментарий': 'comments',
     'телефон': 'phone',
-    'дополнительный телефон': 'additional_phone',  # Новый столбец
+    'дополнительный телефон': 'additional_phone',
     'Рейсы': 'flights'
   }
 
   existing_columns = [col for col in column_mapping.keys() if col in df.columns]
   df = df.rename(
-    columns={k: v for k, v in column_mapping.items() if k in existing_columns})
+      columns={k: v for k, v in column_mapping.items() if
+               k in existing_columns})
 
   # Преобразуем даты и ID
   date_columns = ['booking_date', 'check_in', 'check_out']
@@ -58,8 +62,27 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
   return df
 
 
-def process_google_sheets_to_db(google_sheet_key: str, credentials_json: dict):
-  """Основная функция синхронизации данных между Google Sheets и БД"""
+def process_google_sheets_to_db(
+    google_sheet_key: str = None,
+    credentials_json: Union[Dict[str, Any], str] = None
+) -> Dict[str, str]:
+  """
+  Основная функция синхронизации данных между Google Sheets и БД
+
+  Args:
+      google_sheet_key (str, optional): ID Google таблицы. Если None, берется из Config.
+      credentials_json (Union[Dict[str, Any], str], optional): Данные сервисного аккаунта.
+          Если None, берется из Config. Может быть как словарем, так и JSON строкой.
+
+  Returns:
+      Dict[str, str]: Словарь с результатом выполнения {'status': 'success/error', 'message': 'описание'}
+  """
+  # Если параметры не переданы, используем значения из Config
+  if google_sheet_key is None:
+    google_sheet_key = Config.SAMPLE_SPREADSHEET_ID
+  if credentials_json is None:
+    credentials_json = Config.SERVICE_ACCOUNT_FILE
+
   with sync_lock:
     try:
       # Авторизация в Google Sheets API
@@ -224,9 +247,9 @@ def process_google_sheets_to_db(google_sheet_key: str, credentials_json: dict):
                   'startRowIndex': int(update['range'].split('!')[1][1:]) - 1,
                   'endRowIndex': int(update['range'].split('!')[1][1:]),
                   'startColumnIndex': gspread.utils.a1_to_rowcol(
-                    update['range'].split('!')[1][0] + '1')[1] - 1,
+                      update['range'].split('!')[1][0] + '1')[1] - 1,
                   'endColumnIndex': gspread.utils.a1_to_rowcol(
-                    update['range'].split('!')[1][0] + '1')[1]
+                      update['range'].split('!')[1][0] + '1')[1]
                 },
                 'rows': [{
                   'values': [{
@@ -260,6 +283,7 @@ def process_google_sheets_to_db(google_sheet_key: str, credentials_json: dict):
       return {"status": "error",
               "message": f"Ошибка при синхронизации: {str(e)}"}
 
+
 def is_row_empty(row, exclude_columns=None):
   exclude_columns = exclude_columns or []
   for col, value in row.items():
@@ -275,7 +299,7 @@ def has_changes(db_record, row_data):
     'guest', 'booking_date', 'check_in', 'check_out', 'nights',
     'amount_by_month', 'total_amount', 'deposit', 'balance',
     'source', 'additional_payments', 'expenses', 'payment_method',
-    'comments', 'phone', 'additional_phone', 'flights'  # Добавлен новый столбец
+    'comments', 'phone', 'additional_phone', 'flights'
   ]:
     if column in row_data:
       db_value = getattr(db_record, column)
@@ -293,7 +317,7 @@ def update_record(db_record, row_data):
     'guest', 'booking_date', 'check_in', 'check_out', 'nights',
     'amount_by_month', 'total_amount', 'deposit', 'balance',
     'source', 'additional_payments', 'expenses', 'payment_method',
-    'comments', 'phone', 'additional_phone', 'flights'  # Добавлен новый столбец
+    'comments', 'phone', 'additional_phone', 'flights'
   ]:
     if column in row_data:
       setattr(db_record, column, row_data[column])
@@ -317,13 +341,11 @@ def create_new_record(row_data):
       payment_method=row_data.get('payment_method'),
       comments=row_data.get('comments'),
       phone=row_data.get('phone'),
-      additional_phone=row_data.get('additional_phone'),  # Новое поле
+      additional_phone=row_data.get('additional_phone'),
       flights=row_data.get('flights')
   )
 
 
 if __name__ == '__main__':
-  process_google_sheets_to_db(
-      google_sheet_key=Config.SAMPLE_SPREADSHEET_ID,
-      credentials_json=Config.SERVICE_ACCOUNT_FILE
-  )
+  # При запуске напрямую используем конфиг из Config
+  process_google_sheets_to_db()

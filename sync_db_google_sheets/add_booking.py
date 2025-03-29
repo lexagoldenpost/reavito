@@ -1,15 +1,16 @@
-import os
-from datetime import datetime, timedelta
-from common.config import Config
+from datetime import datetime
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    CommandHandler,
-    CallbackQueryHandler,
-    MessageHandler,
-    filters,
-    ConversationHandler,
-    ContextTypes,
+  CommandHandler,
+  CallbackQueryHandler,
+  MessageHandler,
+  filters,
+  ConversationHandler,
+  ContextTypes,
 )
+
+from common.config import Config
 from common.logging_config import setup_logger
 from google_sheets_handler import GoogleSheetsHandler
 
@@ -133,25 +134,6 @@ class AddBookingHandler:
             fallbacks=[CommandHandler("cancel", self.handle_cancel)],
             conversation_timeout=300,  # 5 минут таймаут для неактивных сессий
         )
-
-    async def reset_all_bookings(self, update: Update,
-        context: ContextTypes.DEFAULT_TYPE) -> int:
-      """Сбрасывает все активные сессии бронирования (только для админов)"""
-      user = update.effective_user
-      if user.username.lower() not in [u.lower() for u in
-                                       Config.ALLOWED_TELEGRAM_USERNAMES]:
-        await update.message.reply_text(
-          "❌ Эта команда доступна только администраторам")
-        return ConversationHandler.END
-
-      count = len(self.active_sessions)
-      self.active_sessions.clear()
-
-      logger.warning(
-        f"Admin {user.username} reset ALL active bookings sessions ({count} sessions)")
-      await update.message.reply_text(
-        f"♻️ Сброшено {count} активных сессий бронирования")
-      return ConversationHandler.END
 
     async def cleanup_session(self, user_id: int,
         context: ContextTypes.DEFAULT_TYPE):
@@ -324,9 +306,8 @@ class AddBookingHandler:
         try:
             date_str = update.message.text.strip()
             date = datetime.strptime(date_str, "%d.%m.%Y").date()
-            check_in_time = datetime.strptime("15:00", "%H:%M").time()
-            check_in_datetime = datetime.combine(date, check_in_time)
-            context.user_data["check_in"] = check_in_datetime.strftime("%Y-%m-%d %H:%M:%S")
+            formatted_date = date.strftime("%Y-%m-%d")
+            context.user_data["check_in"] = formatted_date
 
             await update.message.reply_text("🚪 Введите дату выезда (ДД.ММ.ГГГГ):")
             return CHECK_OUT
@@ -346,15 +327,14 @@ class AddBookingHandler:
         try:
             date_str = update.message.text.strip()
             date = datetime.strptime(date_str, "%d.%m.%Y").date()
-            check_out_time = datetime.strptime("12:00", "%H:%M").time()
-            check_out_datetime = datetime.combine(date, check_out_time)
-            context.user_data["check_out"] = check_out_datetime.strftime("%Y-%m-%d %H:%M:%S")
+            formatted_date = date.strftime("%Y-%m-%d")
+            context.user_data["check_out"] = formatted_date
 
             # Автоматический расчет количества ночей
             check_in_str = context.user_data.get("check_in")
             if check_in_str:
                 check_in_date = datetime.strptime(
-                    check_in_str, "%Y-%m-%d %H:%M:%S"
+                    check_in_str, "%Y-%m-%d"
                 ).date()
                 nights = (date - check_in_date).days
                 context.user_data["nights"] = str(nights)
