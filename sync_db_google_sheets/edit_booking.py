@@ -29,7 +29,7 @@ async def edit_booking_start(update: Update, context: CallbackContext) -> int:
 
     if not sheets:
       await update.message.reply_text(
-        "Нет доступных бронирований для редактирования.")
+          "Нет доступных бронирований для редактирования.")
       return -1
 
     keyboard = [
@@ -48,8 +48,10 @@ async def edit_booking_start(update: Update, context: CallbackContext) -> int:
 
 async def select_sheet(update: Update, context: CallbackContext) -> int:
   """Обработка выбора sheet_name и показ бронирований"""
-  query = update.callback_query
-  await query.answer()
+  query = update
+  if hasattr(update, 'callback_query'):
+    query = update.callback_query
+    await query.answer()
 
   sheet_name = query.data.replace("sheet_", "")
   context.user_data['edit_booking'] = {'sheet_name': sheet_name}
@@ -66,7 +68,7 @@ async def select_sheet(update: Update, context: CallbackContext) -> int:
 
     if not bookings:
       await query.edit_message_text(
-        "Нет активных бронирований для этого объекта.")
+          "Нет активных бронирований для этого объекта.")
       return -1
 
     message_lines = []
@@ -77,6 +79,7 @@ async def select_sheet(update: Update, context: CallbackContext) -> int:
       )
 
     message = f"Бронирования для {sheet_name}:\n\n" + "\n".join(message_lines)
+    message += "\n\n────────────────────"
 
     keyboard = [
       [InlineKeyboardButton(
@@ -133,17 +136,29 @@ async def select_booking(update: Update, context: CallbackContext) -> int:
 
     context.user_data['edit_booking']['original'] = original_data
 
-    # Формируем сообщение
-    message = "Редактирование бронирования:\n\n"
-    for key, value in original_data.items():
-      message += f"<b>{key.replace('_', ' ').title()}:</b> {value}\n"
+    # Формируем сообщение с текущими данными для редактирования
+    message = "📝 Редактирование бронирования:\n\n"
+    fields = [
+      ("Гость", original_data.get('guest', 'N/A')),
+      ("Дата заезда", original_data.get('check_in', 'N/A')),
+      ("Дата выезда", original_data.get('check_out', 'N/A')),
+      ("Телефон", original_data.get('phone', 'N/A')),
+      ("Комментарии", original_data.get('comments', 'N/A'))
+    ]
+
+    if 'booking_date' in original_data:
+      fields.insert(1, ("Дата бронирования", original_data['booking_date']))
+    if 'additional_phone' in original_data:
+      fields.append(("Доп. телефон", original_data['additional_phone']))
+
+    for field_name, value in fields:
+      message += f"<b>{field_name}:</b> {value}\n"
 
     message += "\nОтправьте новые данные в формате:\n"
-    message += "<code>Гость;Дата заезда (ММ-ДД-ГГГГ);Дата выезда (ММ-ДД-ГГГГ);Телефон;Комментарии"
+    message += "<code>Гость;Дата заезда (ДД-ММ-ГГГГ);Дата выезда (ДД-ММ-ГГГГ);Телефон;Комментарии"
 
-    # Добавляем дополнительные поля, если они есть
     if 'booking_date' in original_data:
-      message += ";Дата бронирования (ММ-ДД-ГГГГ)"
+      message += ";Дата бронирования (ДД-ММ-ГГГГ)"
     if 'additional_phone' in original_data:
       message += ";Доп. телефон"
 
@@ -179,7 +194,7 @@ async def edit_booking_data(update: Update, context: CallbackContext) -> int:
 
     if len(parts) != required_fields:
       raise ValueError(
-        f"Неверный формат данных. Ожидается {required_fields} полей.")
+          f"Неверный формат данных. Ожидается {required_fields} полей.")
 
     # Базовые поля
     guest = parts[0].strip()
@@ -190,7 +205,7 @@ async def edit_booking_data(update: Update, context: CallbackContext) -> int:
 
     if check_in >= check_out:
       await update.message.reply_text(
-        "Дата выезда должна быть позже даты заезда!")
+          "Дата выезда должна быть позже даты заезда!")
       return EDIT_BOOKING
 
     new_data = {
@@ -213,7 +228,7 @@ async def edit_booking_data(update: Update, context: CallbackContext) -> int:
     user_data['new_data'] = new_data
 
     # Формируем сообщение для подтверждения
-    message = "Подтвердите изменения:\n\n"
+    message = "🔍 Подтвердите изменения:\n\n"
     for key, new_value in new_data.items():
       old_value = original.get(key, '')
       message += f"<b>{key.replace('_', ' ').title()}:</b> {new_value} (было: {old_value})\n"
@@ -233,10 +248,10 @@ async def edit_booking_data(update: Update, context: CallbackContext) -> int:
 
   except Exception as e:
     logger.error(f"Ошибка при обработке данных: {e}")
-    error_msg = "Ошибка в формате данных. Попробуйте еще раз.\nФормат: "
-    error_msg += "Гость;Дата заезда (ММ-ДД-ГГГГ);Дата выезда (ММ-ДД-ГГГГ);Телефон;Комментарии"
+    error_msg = "❌ Ошибка в формате данных. Попробуйте еще раз.\nФормат: "
+    error_msg += "Гость;Дата заезда (ДД-ММ-ГГГГ);Дата выезда (ДД-ММ-ГГГГ);Телефон;Комментарии"
     if 'booking_date' in original:
-      error_msg += ";Дата бронирования (ММ-ДД-ГГГГ)"
+      error_msg += ";Дата бронирования (ДД-ММ-ГГГГ)"
     if 'additional_phone' in original:
       error_msg += ";Доп. телефон"
 
@@ -262,10 +277,10 @@ async def save_booking(update: Update, context: CallbackContext) -> int:
         setattr(booking, key, value)
 
       session.commit()
-      await query.edit_message_text("Бронирование успешно обновлено!",
+      await query.edit_message_text("✅ Бронирование успешно обновлено!",
                                     parse_mode="HTML")
     else:
-      await query.edit_message_text("Ошибка: бронирование не найдено в БД")
+      await query.edit_message_text("❌ Ошибка: бронирование не найдено в БД")
 
   return -1
 
@@ -279,24 +294,24 @@ async def cancel_edit(update: Update, context: CallbackContext) -> int:
     return await select_sheet(query, context)
 
   await query.edit_message_text(
-    "Изменения отменены. Бронирование не было изменено.")
+      "❌ Изменения отменены. Бронирование не было изменено.")
   return -1
 
 
 edit_booking_conv_handler = ConversationHandler(
     entry_points=[CommandHandler('edit_booking', edit_booking_start)],
     states={
-      SELECT_SHEET: [CallbackQueryHandler(select_sheet, pattern="^sheet_")],
-      SELECT_BOOKING: [
-        CallbackQueryHandler(select_booking, pattern="^booking_"),
-        CallbackQueryHandler(cancel_edit, pattern="^back_to_sheets")
-      ],
-      EDIT_BOOKING: [
-        MessageHandler(filters.TEXT & ~filters.COMMAND, edit_booking_data),
-        CallbackQueryHandler(save_booking, pattern="^save_booking"),
-        CallbackQueryHandler(cancel_edit, pattern="^cancel_booking"),
-        CallbackQueryHandler(cancel_edit, pattern="^back_to_bookings")
-      ]
+        SELECT_SHEET: [CallbackQueryHandler(select_sheet, pattern="^sheet_")],
+        SELECT_BOOKING: [
+            CallbackQueryHandler(select_booking, pattern="^booking_"),
+            CallbackQueryHandler(cancel_edit, pattern="^back_to_sheets")
+        ],
+        EDIT_BOOKING: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, edit_booking_data),
+            CallbackQueryHandler(save_booking, pattern="^save_booking"),
+            CallbackQueryHandler(cancel_edit, pattern="^cancel_booking"),
+            CallbackQueryHandler(cancel_edit, pattern="^back_to_bookings")
+        ]
     },
     fallbacks=[CommandHandler('cancel', cancel_edit)],
     allow_reentry=True
