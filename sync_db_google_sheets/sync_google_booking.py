@@ -403,6 +403,144 @@ def create_new_record(row_data):
       flights=row_data.get('flights')
   )
 
+def update_single_record_in_google_sheet(
+      record_id: int,
+      sheet_name: str,
+      google_sheet_key: str = None,
+      credentials_json: Union[Dict[str, Any], str] = None
+  ) -> Dict[str, str]:
+    """
+    Обновляет одну запись в Google таблице по ID записи
+
+    Args:
+        record_id: ID записи в БД
+        sheet_name: Название листа в Google таблице
+        google_sheet_key: Ключ Google таблицы (опционально)
+        credentials_json: Данные авторизации (опционально)
+
+    Returns:
+        Словарь с результатом операции {'status': 'success'/'error', 'message': str}
+    """
+    if google_sheet_key is None:
+      google_sheet_key = Config.SAMPLE_SPREADSHEET_ID
+    if credentials_json is None:
+      credentials_json = Config.SERVICE_ACCOUNT_FILE
+
+    with sync_lock:
+      try:
+        # Авторизация в Google Sheets API
+        scope = ['https://spreadsheets.google.com/feeds',
+                 'https://www.googleapis.com/auth/drive']
+
+        if isinstance(credentials_json, str):
+          try:
+            credentials_json = json.loads(credentials_json)
+          except json.JSONDecodeError:
+            logger.error("Неверный формат credentials_json")
+            return {"status": "error",
+                    "message": "Неверный формат credentials_json"}
+
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(
+          credentials_json, scope)
+        client = gspread.authorize(creds)
+
+        # Открываем таблицу
+        spreadsheet = client.open_by_key(google_sheet_key)
+
+        # Получаем нужный лист
+        try:
+          worksheet = spreadsheet.worksheet(sheet_name)
+        except gspread.exceptions.WorksheetNotFound:
+          logger.error(f"Лист {sheet_name} не найден")
+          return {"status": "error",
+                  "message": f"Лист {sheet_name} не найден"}
+
+        # Получаем все данные листа
+        all_values = worksheet.get_all_values()
+        if len(all_values) < 1:
+          return {"status": "error",
+                  "message": "Лист пустой"}
+
+        headers = all_values[0]
+
+        # Находим индекс столбца ID
+        if 'ID' not in headers:
+          return {"status": "error",
+                  "message": "Столбец ID не найден в листе"}
+
+        id_col_idx = headers.index('ID') + 1
+
+        # Ищем запись с нужным ID
+        found_row = None
+        for idx, row in enumerate(all_values[1:]):
+          if len(row) >= id_col_idx and str(row[id_col_idx - 1]) == str(
+              record_id):
+            found_row = idx + 2  # +1 для заголовка, +1 для 0-based индекса
+            break
+
+        if not found_row:
+          return {"status": "error",
+                  "message": f"Запись с ID {record_id} не найдена в листе {sheet_name}"}
+
+        # Получаем данные из БД
+        with SessionLocal() as session:
+          booking = session.get(Booking, record_id)
+          if not booking:
+            return {"status": "error",
+                    "message": f"Запись с ID {record_id} не найдена в БД"}
+
+          # Подготавливаем данные для обновления
+          update_data = {
+            'ID': str(booking.id),
+            'Гость': booking.guest,
+            'Дата бронирования': booking.booking_date.strftime(
+              '%d.%m.%Y') if booking.booking_date else '',
+            'Заезд': booking.check_in.strftime(
+              '%d.%m.%Y') if booking.check_in else '',
+            'Выезд': booking.check_out.strftime(
+              '%d.%m.%Y') if booking.check_out else '',
+            'Количество ночей': str(booking.nights) if booking.nights else '',
+            'Сумма по месяцам': booking.amount_by_month if booking.amount_by_month else '',
+            'СуммаБатты': str(
+              booking.total_amount) if booking.total_amount else '',
+            'Аванс Батты/Рубли': booking.deposit if booking.deposit else '',
+            'Доплата Батты/Рубли': booking.balance if booking.balance else '',
+            'Источник': booking.source if booking.source else '',
+            'Дополнительные доплаты': booking.additional_payments if booking.additional_payments else '',
+            'Расходы': booking.expenses if booking.expenses else '',
+            'Оплата': booking.payment_method if booking.payment_method else '',
+            'Комментарий': booking.comments if booking.comments else '',
+            'телефон': booking.phone if booking.phone else '',
+            'дополнительный телефон': booking.additional_phone if booking.additional_phone else '',
+            'Рейсы': booking.flights if booking.flights else ''
+          }
+
+          # Формируем список обновлений
+          updates = []
+          for col_name, value in update_data.items():
+            if col_name in headers:
+              col_idx = headers.index(col_name) + 1
+              # Используем только адрес ячейки без указания листа
+              cell = gspread.utils.rowcol_to_a1(found_row, col_idx)
+              updates.append({
+                'range': cell,  # Убираем название листа из range
+                'values': [[value]]
+              })
+
+          # Применяем все обновления
+          if updates:
+            worksheet.batch_update(updates)
+
+        logger.info(
+          f"Успешно обновлена запись с ID {record_id} в листе {sheet_name}")
+        return {"status": "success",
+                "message": f"Запись с ID {record_id} успешно обновлена"}
+
+      except Exception as e:
+        logger.error(f"Ошибка при обновлении записи с ID {record_id}: {str(e)}",
+                     exc_info=True)
+        return {"status": "error",
+                "message": f"Ошибка при обновлении записи: {str(e)}"}
 
 if __name__ == '__main__':
   process_google_sheets_to_db()
