@@ -223,9 +223,9 @@ async def select_field_to_edit(update: Update, context: CallbackContext) -> int:
 
   field_names = {
     "guest": "Гость",
-    "booking_date": "Дата бронирования (ГГГГ-ДД-ММ)",
-    "check_in": "Дата заезда (ГГГГ-ДД-ММ)",
-    "check_out": "Дата выезда (ГГГГ-ДД-ММ)",
+    "booking_date": "Дата бронирования (ДД-ММ-ГГГГ)",
+    "check_in": "Дата заезда (ДД-ММ-ГГГГ)",
+    "check_out": "Дата выезда (ДД-ММ-ГГГГ)",
     "phone": "Телефон",
     "additional_phone": "Доп. телефон",
     "source": "Источник бронирования",
@@ -256,7 +256,7 @@ async def edit_field_value(update: Update, context: CallbackContext) -> int:
         field_key] = parsed_date.strftime('%d-%m-%Y')
     except ValueError:
       await update.message.reply_text(
-        "Неверный формат даты. Используйте ГГГГ-ДД-ММ")
+        "Неверный формат даты. Используйте ДД-ММ-ГГГГ")
       return EDIT_VALUE
   else:
     context.user_data['edit_booking']['data'][field_key] = new_value

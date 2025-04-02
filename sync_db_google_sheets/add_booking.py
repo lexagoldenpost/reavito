@@ -185,7 +185,7 @@ class AddBookingHandler:
         # Новая сессия
         self.active_sessions.add(user.id)
         context.user_data.clear()
-        context.user_data["booking_date"] = datetime.now().strftime("%Y-%m-%d")
+        context.user_data["booking_date"] = datetime.now().strftime("%d-%m-%Y")
 
         keyboard = [
           [InlineKeyboardButton(name, callback_data=name)]
@@ -267,10 +267,10 @@ class AddBookingHandler:
                 return GUEST_NAME
 
             context.user_data["guest"] = guest_name
+            # Автоматически используем текущую дату и переходим к дате заезда
             await update.message.reply_text(
-                f"📅 Введите дату бронирования (ДД.ММ.ГГГГ, по умолчанию {datetime.now().strftime('%d.%m.%Y')}):"
-            )
-            return BOOKING_DATE
+              "🏨 Введите дату заезда (ДД.ММ.ГГГГ):")
+            return CHECK_IN
 
         except Exception as e:
             logger.error(f"Error in guest_name: {e}", exc_info=True)
@@ -285,7 +285,7 @@ class AddBookingHandler:
                 date_str = datetime.now().strftime("%d.%m.%Y")
 
             date = datetime.strptime(date_str, "%d.%m.%Y").date()
-            formatted_date = date.strftime("%Y-%m-%d")
+            formatted_date = date.strftime("%d-%m-%Y")
             context.user_data["booking_date"] = formatted_date
 
             await update.message.reply_text("🏨 Введите дату заезда (ДД.ММ.ГГГГ):")
@@ -306,7 +306,7 @@ class AddBookingHandler:
         try:
             date_str = update.message.text.strip()
             date = datetime.strptime(date_str, "%d.%m.%Y").date()
-            formatted_date = date.strftime("%Y-%m-%d")
+            formatted_date = date.strftime("%d-%m-%Y")
             context.user_data["check_in"] = formatted_date
 
             await update.message.reply_text("🚪 Введите дату выезда (ДД.ММ.ГГГГ):")
@@ -327,14 +327,14 @@ class AddBookingHandler:
         try:
             date_str = update.message.text.strip()
             date = datetime.strptime(date_str, "%d.%m.%Y").date()
-            formatted_date = date.strftime("%Y-%m-%d")
+            formatted_date = date.strftime("%d-%m-%Y")
             context.user_data["check_out"] = formatted_date
 
             # Автоматический расчет количества ночей
             check_in_str = context.user_data.get("check_in")
             if check_in_str:
                 check_in_date = datetime.strptime(
-                    check_in_str, "%Y-%m-%d"
+                    check_in_str, "%d-%m-%Y"
                 ).date()
                 nights = (date - check_in_date).days
                 context.user_data["nights"] = str(nights)
