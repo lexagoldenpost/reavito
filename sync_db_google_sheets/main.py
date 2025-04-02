@@ -13,6 +13,7 @@ from commands import setup_command_handlers, COMMANDS
 from add_booking import AddBookingHandler
 from view_booking import view_booking_handler
 from sync_google_booking import process_google_sheets_to_db
+from create_contract import get_contract_conversation_handler
 
 logger = setup_logger("main")
 
@@ -54,6 +55,9 @@ class BookingBot:
 
         # 3. Добавляем обработчик для view_booking
         self.application.add_handler(CallbackQueryHandler(view_booking_handler))
+
+        # 4 Создание договора
+        self.application.add_handler(get_contract_conversation_handler())
 
         # 4. Обработчик неизвестных команд (должен быть последним)
         self.application.add_handler(

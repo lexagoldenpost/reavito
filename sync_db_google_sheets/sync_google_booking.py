@@ -542,5 +542,25 @@ def update_single_record_in_google_sheet(
         return {"status": "error",
                 "message": f"Ошибка при обновлении записи: {str(e)}"}
 
+async def sync_handler(update, context):
+  """Обработчик для синхронизации таблиц"""
+  try:
+    logger.info("Начало синхронизации данных из Google Sheets в БД")
+
+    # Вызываем функцию обработки Google Sheets
+    result = process_google_sheets_to_db()
+    # Проверяем статус ответа и отправляем соответствующее сообщение боту
+    if result.get("status") == "success":
+      logger.info("Синхронизация данных завершена успешно")
+      await update.message.reply_text("Синхронизация успешно завершена")
+    else:
+      error_msg = result.get("message", "Неизвестная ошибка при синхронизации")
+      logger.error(f"Ошибка при синхронизации: {error_msg}")
+      await update.message.reply_text(f"Ошибка при синхронизации: {error_msg}")
+
+  except Exception as e:
+    logger.error(f"Error in view_booking_handler: {e}")
+    await update.message.reply_text("Синхронизация: Произошла ошибка при обработке запроса")
+
 if __name__ == '__main__':
   process_google_sheets_to_db()
