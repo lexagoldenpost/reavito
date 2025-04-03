@@ -14,6 +14,7 @@ from add_booking import AddBookingHandler
 from view_booking import view_booking_handler
 from sync_google_booking import process_google_sheets_to_db
 from create_contract import get_contract_conversation_handler
+from sync_task import process_notifications_sheet
 
 logger = setup_logger("main")
 
@@ -94,6 +95,7 @@ if __name__ == "__main__":
     try:
         logger.info("Sync booking start...")
         process_google_sheets_to_db()
+        process_notifications_sheet()
         logger.info("Starting bot initialization...")
         bot = BookingBot()
         bot.run()

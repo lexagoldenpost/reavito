@@ -16,6 +16,7 @@ class Config:
     # Настройки Telegram Bot
     TELEGRAM_BOOKING_BOT_TOKEN = os.getenv("TELEGRAM_BOOKING_BOT_TOKEN")
     ALLOWED_TELEGRAM_USERNAMES = literal_eval(os.getenv("ALLOWED_TELEGRAM_USERNAMES", "[]"))
+    TELEGRAM_CHAT_NOTIFICATION_ID = literal_eval(os.getenv("TELEGRAM_CHAT_NOTIFICATION_ID", "[]"))
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
     TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
     TELEGRAM_API_ID = os.getenv("TELEGRAM_API_ID")
@@ -44,3 +45,7 @@ class Config:
     LOG_FILE = "service.log"
     LOG_ROTATION = "10 MB"  # Ротация при достижении 10 МБ
     LOG_RETENTION = 3       # Хранение 3 архивов
+
+    #Настройки шедуллера
+    SCHEDULER_PERIOD = float(os.getenv("SCHEDULER_PERIOD"))  # период в минутах
+    IS_SYNC_BOOKING = os.getenv("IS_SYNC_BOOKING") #Синхронизировать бронирования, только для одного компа, чтобы БД была норм иначе поедут ИД, для тесмтовых делаем бекапы

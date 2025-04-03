@@ -1,3 +1,4 @@
+# Синхронизация таблицы заданий
 import pandas as pd
 from sqlalchemy import select, delete
 from common.database import engine, SessionLocal
@@ -25,13 +26,14 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     'Триггер по объекту': 'trigger_object',
     'Если новое бронирование после триггера в днях отправляем или нет': 'send_if_new',
     'Триггер по столбцу': 'trigger_column',
-    'Тригер срок в днях': 'trigger_days',
+    'Тригер срок в днях (минус срок до, без срок после)': 'trigger_days',
     'Сообщение': 'message'
   }
 
   existing_columns = [col for col in column_mapping.keys() if col in df.columns]
   df = df.rename(
-    columns={k: v for k, v in column_mapping.items() if k in existing_columns})
+      columns={k: v for k, v in column_mapping.items() if
+               k in existing_columns})
 
   # Преобразуем время
   if 'start_time' in df.columns:
@@ -48,8 +50,20 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
   return df
 
 
-def process_notifications_sheet(google_sheet_key: str, credentials_json: dict):
-  """Основная функция синхронизации данных уведомлений"""
+def process_notifications_sheet(google_sheet_key: str = None,
+    credentials_json: dict = None):
+  """Основная функция синхронизации данных уведомлений
+
+  Args:
+      google_sheet_key (str, optional): Ключ Google таблицы. По умолчанию берется из конфига.
+      credentials_json (dict, optional): Данные авторизации. По умолчанию берется из конфига.
+  """
+  # Установка значений по умолчанию из конфига
+  if google_sheet_key is None:
+    google_sheet_key = Config.NOTIFICATIONS_SPREADSHEET_ID
+  if credentials_json is None:
+    credentials_json = Config.SERVICE_ACCOUNT_FILE
+
   with sync_lock:
     try:
       # Авторизация в Google Sheets API
@@ -138,7 +152,7 @@ def process_notifications_sheet(google_sheet_key: str, credentials_json: dict):
 
         for notif in existing_notifications:
           notif_key = (
-          notif.notification_type, notif.trigger_object, notif.trigger_column)
+            notif.notification_type, notif.trigger_object, notif.trigger_column)
           if notif_key not in current_notifs:
             session.delete(notif)
             logger.info(f"Удалено уведомление: {notif_key}")
@@ -197,7 +211,4 @@ def create_notification(row_data):
 
 
 if __name__ == '__main__':
-  process_notifications_sheet(
-      google_sheet_key=Config.NOTIFICATIONS_SPREADSHEET_ID,
-      credentials_json=Config.SERVICE_ACCOUNT_FILE
-  )
+  process_notifications_sheet()

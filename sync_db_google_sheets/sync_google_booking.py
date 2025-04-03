@@ -1,3 +1,4 @@
+# Синхронизация таблицы бронирования
 import json
 import threading
 from typing import Dict, Any, Union
@@ -13,8 +14,9 @@ from common.config import Config
 from common.database import SessionLocal
 from common.logging_config import setup_logger
 from models import Booking
+from sync_task import process_notifications_sheet
 
-logger = setup_logger("google_sheets_to_db")
+logger = setup_logger("sync_google_booking")
 
 # Глобальная блокировка для синхронизации
 sync_lock = threading.Lock()
@@ -83,6 +85,10 @@ def process_google_sheets_to_db(
   Основная функция синхронизации данных между Google Sheets и БД
   с автоматическим расчетом количества ночей
   """
+  if Config.IS_SYNC_BOOKING == "false":
+    logger.info(f"Не синхронизируем IS_SYNC_BOOKING: {Config.IS_SYNC_BOOKING}")
+    return
+
   if google_sheet_key is None:
     google_sheet_key = Config.SAMPLE_SPREADSHEET_ID
   if credentials_json is None:
@@ -552,11 +558,24 @@ async def sync_handler(update, context):
     # Проверяем статус ответа и отправляем соответствующее сообщение боту
     if result.get("status") == "success":
       logger.info("Синхронизация данных завершена успешно")
-      await update.message.reply_text("Синхронизация успешно завершена")
+      await update.message.reply_text("Синхронизация бронирований успешно завершена")
     else:
       error_msg = result.get("message", "Неизвестная ошибка при синхронизации")
       logger.error(f"Ошибка при синхронизации: {error_msg}")
-      await update.message.reply_text(f"Ошибка при синхронизации: {error_msg}")
+      await update.message.reply_text(f"Ошибка при синхронизации бронирований: {error_msg}")
+
+      # Вызываем функцию обработки Google Sheets
+      result = process_notifications_sheet()
+      # Проверяем статус ответа и отправляем соответствующее сообщение боту
+      if result.get("status") == "success":
+        logger.info("Синхронизация задач завершена успешно")
+        await update.message.reply_text("Синхронизация задач успешно завершена")
+      else:
+        error_msg = result.get("message",
+                               "Неизвестная ошибка при синхронизации")
+        logger.error(f"Ошибка при синхронизации: {error_msg}")
+        await update.message.reply_text(
+          f"Ошибка при синхронизации задач: {error_msg}")
 
   except Exception as e:
     logger.error(f"Error in view_booking_handler: {e}")

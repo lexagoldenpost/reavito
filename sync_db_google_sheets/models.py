@@ -38,6 +38,6 @@ class Notification(Base):
   trigger_object = Column(String)
   send_if_new = Column(String)
   trigger_column = Column(String)
-  trigger_days = Column(Float)
+  trigger_days = Column(Integer)
   message = Column(Text)
   last_updated = Column(DateTime)
