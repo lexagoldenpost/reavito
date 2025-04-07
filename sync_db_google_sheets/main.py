@@ -4,13 +4,12 @@ from telegram.ext import (
   CommandHandler,
   MessageHandler,
   filters,
-  CallbackQueryHandler,
-  ConversationHandler
+  CallbackQueryHandler
 )
-from common.config import Config
-from common.logging_config import setup_logger
+
+from add_booking import AddBookingHandler
+from chat_sync import process_chats_sheet
 from commands import (
-  setup_command_handlers,
   COMMANDS,
   start,
   help_command,
@@ -19,10 +18,12 @@ from commands import (
   sync_handler,
   exit_bot
 )
-from add_booking import AddBookingHandler
-from sync_google_booking import process_google_sheets_to_db
+from common.config import Config
+from common.logging_config import setup_logger
 from create_contract import get_contract_conversation_handler
+from sync_google_booking import process_google_sheets_to_db
 from sync_task import process_notifications_sheet
+from google_sheets_to_channels_keywords import process_channels_keywords_sheet
 
 logger = setup_logger("main")
 
@@ -146,6 +147,8 @@ if __name__ == "__main__":
     logger.info("Sync booking start...")
     process_google_sheets_to_db()
     process_notifications_sheet()
+    process_chats_sheet()
+    process_channels_keywords_sheet()
     logger.info("Starting bot initialization...")
     bot = BookingBot()
     bot.run()

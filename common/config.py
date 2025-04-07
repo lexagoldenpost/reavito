@@ -1,6 +1,7 @@
 import os
-from dotenv import load_dotenv
 from ast import literal_eval
+
+from dotenv import load_dotenv
 
 # Загружаем переменные окружения из файла .env
 load_dotenv()
@@ -23,6 +24,17 @@ class Config:
     TELEGRAM_API_HASH = os.getenv("TELEGRAM_API_HASH")
     TELEGRAM_BOT_NAME = os.getenv("TELEGRAM_BOT_NAME")
     TELEGRAM_PHONE = os.getenv("TELEGRAM_PHONE")
+
+    # Настройки Telegram User для поиска каналов
+    TELEGRAM_API_SEARCH_ID = os.getenv("TELEGRAM_API_SEARCH_ID")
+    TELEGRAM_API_SEARCH_HASH = os.getenv("TELEGRAM_API_SEARCH_HASH")
+    TELEGRAM_SEARCH_PHONE = os.getenv("TELEGRAM_SEARCH_PHONE")
+    TARGET_GROUP = os.getenv("TARGET_GROUP")
+
+    # Настройки Telegram User для отправки в каналы брониваний
+    TELEGRAM_API_SEND_BOOKING_ID = os.getenv("TELEGRAM_API_SEND_BOOKING_ID")
+    TELEGRAM_API_SEND_BOOKING_HASH = os.getenv("TELEGRAM_API_SEND_BOOKING_HASH")
+    TELEGRAM_SEND_BOOKING_PHONE = os.getenv("TELEGRAM_SEND_BOOKING_PHONE")
 
     # Настройки Avito API
     AVITO_CLIENT_ID = os.getenv("AVITO_CLIENT_ID")

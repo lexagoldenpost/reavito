@@ -1,11 +1,13 @@
 from datetime import datetime, timedelta, time as dt_time
+from typing import Optional
+
+import aiohttp  # Заменяем requests на асинхронный aiohttp
 from sqlalchemy import select, and_
+
+from common.config import Config
 from common.database import SessionLocal
 from common.logging_config import setup_logger
 from sync_db_google_sheets.models import Booking, Notification
-from common.config import Config
-from typing import Optional
-import aiohttp  # Заменяем requests на асинхронный aiohttp
 
 logger = setup_logger("notification_service")
 
@@ -95,10 +97,40 @@ async def send_notification(http_session, booking: Booking,
   """Формирует и отправляет уведомление"""
   trigger_info = format_notification_message(booking, notification,
                                              booking_date, date_type)
+  # Форматируем сообщение, заменяя {field_name} на значения из booking
+  formatted_message = format_message_with_booking_data(notification.message,
+                                                       booking)
   await send_telegram_message(http_session, trigger_info)
-  await send_telegram_message(http_session, notification.message)
+  await send_telegram_message(http_session, formatted_message)
   logger.info(f"Отправлено уведомление для бронирования ID: {booking.id}")
 
+
+def format_message_with_booking_data(message: str, booking: Booking) -> str:
+  """Заменяет {field_name} в сообщении на значения из объекта Booking"""
+  if not message:
+    return message
+
+  # Получаем все атрибуты объекта Booking
+  booking_fields = vars(booking)
+
+  # Ищем все конструкции {field_name} в сообщении
+  formatted_message = message
+  for field in booking_fields:
+    # Проверяем, есть ли поле в сообщении
+    placeholder = f"{{{field}}}"
+    if placeholder in formatted_message:
+      # Получаем значение поля из booking
+      field_value = getattr(booking, field, "")
+      # Преобразуем даты в читаемый формат
+      if isinstance(field_value, datetime):
+        field_value = field_value.strftime('%d.%m.%Y')
+      elif field_value is None:
+        field_value = ""
+      # Заменяем плейсхолдер на значение
+      formatted_message = formatted_message.replace(placeholder,
+                                                    str(field_value))
+
+  return formatted_message
 
 async def send_telegram_message(http_session, message: str):
   """Асинхронно отправляет сообщение в несколько Telegram чатов"""

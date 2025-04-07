@@ -1,5 +1,7 @@
 # models.py
-from sqlalchemy import Column, String, Integer, Float, Date, Text, Time, DateTime
+from sqlalchemy import Column, String, Integer, Date, Text, Time, DateTime, \
+  Boolean
+
 from common.database import Base
 
 
@@ -41,3 +43,23 @@ class Notification(Base):
   trigger_days = Column(Integer)
   message = Column(Text)
   last_updated = Column(DateTime)
+
+class Chat(Base):
+  __tablename__ = 'chats'
+  __table_args__ = {'extend_existing': True}
+
+  id = Column(Integer, primary_key=True)
+  chat_name = Column(String(100), nullable=False)  # Наименование чата
+  send_frequency = Column(Integer)  # Периодичность отправки в днях
+  accepts_images = Column(Boolean)  # Картинки принимает (Да/Нет)
+  chat_object = Column(String(100))  # Новый столбец: Объект
+  last_updated = Column(DateTime)  # Когда последний раз обновлялась запись
+
+class ChannelKeyword(Base):
+  __tablename__ = 'сhannel_keyword'
+  __table_args__ = {'extend_existing': True}
+
+  id = Column(Integer, primary_key=True)
+  channel = Column(String, nullable=False)  # Наименование канала или групп
+  keywords = Column(String, nullable=False)  # ключевые слова
+  last_updated = Column(DateTime)  # Когда последний раз обновлялась запись

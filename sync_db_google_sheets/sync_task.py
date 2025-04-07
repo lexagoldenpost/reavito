@@ -1,16 +1,18 @@
 # Синхронизация таблицы заданий
-import pandas as pd
-from sqlalchemy import select, delete
-from common.database import engine, SessionLocal
-from common.logging_config import setup_logger
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-from models import Notification  # Новая модель для уведомлений
-import numpy as np
-import threading
 import json
-from common.config import Config
+import threading
 from datetime import datetime
+
+import gspread
+import numpy as np
+import pandas as pd
+from oauth2client.service_account import ServiceAccountCredentials
+from sqlalchemy import select
+
+from common.config import Config
+from common.database import SessionLocal
+from common.logging_config import setup_logger
+from models import Notification  # Новая модель для уведомлений
 
 logger = setup_logger("google_sheets_to_notifications")
 
@@ -84,8 +86,12 @@ def process_notifications_sheet(google_sheet_key: str = None,
 
       # Открываем таблицу (работаем только с первым листом)
       spreadsheet = client.open_by_key(google_sheet_key)
-      sheet = spreadsheet.get_worksheet(0)  # Получаем первый лист
-      sheet_name = sheet.title
+      sheet_name = "Задачи"
+      if sheet_name:
+        sheet = spreadsheet.worksheet(sheet_name)
+      else:
+        sheet = spreadsheet.get_worksheet(0)  # fallback на первый лист
+        sheet_name = sheet.title
       logger.info(f"Обработка листа уведомлений: {sheet_name}")
 
       # Получаем все данные листа
