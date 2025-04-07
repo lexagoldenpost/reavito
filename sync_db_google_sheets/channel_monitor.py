@@ -1,12 +1,12 @@
 import sys
 import io
 import asyncio
-from typing import List, Dict, Set, Union
+from typing import Dict, Set
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from telethon import TelegramClient, events
-from telethon.tl.types import Message, Channel, PeerChannel, PeerChat, User
+from telethon.tl.types import Message, PeerChat, User
 from common.config import Config
 from common.logging_config import setup_logger
 from models import ChannelKeyword, Base
@@ -34,9 +34,8 @@ class ChannelMonitor:
     self.phone = Config.TELEGRAM_SEARCH_PHONE
     self.target_group = Config.TARGET_GROUP
 
-    self.channel_keywords: Dict[str, Set[str]] = {}
-    self.active_entities: Set[str] = set()
-    self.monitored_entities: List[Union[Channel, PeerChannel, PeerChat]] = []
+    # Словарь для хранения групп и их ключевых слов {group_name: {keywords}}
+    self.group_keywords: Dict[str, Set[str]] = {}
 
     self.client = TelegramClient(
         'channel_monitor_session',
@@ -45,180 +44,221 @@ class ChannelMonitor:
         system_version='4.16.30-vxCUSTOM'
     )
 
-  async def load_channel_keywords(self):
-    """Загрузка каналов и ключевых слов из БД"""
+  async def load_group_keywords(self):
+    """Загрузка групп и ключевых слов из БД"""
     try:
       async with AsyncSessionLocal() as session:
         result = await session.execute(select(ChannelKeyword))
         records = result.scalars().all()
 
         if not records:
-          logger.error("В базе данных нет записей о каналах/группах")
+          logger.error("В базе данных нет записей о группах")
           return False
 
-        self.channel_keywords.clear()
+        self.group_keywords.clear()
         for record in records:
           if not record.channel:
             continue
 
+          group_name = record.channel.strip()
           keywords = {kw.strip().lower()
                       for kw in record.keywords.split(',')
                       if kw.strip()} if record.keywords else set()
 
-          self.channel_keywords[record.channel] = keywords
+          self.group_keywords[group_name] = keywords
+          logger.info("Загружена группа: '%s' с ключевыми словами: %s",
+                      group_name, keywords)
 
-        logger.info("Загружено %d сущностей с ключевыми словами",
-                    len(self.channel_keywords))
         return True
 
     except Exception as e:
       logger.error("Ошибка загрузки данных: %s", str(e), exc_info=True)
       return False
 
-  async def get_active_entities(self):
-    """Получение активных каналов и групп"""
+    async def print_active_dialogs(self):
+      """Вывод информации о всех доступных диалогах (каналах и группах)"""
+      try:
+        dialogs = await self.client.get_dialogs()
+        if not dialogs:
+          logger.error("Не удалось получить список диалогов")
+          return
+
+        logger.info("Список всех доступных диалогов:")
+        for dialog in dialogs:
+          if not hasattr(dialog, "entity"):
+            continue
+
+          entity = dialog.entity
+
+          # Определяем тип сущности
+          if isinstance(entity, User):
+            entity_type = "Пользователь"
+          elif isinstance(entity, PeerChat):
+            entity_type = "Группа"
+          elif isinstance(entity, (Channel, PeerChannel)):
+            entity_type = "Канал"
+          else:
+            entity_type = "Неизвестный тип"
+
+          # Получаем информацию о доступности
+          if getattr(entity, 'left', False):
+            status = "Покинут"
+          elif getattr(entity, 'kicked', False):
+            status = "Заблокирован"
+          else:
+            status = "Активен"
+
+          name = getattr(entity, 'title', None) or getattr(entity, 'username',
+                                                           None) or "Без названия"
+
+          logger.info("- %s: '%s' (ID: %d, Тип: %s, Статус: %s)",
+                      "Диалог", name, entity.id, entity_type, status)
+
+      except Exception as e:
+        logger.error("Ошибка получения списка диалогов: %s", str(e),
+                     exc_info=True)
+
+  async def print_active_groups(self):
+    """Вывод информации о доступных группах"""
     try:
       dialogs = await self.client.get_dialogs()
       if not dialogs:
         logger.error("Не удалось получить список диалогов")
-        return []
+        return
 
-      active_entities = []
+      logger.info("Список доступных групп:")
       for dialog in dialogs:
         if not hasattr(dialog, "entity"):
           continue
 
         entity = dialog.entity
 
-        if isinstance(entity, User):
+        # Проверяем разными способами, что это группа
+        is_group = False
+        if dialog.is_group:
+          is_group = True
+        elif isinstance(entity, PeerChat):
+          is_group = True
+        elif hasattr(entity, 'megagroup') and entity.megagroup:
+          is_group = True
+        elif hasattr(entity, 'broadcast') and not entity.broadcast:
+          is_group = True
+
+        if not is_group:
           continue
 
-        if isinstance(entity, (Channel, PeerChannel, PeerChat)):
-          if getattr(entity, 'left', False) or getattr(entity, 'kicked', False):
-            continue
+        status = ""
+        if getattr(entity, 'left', False):
+          status = " (Покинута)"
+        elif getattr(entity, 'kicked', False):
+          status = " (Заблокирована)"
 
-          name = getattr(entity, 'username', None) or getattr(entity, 'title',
-                                                              None)
-          if name:
-            active_entities.append((name, entity))
-
-      if not active_entities:
-        logger.error("Активные каналы/группы не найдены")
-      else:
-        logger.info("Найдено активных сущностей: %d", len(active_entities))
-
-      return active_entities
+        name = getattr(entity, 'title', "Без названия")
+        logger.info("- Группа: '%s'%s (ID: %d, Тип: %s)",
+                    name, status, entity.id, type(entity))
 
     except Exception as e:
-      logger.error("Ошибка получения сущностей: %s", str(e), exc_info=True)
-      return []
+      logger.error("Ошибка получения списка групп: %s", str(e), exc_info=True)
 
   async def setup_monitoring(self):
-    """Настройка мониторинга каналов и групп"""
-    if not await self.load_channel_keywords():
+    """Настройка обработчика сообщений"""
+    if not await self.load_group_keywords():
       return False
 
-    active_entities = await self.get_active_entities()
-    if not active_entities:
-      return False
+    await self.print_active_groups()
 
-    self.monitored_entities = []
-    self.active_entities = set()
-    matched = 0
-
-    def normalize(name):
-      return name.replace("@", "").replace("https://t.me/",
-                                           "").strip().lower() if name else ""
-
-    db_entities = {normalize(name): name for name in
-                   self.channel_keywords.keys()}
-
-    for entity_name, entity in active_entities:
+    @self.client.on(events.NewMessage())
+    async def handler(event):
       try:
-        norm_name = normalize(entity_name)
+        if not event.is_group:
+          return
+        message = event.message
+        if not message or not message.text:
+          return
 
-        if norm_name in db_entities:
-          self.monitored_entities.append(entity)
-          self.active_entities.add(entity_name)
-          matched += 1
+        # Получаем полную информацию о чате
+        chat = await event.get_chat()
+        if not chat:
+          logger.debug("Не удалось получить информацию о чате")
+          return
 
-          entity_type = "группа" if isinstance(entity, PeerChat) else "канал"
-          logger.info("Сопоставлена %s: Telegram: '%s' ↔ БД: '%s'",
-                      entity_type, entity_name, db_entities[norm_name])
+        # Логируем тип чата для диагностики
+        logger.debug("Тип чата: %s, Атрибуты: %s", type(chat), dir(chat))
+
+        # Получаем название группы
+        group_name = getattr(chat, 'title', None)
+        if not group_name:
+          logger.debug("Не удалось получить название группы")
+          return
+
+        logger.debug("Обработка сообщения из группы: %s", group_name)
+
+        # Проверяем, что группа есть в нашей БД
+        if group_name not in self.group_keywords:
+          logger.debug("Группа '%s' не найдена в БД", group_name)
+          return
+
+        # Проверяем ключевые слова
+        keywords = self.group_keywords[group_name]
+        if not keywords:
+          logger.debug("Для группы '%s' нет ключевых слов", group_name)
+          return
+
+        text_lower = message.text.lower()
+        if any(keyword in text_lower for keyword in keywords):
+          logger.info("Найдено ключевое слово в группе '%s'", group_name)
+          await self.forward_to_group(message, group_name)
+
       except Exception as e:
-        logger.warning("Ошибка обработки сущности %s: %s", entity_name, str(e))
+        logger.error("Ошибка обработки сообщения: %s", str(e), exc_info=True)
 
-    if not matched:
-      logger.error("Совпадений не найдено. Проверьте:")
-      logger.info("Сущности в БД: %s", list(self.channel_keywords.keys()))
-      logger.info("Активные сущности: %s",
-                  [name for name, _ in active_entities])
-      return False
-
-    self.client.add_event_handler(
-        self.handle_new_message,
-        events.NewMessage(chats=self.monitored_entities)
-    )
-
-    logger.info("Мониторинг запущен для %d сущностей: %s", matched,
-                list(self.active_entities))
     return True
 
-  def contains_keywords(self, entity_name: str, text: str) -> bool:
-    if not text or not entity_name:
-      return False
-
-    if entity_name not in self.channel_keywords:
-      return False
-
-    text_lower = text.lower()
-    keywords = self.channel_keywords[entity_name]
-
-    return any(keyword in text_lower for keyword in keywords)
-
-  async def forward_to_group(self, message: Message):
+  async def forward_to_group(self, message: Message, group_name: str):
+    """Пересылка сообщения в целевую группу"""
     try:
-      chat_title = getattr(message.chat, 'title', 'Без названия')
-      target_entity = await self.client.get_entity(self.target_group)
+      # Получаем полную информацию о целевом чате
+      try:
+        target_entity = await self.client.get_entity(self.target_group)
+      except Exception as e:
+        logger.error("Ошибка получения целевого чата '%s': %s",
+                     self.target_group, str(e))
+        return
 
-      entity_type = "группе" if isinstance(message.chat, PeerChat) else "канале"
+      # Получаем информацию об исходном чате
+      try:
+        chat = await message.get_chat()
+        chat_id = chat.id
+      except Exception as e:
+        logger.error("Ошибка получения информации об исходном чате: %s", str(e))
+        chat_id = 0  # Используем 0 если не удалось получить ID
 
+      # Формируем текст сообщения
+      message_text = (
+        f"🔍 Найдено соответствие в группе {group_name}\n\n"
+        f"📄 Текст сообщения:\n{message.text}\n\n"
+      )
+
+      # Добавляем ссылку только если есть chat_id
+      if chat_id:
+        message_text += f"🔗 Ссылка: https://t.me/c/{chat_id}/{message.id}"
+      else:
+        message_text += "⚠️ Не удалось получить ссылку на сообщение"
+
+      # Отправляем сообщение
       await self.client.send_message(
-          target_entity,
-          "Найдено соответствие в {} {}\n\nТекст сообщения:\n{}\n\nСсылка: https://t.me/c/{}/{}".format(
-              entity_type, chat_title, message.text, message.chat.id, message.id
-          ),
+          entity=target_entity,
+          message=message_text,
           link_preview=False
       )
-      logger.info("Сообщение переслано в группу %s", self.target_group)
+      logger.info("Сообщение из группы '%s' переслано в '%s'",
+                  group_name, self.target_group)
 
     except Exception as e:
-      logger.error("Ошибка при пересылке: %s", str(e), exc_info=True)
-
-  async def handle_new_message(self, event):
-    try:
-      message = event.message
-      if not message or not message.text:
-        return
-
-      chat = event.chat
-      entity_name = getattr(chat, 'title', None) or getattr(chat, 'username',
-                                                            None)
-      if not entity_name or entity_name not in self.active_entities:
-        return
-
-      entity_type = "группы" if isinstance(chat, PeerChat) else "канала"
-      logger.debug("Новое сообщение из %s %s: %s", entity_type, entity_name,
-                   message.text[:50])
-
-      if self.contains_keywords(entity_name, message.text):
-        logger.info("Найдено соответствие в %s %s", entity_type, entity_name)
-        await self.forward_to_group(message)
-
-    except Exception as e:
-      logger.error("Ошибка обработки сообщения: %s", str(e), exc_info=True)
+      logger.error("Ошибка при пересылке сообщения: %s", str(e), exc_info=True)
 
   async def start(self):
+    """Запуск мониторинга"""
     try:
       await self.client.start(self.phone)
       logger.info("Клиент Telegram успешно запущен")
@@ -235,6 +275,7 @@ class ChannelMonitor:
       logger.info("Клиент Telegram отключен")
 
   def run(self):
+    """Синхронный запуск мониторинга"""
     try:
       with self.client:
         self.client.loop.run_until_complete(self.start())
