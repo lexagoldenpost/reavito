@@ -15,63 +15,73 @@ logger = setup_logger("notification_service")
 TELEGRAM_BOT_TOKEN = Config.TELEGRAM_BOOKING_BOT_TOKEN
 TELEGRAM_CHAT_IDS = Config.TELEGRAM_CHAT_NOTIFICATION_ID
 
+
 async def check_notification_triggers():
-    """Асинхронная проверка триггеров уведомлений"""
-    logger.info("Запуск проверки триггеров уведомлений")
-    current_datetime = datetime.now()
-    current_date = current_datetime.date()
+  """Асинхронная проверка триггеров уведомлений"""
+  logger.info("Запуск проверки триггеров уведомлений")
+  current_datetime = datetime.now()
+  current_date = current_datetime.date()
 
-    try:
-        with SessionLocal() as session:
-            max_trigger_days = session.execute(
-                select(Notification.trigger_days)
-            ).scalar()
+  try:
+    with SessionLocal() as session:
+      # Получаем все активные уведомления
+      notifications = session.execute(
+          select(Notification)
+      ).scalars().all()
 
-            if max_trigger_days is None:
-                logger.info("Нет уведомлений для обработки")
-                return
+      if not notifications:
+        logger.info("Нет уведомлений для обработки")
+        return
 
-            trigger_objects = session.execute(
-                select(Notification.trigger_object).distinct()
-            ).scalars().all()
+      # Получаем уникальные объекты для триггеров
+      trigger_objects = list({n.trigger_object for n in notifications})
 
-            if not trigger_objects:
-                logger.info("Нет объектов для триггеров")
-                return
+      # Находим максимальный и минимальный trigger_days для оптимизации запроса
+      max_trigger_days = max(n.trigger_days for n in notifications)
+      min_trigger_days = min(n.trigger_days for n in notifications)
 
-            date_threshold = current_date - timedelta(days=max_trigger_days)
-            bookings = session.execute(
-                select(Booking).where(
-                    and_(
-                        Booking.sheet_name.in_(trigger_objects),
-                        Booking.check_out >= date_threshold
-                    )
-                )
-            ).scalars().all()
+      # Вычисляем границы дат для фильтрации
+      date_start = current_date + timedelta(days=min_trigger_days)
+      date_end = current_date + timedelta(days=max_trigger_days)
 
-            if not bookings:
-                logger.info("Нет подходящих бронирований для проверки")
-                return
+      # Получаем бронирования в нужном диапазоне дат
+      bookings = session.execute(
+          select(Booking).where(
+              and_(
+                  Booking.sheet_name.in_(trigger_objects),
+                  Booking.check_out >= date_start,
+                  Booking.check_in <= date_end
+              )
+          )
+      ).scalars().all()
 
-            notifications = session.execute(
-                select(Notification)
-            ).scalars().all()
+      if not bookings:
+        logger.info("Нет подходящих бронирований для проверки")
+        return
 
-            # Создаем сессию aiohttp для всех запросов
-            async with aiohttp.ClientSession() as http_session:
-                for booking in bookings:
-                    for notification in notifications:
-                        if (booking.sheet_name == notification.trigger_object and
-                            is_time_in_window(notification.start_time, current_datetime)):
+      # Создаем сессию aiohttp для всех запросов
+      async with aiohttp.ClientSession() as http_session:
+        for booking in bookings:
+          for notification in notifications:
+            if booking.sheet_name != notification.trigger_object:
+              continue
 
-                            booking_date, date_type = get_booking_date(booking, notification)
-                            if booking_date and is_trigger_day(booking_date, current_date, notification.trigger_days):
-                                await send_notification(http_session, booking, notification, booking_date, date_type)
+            if not is_time_in_window(notification.start_time, current_datetime):
+              continue
 
-    except Exception as e:
-        logger.error(f"Ошибка при проверке триггеров: {str(e)}", exc_info=True)
+            booking_date, date_type = get_booking_date(booking, notification)
+            if not booking_date:
+              continue
 
-def is_time_in_window(target_time: Optional[dt_time], current_time: datetime, window_minutes: int = 30) -> bool:
+            if is_trigger_day(booking_date, current_date,
+                              notification.trigger_days):
+              await send_notification(http_session, booking, notification,
+                                      booking_date, date_type)
+
+  except Exception as e:
+    logger.error(f"Ошибка при проверке триггеров: {str(e)}", exc_info=True)
+
+def is_time_in_window(target_time: Optional[dt_time], current_time: datetime, window_minutes: int = 29) -> bool:
     """Проверяет совпадение времени с учетом окна"""
     if target_time is None:
         return True
@@ -87,9 +97,20 @@ def get_booking_date(booking: Booking, notification: Notification) -> tuple:
         return booking.check_out, "выезда"
     return None, ""
 
+
 def is_trigger_day(booking_date, current_date, trigger_days) -> bool:
-    """Проверяет совпадение дней до события"""
-    return abs((booking_date - current_date).days) == abs(trigger_days)
+  """Проверяет совпадение дней до/после события в зависимости от знака trigger_days"""
+  delta = (booking_date - current_date).days
+
+  if trigger_days > 0:
+    # Положительные значения - проверяем после даты (осталось дней)
+    return 0 <= delta <= trigger_days
+  elif trigger_days < 0:
+    # Отрицательные значения - проверяем до даты (дней до события)
+    return trigger_days <= delta <= 0
+  else:
+    # Нулевое значение - проверяем точное совпадение дат
+    return delta == 0
 
 
 async def send_notification(http_session, booking: Booking,
@@ -159,6 +180,7 @@ async def send_telegram_message(http_session, message: str):
 
 def format_notification_message(booking: Booking, notification: Notification, booking_date, date_type: str) -> str:
     """Форматирует сообщение уведомления"""
+    trigger_type = "до" if notification.trigger_days < 0 else "после"
     return (
         "🔔 <b>Сработало уведомление</b> 🔔\n"
         f"🏠 <b>Объект:</b> {notification.trigger_object}\n"
@@ -168,7 +190,7 @@ def format_notification_message(booking: Booking, notification: Notification, bo
         f"⏰ <b>Тип уведомления:</b> {notification.notification_type}\n"
         f"📆 <b>Триггер дата {date_type}:</b> {booking_date.strftime('%d.%m.%Y')}\n"
         f"📌 <b>Триггер по:</b> {date_type}\n"
-        f"⏳ <b>Дней до {date_type}:</b> {notification.trigger_days}\n"
+        f"⏳ <b>Дней {trigger_type} {date_type}:</b> {notification.trigger_days}\n"
         f"🕒 <b>Время уведомления:</b> {notification.start_time.strftime('%H:%M') if notification.start_time else 'Любое'}\n"
         f"📋 <b>ID брони:</b> {booking.id}\n\n"
         "<b>Сообщение:</b>"
