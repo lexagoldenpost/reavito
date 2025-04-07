@@ -4,6 +4,7 @@ from datetime import datetime, timedelta  # Добавляем импорт time
 from typing import Dict, List, Coroutine, Optional
 from common.logging_config import setup_logger
 from notification_service import check_notification_triggers
+from halo_notification_service import send_halo_notifications
 from common.config import Config
 
 logger = setup_logger("scheduler")
@@ -19,12 +20,12 @@ class AsyncScheduler:
         'interval': Config.SCHEDULER_PERIOD
       }
       # Можно добавить другие задачи здесь
-      # ,
-      # {
-      #     'name': 'another_task',
-      #     'coro': another_module.task_function,
-      #     'interval': 5  # будет запускаться каждые 5 минут
-      # }
+      ,
+      {
+          'name': 'send_halo_notifications',
+          'coro': send_halo_notifications("HALO Title"),
+          'interval': 5  # будет запускаться каждые 5 минут
+      }
     ]
     self.last_run_time: Optional[datetime] = None
     self.scheduler_period = Config.SCHEDULER_PERIOD * 60

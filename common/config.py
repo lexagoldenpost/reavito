@@ -31,6 +31,9 @@ class Config:
     TELEGRAM_SEARCH_PHONE = os.getenv("TELEGRAM_SEARCH_PHONE")
     TARGET_GROUP = os.getenv("TARGET_GROUP")
 
+    TELEGRAM_SESSION_NAME = os.getenv("TELEGRAM_SESSION_NAME")
+    IMAGES_FOLDER = os.getenv("IMAGES_FOLDER")
+
     # Настройки Telegram User для отправки в каналы брониваний
     TELEGRAM_API_SEND_BOOKING_ID = os.getenv("TELEGRAM_API_SEND_BOOKING_ID")
     TELEGRAM_API_SEND_BOOKING_HASH = os.getenv("TELEGRAM_API_SEND_BOOKING_HASH")

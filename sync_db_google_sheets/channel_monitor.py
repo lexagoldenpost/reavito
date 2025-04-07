@@ -18,6 +18,7 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 logger = setup_logger("channel_monitor")
 
 DATABASE_URL = f"postgresql+asyncpg://{Config.POSTGRES_USER}:{Config.POSTGRES_PASSWORD}@{Config.POSTGRES_HOST}:{Config.POSTGRES_PORT}/{Config.POSTGRES_DB}"
+TELEGRAM_SESSION_NAME = Config.TELEGRAM_SEARCH_PHONE+"_"+Config.TELEGRAM_SESSION_NAME
 
 async_engine = create_async_engine(DATABASE_URL, echo=True)
 AsyncSessionLocal = sessionmaker(
@@ -38,7 +39,7 @@ class ChannelMonitor:
     self.group_keywords: Dict[str, Set[str]] = {}
 
     self.client = TelegramClient(
-        'channel_monitor_session',
+        TELEGRAM_SESSION_NAME,
         self.api_id,
         self.api_hash,
         system_version='4.16.30-vxCUSTOM'
