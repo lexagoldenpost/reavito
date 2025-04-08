@@ -130,7 +130,6 @@ async def send_halo_notifications(title: str):
               await client.send_message(chat_entity, message)
               logger.info(
                   f"Текстовое сообщение отправлено в группу {group.chat_name}")
-
           except Exception as e:
             logger.error(
                 f"Ошибка работы с группой {group.chat_name}: {str(e)}")
@@ -216,6 +215,24 @@ async def is_user_banned(client: TelegramClient, chat_id: int) -> bool:
 async def main():
   await send_halo_notifications("HALO Title")
 
+async def logout():
+  """Завершает сессию Telegram и удаляет файл сессии"""
+  try:
+    async with TelegramClient(TELEGRAM_SESSION_NAME, TELEGRAM_API_ID,
+                              TELEGRAM_API_HASH) as client:
+      await client.log_out()
+      logger.info("Успешный выход из Telegram аккаунта")
+
+    # Удаляем файл сессии
+    session_file = Path(f"{TELEGRAM_SESSION_NAME}.session")
+    if session_file.exists():
+      session_file.unlink()
+      logger.info(f"Файл сессии {session_file} удален")
+  except Exception as e:
+    logger.error(f"Ошибка при выходе из аккаунта: {str(e)}", exc_info=True)
+
 
 if __name__ == "__main__":
+  # Для выхода из аккаунта
+  #asyncio.run(logout())
   asyncio.run(main())
