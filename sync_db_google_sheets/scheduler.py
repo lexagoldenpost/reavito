@@ -1,11 +1,12 @@
 # scheduler.py
 import asyncio
-from datetime import datetime, timedelta  # Добавляем импорт timedelta
+from datetime import datetime, timedelta
 from typing import Dict, List, Coroutine, Optional
 from common.logging_config import setup_logger
 from notification_service import check_notification_triggers
 from halo_notification_service import send_halo_notifications
 from common.config import Config
+import random
 
 logger = setup_logger("scheduler")
 
@@ -18,13 +19,14 @@ class AsyncScheduler:
         'name': 'notification_check',
         'coro': check_notification_triggers,
         'interval': Config.SCHEDULER_PERIOD
-      }
-      # Можно добавить другие задачи здесь
-      ,
+      },
       {
-          'name': 'send_halo_notifications',
-          'coro': send_halo_notifications("HALO Title"),
-          'interval': 5  # будет запускаться каждые 5 минут
+        'name': 'send_halo_notifications',
+        'coro': send_halo_notifications("HALO Title"),
+        'base_interval': 7 * 24 * 60,  # 1 неделя в минутах
+        'additional_delay': 3,  # Дополнительные 3 минуты к интервалу
+        'initial_delay': random.randint(0, 5),  # Случайное смещение 0-5 минут
+        'last_run': None
       }
     ]
     self.last_run_time: Optional[datetime] = None
@@ -44,32 +46,92 @@ class AsyncScheduler:
           return False
         await asyncio.sleep(5 * attempt)
 
+  async def _should_run_job(self, job: dict) -> bool:
+    """Определяет, нужно ли запускать задачу сейчас"""
+    current_time = datetime.now()
+
+    # Для обычных задач с фиксированным интервалом
+    if 'base_interval' not in job:
+      if self.last_run_time and (
+          current_time - self.last_run_time).total_seconds() < (
+          self.scheduler_period - 5):
+        return False
+      return True
+
+    # Для еженедельных задач с дополнительным смещением
+    if job['last_run'] is None:
+      # Первый запуск - применяем initial_delay
+      if (current_time - self._get_start_of_week()).total_seconds() / 60 >= job[
+        'initial_delay']:
+        return True
+      return False
+
+    # Последующие запуски - неделя + 3 минуты от последнего запуска
+    next_run_time = job['last_run'] + timedelta(
+        minutes=job['base_interval'] + job['additional_delay']
+    )
+    return current_time >= next_run_time
+
+  def _get_start_of_week(self) -> datetime:
+    """Возвращает начало текущей недели (понедельник 00:00)"""
+    today = datetime.now()
+    return today - timedelta(days=today.weekday(),
+                             hours=today.hour,
+                             minutes=today.minute,
+                             seconds=today.second,
+                             microseconds=today.microsecond)
+
   async def _run_all_tasks_once(self):
     """Запуск всех задач один раз"""
     current_time = datetime.now()
-    if self.last_run_time and (
-        current_time - self.last_run_time).total_seconds() < (
+    run_regular = False
+
+    # Проверяем нужно ли запускать регулярные задачи
+    if self.last_run_time is None or (
+        current_time - self.last_run_time).total_seconds() >= (
         self.scheduler_period - 5):
+      run_regular = True
+      self.last_run_time = current_time
+
+    tasks_to_run = []
+    for job in self.jobs:
+      if await self._should_run_job(job):
+        tasks_to_run.append(job)
+
+    if not tasks_to_run:
       return
 
-    logger.info(f"Starting tasks (period: {Config.SCHEDULER_PERIOD} min)")
-    self.last_run_time = current_time
+    logger.info(f"Starting {len(tasks_to_run)} tasks")
 
     results = await asyncio.gather(
         *[self._run_with_retry(job['coro'](), job['name'])
-          for job in self.jobs],
+          for job in tasks_to_run],
         return_exceptions=True
     )
 
-    for job, success in zip(self.jobs, results):
+    for job, success in zip(tasks_to_run, results):
       if success:
-        logger.info(f"Task {job['name']} succeeded")
+        job['last_run'] = datetime.now()  # Обновляем время последнего запуска
+        logger.info(f"Task {job['name']} succeeded at {job['last_run']}")
+        if 'base_interval' in job:
+          next_run = job['last_run'] + timedelta(
+              minutes=job['base_interval'] + job['additional_delay']
+          )
+          logger.info(f"Next run scheduled at {next_run}")
       else:
         logger.error(f"Task {job['name']} failed")
 
   async def run(self):
     """Основной цикл планировщика"""
-    logger.info(f"Starting scheduler (interval: {Config.SCHEDULER_PERIOD} min)")
+    logger.info("Starting scheduler")
+    logger.info(f"Regular tasks interval: {Config.SCHEDULER_PERIOD} min")
+
+    weekly_job = next(j for j in self.jobs if j.get('base_interval'))
+    logger.info(
+        f"Initial weekly task delay: {weekly_job['initial_delay']} min\n"
+        f"Subsequent runs: every {weekly_job['base_interval']} min + "
+        f"{weekly_job['additional_delay']} min from last run time"
+    )
 
     try:
       while True:
@@ -80,7 +142,7 @@ class AsyncScheduler:
         elapsed = (datetime.now() - start_time).total_seconds()
         sleep_time = max(0, self.scheduler_period - elapsed)
 
-        logger.debug(f"Next run in {sleep_time:.1f} seconds")
+        logger.debug(f"Next regular check in {sleep_time:.1f} seconds")
         await asyncio.sleep(sleep_time)
 
     except asyncio.CancelledError:

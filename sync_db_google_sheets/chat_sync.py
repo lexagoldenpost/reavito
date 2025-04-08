@@ -23,7 +23,7 @@ def clean_chat_data(df: pd.DataFrame) -> pd.DataFrame:
     """Очищает и преобразует данные DataFrame для чатов"""
     column_mapping = {
         'Наименование чата': 'chat_name',
-        'Периодичность отправки в днях': 'send_frequency',
+        'Срок в днях меньше которого не отправляем ': 'send_frequency',
         'Картинки принимает (Да/Нет)': 'accepts_images',
         'Объект': 'chat_object'  # Добавлен новый столбец
     }
