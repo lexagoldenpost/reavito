@@ -7,9 +7,14 @@ from notification_service import check_notification_triggers
 from halo_notification_service import send_halo_notifications
 from common.config import Config
 import random
+import os
 
 logger = setup_logger("scheduler")
 
+# Константы
+LAST_RUN_FILE = "last_halo_run.json"
+DEFAULT_INTERVAL = 7 * 24 * 60  # 1 неделя в минутах
+ADDITIONAL_DELAY = 2  # Дополнительные 2 минуты
 
 class AsyncScheduler:
   def __init__(self):
@@ -31,6 +36,25 @@ class AsyncScheduler:
     ]
     self.last_run_time: Optional[datetime] = None
     self.scheduler_period = Config.SCHEDULER_PERIOD * 60
+
+    def load_last_run_time() -> Optional[datetime]:
+      """Загружает время последнего запуска из файла"""
+      try:
+        if os.path.exists(LAST_RUN_FILE):
+          with open(LAST_RUN_FILE, 'r') as f:
+            data = json.load(f)
+            return datetime.fromisoformat(data['last_run'])
+      except Exception as e:
+        logger.error(f"Error loading last run time: {e}")
+      return None
+
+  def save_last_run_time(time: datetime):
+    """Сохраняет время последнего запуска в файл"""
+    try:
+      with open(LAST_RUN_FILE, 'w') as f:
+        json.dump({'last_run': time.isoformat()}, f)
+    except Exception as e:
+      logger.error(f"Error saving last run time: {e}")
 
   async def _run_with_retry(self, coro: Coroutine, task_name: str,
       max_retries: int = 3) -> bool:
