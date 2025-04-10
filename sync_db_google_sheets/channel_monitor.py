@@ -18,7 +18,7 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 logger = setup_logger("channel_monitor")
 
 DATABASE_URL = f"postgresql+asyncpg://{Config.POSTGRES_USER}:{Config.POSTGRES_PASSWORD}@{Config.POSTGRES_HOST}:{Config.POSTGRES_PORT}/{Config.POSTGRES_DB}"
-TELEGRAM_SESSION_NAME = Config.TELEGRAM_SEARCH_PHONE+"_"+Config.TELEGRAM_SESSION_NAME
+TELEGRAM_SESSION_NAME = Config.TELEGRAM_API_SEND_BOOKING_ID+'_'+Config.TELEGRAM_SESSION_NAME
 
 async_engine = create_async_engine(DATABASE_URL, echo=True)
 AsyncSessionLocal = sessionmaker(
@@ -30,9 +30,9 @@ AsyncSessionLocal = sessionmaker(
 
 class ChannelMonitor:
   def __init__(self):
-    self.api_id = Config.TELEGRAM_API_SEARCH_ID
-    self.api_hash = Config.TELEGRAM_API_SEARCH_HASH
-    self.phone = Config.TELEGRAM_SEARCH_PHONE
+    self.api_id = Config.TELEGRAM_API_SEND_BOOKING_ID
+    self.api_hash = Config.TELEGRAM_API_SEND_BOOKING_HASH
+    self.phone = Config.TELEGRAM_SEND_BOOKING_PHONE
     self.target_group = Config.TARGET_GROUP
 
     # Словарь для хранения групп и их ключевых слов {group_name: {keywords}}

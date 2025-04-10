@@ -15,9 +15,9 @@ from sync_db_google_sheets.models import Booking, Chat
 logger = setup_logger("halo_notification_service")
 
 # Конфигурация из переменных окружения
-TELEGRAM_API_ID = Config.TELEGRAM_API_SEARCH_ID
-TELEGRAM_API_HASH = Config.TELEGRAM_API_SEARCH_HASH
-TELEGRAM_SESSION_NAME = Config.TELEGRAM_API_SEND_BOOKING_ID+'channel_monitor_session'
+TELEGRAM_API_ID = Config.TELEGRAM_API_SEND_BOOKING_ID
+TELEGRAM_API_HASH = Config.TELEGRAM_API_SEND_BOOKING_HASH
+TELEGRAM_SESSION_NAME = Config.TELEGRAM_API_SEND_BOOKING_ID+'_'+Config.TELEGRAM_SESSION_NAME
 IMAGES_FOLDER = Path(Config.IMAGES_FOLDER) if Config.IMAGES_FOLDER else None
 
 
