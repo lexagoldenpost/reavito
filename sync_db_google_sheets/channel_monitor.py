@@ -123,7 +123,7 @@ class ChannelMonitor:
             logger.error(f"Ошибка при получении списка подписок: {str(e)}", exc_info=True)
 
     async def load_group_keywords(self):
-        """Загрузка групп и ключевых слов из БД"""
+        """Загрузка групп и ключевых слов из БД с поддержкой ID"""
         try:
             async with AsyncSessionLocal() as session:
                 result = await session.execute(select(ChannelKeyword))
@@ -138,14 +138,16 @@ class ChannelMonitor:
                     if not record.channel:
                         continue
 
-                    group_name = record.channel.strip()
+                    # Пытаемся определить, указан ли ID (число) или название
+                    group_identifier = record.channel.strip()
                     keywords = {kw.strip().lower()
                                 for kw in record.keywords.split(',')
                                 if kw.strip()} if record.keywords else set()
 
-                    self.group_keywords[group_name] = keywords
+                    # Сохраняем в формате {identifier: keywords}
+                    self.group_keywords[group_identifier] = keywords
                     logger.info("Загружена группа: '%s' с ключевыми словами: %s",
-                                group_name, keywords)
+                                group_identifier, keywords)
 
                 return True
 
@@ -200,6 +202,7 @@ class ChannelMonitor:
         """Вывод информации о доступных группах"""
         try:
             dialogs = await self.client.get_dialogs()
+            logger.info(f"Всего диалогов: {len(dialogs)}")
             if not dialogs:
                 logger.error("Не удалось получить список диалогов")
                 return
@@ -250,42 +253,46 @@ class ChannelMonitor:
             try:
                 if not event.is_group:
                     return
+
                 message = event.message
                 if not message or not message.text:
                     return
 
-                # Получаем полную информацию о чате
+                # Получаем информацию о чате
                 chat = await event.get_chat()
                 if not chat:
                     logger.debug("Не удалось получить информацию о чате")
                     return
 
-                # Логируем тип чата для диагностики
-                logger.debug("Тип чата: %s, Атрибуты: %s", type(chat), dir(chat))
-
-                # Получаем название группы
+                # Получаем и название, и ID чата
                 group_name = getattr(chat, 'title', None)
-                if not group_name:
-                    logger.debug("Не удалось получить название группы")
-                    return
+                group_id = str(chat.id) if hasattr(chat, 'id') else None
 
-                logger.debug("Обработка сообщения из группы: %s", group_name)
+                logger.debug(f"Сообщение из чата: название='{group_name}', ID={group_id}")
 
-                # Проверяем, что группа есть в нашей БД
-                if group_name not in self.group_keywords:
-                    logger.debug("Группа '%s' не найдена в БД", group_name)
+                # Проверяем совпадение по названию или ID
+                matched_identifier = None
+                for identifier in self.group_keywords:
+                    # Сравниваем с названием (если есть) или с ID
+                    if (group_name and identifier == group_name) or (group_id and identifier == group_id):
+                        matched_identifier = identifier
+                        break
+
+                if not matched_identifier:
+                    logger.debug(f"Чат не найден в БД (название='{group_name}', ID={group_id})")
                     return
 
                 # Проверяем ключевые слова
-                keywords = self.group_keywords[group_name]
+                keywords = self.group_keywords[matched_identifier]
                 if not keywords:
-                    logger.debug("Для группы '%s' нет ключевых слов", group_name)
+                    logger.debug(f"Для чата '{matched_identifier}' нет ключевых слов")
                     return
 
                 text_lower = message.text.lower()
                 if any(keyword in text_lower for keyword in keywords):
-                    logger.info("Найдено ключевое слово в группе '%s'", group_name)
-                    await self.forward_to_group(message, group_name)
+                    display_name = group_name if group_name else f"ID:{group_id}"
+                    logger.info(f"Найдено ключевое слово в чате '{display_name}'")
+                    await self.forward_to_group(message, display_name)
 
             except Exception as e:
                 logger.error("Ошибка обработки сообщения: %s", str(e), exc_info=True)
