@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Coroutine, Optional
 from common.logging_config import setup_logger
 from notification_service import check_notification_triggers
-from halo_notification_service import send_halo_notifications
+from new_halo_notification_service import send_halo_notifications
 from common.config import Config
 import random
 import os

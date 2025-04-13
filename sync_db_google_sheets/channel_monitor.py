@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from telethon import TelegramClient, events
-from telethon.tl.types import Message, PeerChat, User
+from telethon.tl.types import Message, PeerChat, User, Channel, PeerChannel
 from common.config import Config
 from common.logging_config import setup_logger
 from models import ChannelKeyword, Base
@@ -76,7 +76,7 @@ class ChannelMonitor:
       logger.error("Ошибка загрузки данных: %s", str(e), exc_info=True)
       return False
 
-    async def print_active_dialogs(self):
+  async def print_active_dialogs(self):
       """Вывод информации о всех доступных диалогах (каналах и группах)"""
       try:
         dialogs = await self.client.get_dialogs()
