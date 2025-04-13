@@ -607,19 +607,19 @@ async def sync_handler(update, context):
       await update.message.reply_text(
           f"Ошибка при синхронизации чатов: {error_msg}")
 
-      # Вызываем функцию обработки Google Sheets
-      result = process_channels_keywords_sheet()
-      # Проверяем статус ответа и отправляем соответствующее сообщение боту
-      if result.get("status") == "success":
-        logger.info("Синхронизация поиска по чатам завершена успешно")
-        await update.message.reply_text(
-            "Синхронизация поиска по чатам успешно завершена")
-      else:
-        error_msg = result.get("message",
-                               "Неизвестная ошибка при синхронизации")
-        logger.error(f"Ошибка при синхронизации: {error_msg}")
-        await update.message.reply_text(
-            f"Ошибка при синхронизации поиска по чатам: {error_msg}")
+    # Вызываем функцию обработки Google Sheets
+    result = process_channels_keywords_sheet()
+    # Проверяем статус ответа и отправляем соответствующее сообщение боту
+    if result.get("status") == "success":
+      logger.info("Синхронизация поиска по чатам завершена успешно")
+      await update.message.reply_text(
+          "Синхронизация поиска по чатам успешно завершена")
+    else:
+      error_msg = result.get("message",
+                             "Неизвестная ошибка при синхронизации")
+      logger.error(f"Ошибка при синхронизации: {error_msg}")
+      await update.message.reply_text(
+          f"Ошибка при синхронизации поиска по чатам: {error_msg}")
 
   except Exception as e:
     logger.error(f"Error in view_booking_handler: {e}")
