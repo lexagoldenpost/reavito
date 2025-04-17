@@ -241,6 +241,8 @@ class ChannelMonitor:
         except Exception as e:
             logger.error("Ошибка получения списка групп: %s", str(e), exc_info=True)
 
+    # ... (остальной код остается без изменений)
+
     async def setup_monitoring(self):
         """Настройка обработчика сообщений"""
         if not await self.load_group_keywords():
@@ -282,17 +284,35 @@ class ChannelMonitor:
                     logger.debug(f"Чат не найден в БД (название='{group_name}', ID={group_id})")
                     return
 
-                # Проверяем ключевые слова
+                # Проверяем ключевые словосочетания
                 keywords = self.group_keywords[matched_identifier]
                 if not keywords:
                     logger.debug(f"Для чата '{matched_identifier}' нет ключевых слов")
                     return
 
                 text_lower = message.text.lower()
-                if any(keyword in text_lower for keyword in keywords):
-                    display_name = group_name if group_name else f"ID:{group_id}"
-                    logger.info(f"Найдено ключевое слово в чате '{display_name}'")
-                    await self.forward_to_group(message, display_name)
+                # Разделяем текст сообщения на слова и знаки препинания
+                words = [word.strip() for word in text_lower.split()]
+
+                # Проверяем каждое ключевое словосочетание
+                for keyword_phrase in keywords:
+                    # Разделяем ключевую фразу на слова
+                    phrase_words = [w.strip() for w in keyword_phrase.split()]
+                    if not phrase_words:
+                        continue
+
+                    # Ищем последовательное вхождение всех слов фразы в тексте
+                    found = False
+                    for i in range(len(words) - len(phrase_words) + 1):
+                        if words[i:i + len(phrase_words)] == phrase_words:
+                            found = True
+                            break
+
+                    if found:
+                        display_name = group_name if group_name else f"ID:{group_id}"
+                        logger.info(f"Найдено ключевое словосочетание '{keyword_phrase}' в чате '{display_name}'")
+                        await self.forward_to_group(message, display_name)
+                        break  # Прерываем после первого найденного совпадения
 
             except Exception as e:
                 logger.error("Ошибка обработки сообщения: %s", str(e), exc_info=True)
