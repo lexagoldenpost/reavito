@@ -195,3 +195,13 @@ def format_notification_message(booking: Booking, notification: Notification, bo
         f"📋 <b>ID брони:</b> {booking.id}\n\n"
         "<b>Сообщение:</b>"
     )
+
+
+# if __name__ == "__main__":
+#     # Тестовый вызов
+#     try:
+#         check_notification_triggers()
+#         logger.info("Manual check_notification_triggers call succeeded")
+#     except Exception as e:
+#         logger.error(f"Manual check failed: {e}")
+
