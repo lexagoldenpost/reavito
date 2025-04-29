@@ -1,6 +1,7 @@
 import sys
 import io
 import asyncio
+from pathlib import Path
 from typing import Dict, Set
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -391,7 +392,23 @@ class ChannelMonitor:
             logger.error("Критическая ошибка: %s", str(e), exc_info=True)
             raise
 
+async def logout():
+  """Завершает сессию Telegram и удаляет файл сессии"""
+  try:
+    async with TelegramClient(TELEGRAM_SESSION_NAME, Config.TELEGRAM_API_SEND_BOOKING_ID,
+                              Config.TELEGRAM_API_SEND_BOOKING_HASH) as client:
+      await client.log_out()
+      logger.info("Успешный выход из Telegram аккаунта")
+
+    # Удаляем файл сессии
+    session_file = Path(f"{TELEGRAM_SESSION_NAME}.session")
+    if session_file.exists():
+      session_file.unlink()
+      logger.info(f"Файл сессии {session_file} удален")
+  except Exception as e:
+    logger.error(f"Ошибка при выходе из аккаунта: {str(e)}", exc_info=True)
 
 if __name__ == "__main__":
     monitor = ChannelMonitor()
     monitor.run()
+    #asyncio.run(logout())
