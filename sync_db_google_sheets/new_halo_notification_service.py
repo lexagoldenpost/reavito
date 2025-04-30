@@ -62,10 +62,6 @@ async def send_halo_notifications(title: str, dry_run: bool = False):
                 logger.info(f"Нет свободных дат для объекта {title}")
                 return
 
-            # Логируем информацию о всех периодах (занятых и свободных)
-            logger.info("Анализ периодов бронирования:")
-            await log_booking_periods(bookings, current_date, future_date)
-
             # Получаем список изображений из папки, если она указана
             images = []
             if IMAGES_FOLDER and IMAGES_FOLDER.exists():
@@ -85,9 +81,18 @@ async def send_halo_notifications(title: str, dry_run: bool = False):
                     # Получаем минимальный период для отправки из настроек группы
                     send_frequency = group.send_frequency if group.send_frequency is not None else 0
 
-                    # Формируем список свободных дат с учетом send_frequency
-                    free_dates = format_free_dates_with_frequency(
-                        bookings, current_date, future_date, send_frequency)
+                    # Получаем свободные периоды с учетом минимального количества ночей
+                    free_periods = await log_booking_periods(bookings, current_date, future_date, send_frequency)
+
+                    # Формируем список свободных дат
+                    free_dates = []
+                    for start, end, nights in free_periods:
+                        free_dates.append(f"{start.strftime('%d.%m.%y')}-{end.strftime('%d.%m.%y')} ({nights} ночей)")
+
+                    # Добавляем периоды "и далее"
+                    for booking in bookings:
+                        if booking.check_in is None and booking.check_out:
+                            free_dates.append(f"с {booking.check_out.strftime('%d.%m.%y')} и далее")
 
                     if not free_dates:
                         logger.info(
@@ -102,7 +107,7 @@ async def send_halo_notifications(title: str, dry_run: bool = False):
                         "🏡 1BR 36м2, 3й этаж, вид на бассейн\n\n"
                         "🗝️Собственник!\n\n"
                         "СВОБОДНЫЕ ДЛЯ БРОНИРОВАНИЯ ДАТЫ :\n\n"
-                        f"{free_dates}\n\n"
+                        f"{'\n'.join(free_dates)}\n\n"
                         "⚠️Есть и другие варианты, спрашивайте в ЛС."
                     )
 
@@ -170,41 +175,56 @@ async def send_halo_notifications(title: str, dry_run: bool = False):
             await monitor.client.disconnect()
 
 
-async def log_booking_periods(bookings: List[Booking], start_date: datetime.date, end_date: datetime.date):
-    """Логирует информацию о занятых и свободных периодах"""
+async def log_booking_periods(bookings: List[Booking], start_date: datetime.date, end_date: datetime.date, min_nights: int = 0) -> List[Tuple[datetime.date, datetime.date, int]]:
+    """Логирует информацию о занятых и свободных периодах с учетом ночевок и возвращает список свободных периодов с min_nights и более"""
     # Сортируем бронирования по дате заезда
     sorted_bookings = sorted(
         [b for b in bookings if b.check_in is not None],
         key=lambda x: x.check_in
     )
 
+    # Находим минимальную дату check_in после end_date (если есть)
+    min_check_in_after_period = None
+    for booking in sorted_bookings:
+        if booking.check_in and booking.check_in > end_date:
+            if min_check_in_after_period is None or booking.check_in < min_check_in_after_period:
+                min_check_in_after_period = booking.check_in
+
     # Добавляем фиктивное бронирование для конца периода
-    sorted_bookings.append(Booking(check_in=end_date + timedelta(days=1), check_out=None))
+    if min_check_in_after_period is not None:
+        sorted_bookings.append(Booking(check_in=min_check_in_after_period, check_out=None))
+    else:
+        sorted_bookings.append(Booking(check_in=end_date + timedelta(days=1), check_out=None))
 
     prev_check_out = start_date
     periods = []
+    free_periods = []
 
     for booking in sorted_bookings:
         # Проверяем свободный период между предыдущим check_out и текущим check_in
         if booking.check_in and prev_check_out < booking.check_in:
-            free_days = (booking.check_in - prev_check_out).days
-            if free_days > 0:
+            # Количество ночевок = количество дней между датами + 1 ночь для свободных, так корректнее
+            free_nights = (booking.check_in - prev_check_out).days + 1
+            if free_nights > 0:
                 period_info = {
                     'type': 'free',
-                    'start': prev_check_out,
-                    'end': booking.check_in - timedelta(days=1),
-                    'days': free_days
+                    'start': prev_check_out - timedelta(days=1) if prev_check_out != datetime.now().date() else prev_check_out,
+                    'end': booking.check_in,
+                    'nights': free_nights
                 }
                 periods.append(period_info)
+                if free_nights >= min_nights:
+                    free_periods.append((period_info['start'], period_info['end'], period_info['nights']))
 
         # Добавляем занятый период
         if booking.check_in and booking.check_out:
-            busy_days = (booking.check_out - booking.check_in).days + 1
+            # Количество ночевок = (check_out - check_in).days
+            busy_nights = (booking.check_out - booking.check_in).days
             period_info = {
                 'type': 'busy',
                 'start': booking.check_in,
                 'end': booking.check_out,
-                'days': busy_days
+                'nights': busy_nights
             }
             periods.append(period_info)
             prev_check_out = booking.check_out + timedelta(days=1)
@@ -224,20 +244,19 @@ async def log_booking_periods(bookings: List[Booking], start_date: datetime.date
             if period['type'] == 'free':
                 logger.info(
                     f"  СВОБОДНО: {period['start'].strftime('%d.%m')}-{period['end'].strftime('%d.%m')} "
-                    f"({period['days']} дней)"
-                )
+                    f"({period['nights']} ночей)")
             else:
                 logger.info(
                     f"  ЗАНЯТО:  {period['start'].strftime('%d.%m')}-{period['end'].strftime('%d.%m')} "
-                    f"({period['days']} дней)"
-                )
+                    f"({period['nights']} ночей)")
 
     # Логируем информацию о периодах "и далее"
     for booking in bookings:
         if booking.check_in is None and booking.check_out:
             logger.info(
-                f"\nСВОБОДНО С: {booking.check_out.strftime('%d.%m.%Y')} и далее"
-            )
+                f"\nСВОБОДНО С: {booking.check_out.strftime('%d.%m.%Y')} и далее")
+
+    return free_periods
 
 def format_free_dates_with_frequency(bookings: List[Booking], current_date,
                                      future_date, min_days: int) -> str:
