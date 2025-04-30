@@ -16,7 +16,8 @@ from commands import (
   view_booking_handler,
   view_dates_handler,
   sync_handler,
-  exit_bot
+  exit_bot,
+  edit_booking_conv_handler  # Добавьте этот импорт
 )
 from common.config import Config
 from common.logging_config import setup_logger
@@ -101,6 +102,9 @@ class BookingBot:
     # 2. ConversationHandler для add_booking (проверка встроена в start_add_booking)
     booking_handler = AddBookingHandler(self)
     self.application.add_handler(booking_handler.get_conversation_handler())
+
+    # 3. Добавляем обработчик редактирования бронирования
+    self.application.add_handler(edit_booking_conv_handler)
 
     # 3. CallbackHandler для view_booking с проверкой доступа
     self._add_secure_callback_handler(view_booking_handler)
