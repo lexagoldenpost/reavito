@@ -22,6 +22,7 @@ from commands import (
 from common.config import Config
 from common.logging_config import setup_logger
 from create_contract import get_contract_conversation_handler
+from sync_db_google_sheets.send_bookings import send_bookings_handler
 from sync_google_booking import process_google_sheets_to_db
 from sync_task import process_notifications_sheet
 from google_sheets_to_channels_keywords import process_channels_keywords_sheet
@@ -97,6 +98,7 @@ class BookingBot:
     self._add_secure_command_handler("view_booking", view_booking_handler)
     self._add_secure_command_handler("view_available_dates", view_dates_handler)
     self._add_secure_command_handler("sync_booking", sync_handler)
+    self._add_secure_command_handler("send_bookings", send_bookings_handler)
     self._add_secure_command_handler("exit", exit_bot)
 
     # 2. ConversationHandler для add_booking (проверка встроена в start_add_booking)

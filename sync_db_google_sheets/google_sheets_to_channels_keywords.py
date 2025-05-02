@@ -23,18 +23,19 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
   """Очищает и преобразует данные DataFrame"""
   column_mapping = {
     'Каналы и группы': 'channels',
-    'Ключевые слова': 'keywords'
+    'Ключевые слова': 'keywords',
+    'Название канала': 'channel_names'  # Добавлено новое поле
   }
 
   # Переименовываем колонки
   df = df.rename(
-    columns={k: v for k, v in column_mapping.items() if k in df.columns})
+      columns={k: v for k, v in column_mapping.items() if k in df.columns})
 
   # Обрабатываем колонку с каналами
   if 'channels' in df.columns:
     df['channels'] = df['channels'].apply(
         lambda x: [item.strip() for item in str(x).split(',')] if pd.notna(
-          x) else []
+            x) else []
     )
 
   # Обрабатываем колонку с ключевыми словами
@@ -42,6 +43,12 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     df['keywords'] = df['keywords'].apply(
         lambda x: [item.strip().lower() for item in
                    str(x).split(',')] if pd.notna(x) else []
+    )
+
+  # Обрабатываем колонку с названиями каналов
+  if 'channel_names' in df.columns:
+    df['channel_names'] = df['channel_names'].apply(
+        lambda x: str(x).strip() if pd.notna(x) else None
     )
 
   return df
@@ -122,17 +129,19 @@ def process_channels_keywords_sheet(google_sheet_key: str = None,
           try:
             channels = row.get('channels', [])
             keywords = row.get('keywords', [])
+            channel_names = row.get('channel_names')  # Получаем название канала
 
             for channel in channels:
               if channel in existing_records_map:
                 # Обновляем существующую запись
                 db_record = existing_records_map[channel]
-                if has_channel_changes(db_record, keywords):
-                  update_channel_keywords(db_record, keywords)
-                  logger.info(f"Обновлены ключевые слова для канала: {channel}")
+                if has_channel_changes(db_record, keywords, channel_names):
+                  update_channel_keywords(db_record, keywords, channel_names)
+                  logger.info(f"Обновлены данные для канала: {channel}")
               else:
                 # Создаем новую запись
-                new_record = create_channel_keyword(channel, keywords)
+                new_record = create_channel_keyword(channel, keywords,
+                                                    channel_names)
                 session.add(new_record)
                 logger.info(f"Добавлен новый канал: {channel}")
 
@@ -162,25 +171,32 @@ def process_channels_keywords_sheet(google_sheet_key: str = None,
               "message": f"Ошибка при синхронизации: {str(e)}"}
 
 
-def has_channel_changes(db_record, new_keywords):
+def has_channel_changes(db_record, new_keywords, new_channel_names):
   """Проверяет, есть ли различия между записью в БД и данными из таблицы"""
   current_keywords = set(
-    db_record.keywords.split(',')) if db_record.keywords else set()
+      db_record.keywords.split(',')) if db_record.keywords else set()
   new_keywords_set = set(new_keywords)
-  return current_keywords != new_keywords_set
+
+  # Проверяем изменения в ключевых словах и названии канала
+  keyword_changes = current_keywords != new_keywords_set
+  name_changes = (db_record.channel_names or None) != (new_channel_names or None)
+
+  return keyword_changes or name_changes
 
 
-def update_channel_keywords(db_record, keywords):
+def update_channel_keywords(db_record, keywords, channel_names):
   """Обновляет существующую запись в БД"""
   db_record.keywords = ','.join(keywords)
+  db_record.channel_names = channel_names
   db_record.last_updated = datetime.now()
 
 
-def create_channel_keyword(channel, keywords):
+def create_channel_keyword(channel, keywords, channel_names):
   """Создает новую запись для БД"""
   return ChannelKeyword(
       channel=channel,
       keywords=','.join(keywords),
+      channel_names=channel_names,
       last_updated=datetime.now()
   )
 

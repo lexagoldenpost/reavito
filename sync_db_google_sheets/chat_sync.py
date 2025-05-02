@@ -25,7 +25,8 @@ def clean_chat_data(df: pd.DataFrame) -> pd.DataFrame:
         'Наименование чата': 'chat_name',
         'Срок в днях меньше которого не отправляем ': 'send_frequency',
         'Картинки принимает (Да/Нет)': 'accepts_images',
-        'Объект': 'chat_object'  # Добавлен новый столбец
+        'Объект': 'chat_object',
+        'Название канала': 'channel_name'  # Добавлен новый столбец
     }
 
     # Переименовываем колонки
@@ -159,7 +160,7 @@ def process_chats_sheet(google_sheet_key: str = None,
 
 def has_chat_changes(db_chat, row_data):
     """Проверяет, есть ли различия между чатом в БД и данными из таблицы"""
-    for column in ['chat_name', 'send_frequency', 'accepts_images', 'chat_object']:
+    for column in ['chat_name', 'send_frequency', 'accepts_images', 'chat_object', 'channel_name']:
         if column in row_data:
             db_value = getattr(db_chat, column)
             sheet_value = row_data[column]
@@ -172,7 +173,7 @@ def has_chat_changes(db_chat, row_data):
 
 def update_chat(db_chat, row_data):
     """Обновляет существующий чат в БД"""
-    for column in ['chat_name', 'send_frequency', 'accepts_images', 'chat_object']:
+    for column in ['chat_name', 'send_frequency', 'accepts_images', 'chat_object', 'channel_name']:
         if column in row_data:
             setattr(db_chat, column, row_data[column])
     db_chat.last_updated = datetime.now()
@@ -183,7 +184,8 @@ def create_chat(row_data):
         chat_name=row_data.get('chat_name'),
         send_frequency=row_data.get('send_frequency'),
         accepts_images=row_data.get('accepts_images'),
-        chat_object=row_data.get('chat_object'),  # Новое поле
+        chat_object=row_data.get('chat_object'),
+        channel_name=row_data.get('channel_name'),  # Новое поле
         last_updated=datetime.now()
     )
 

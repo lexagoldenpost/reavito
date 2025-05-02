@@ -6,6 +6,7 @@ from view_dates import view_dates_handler
 from edit_booking import edit_booking_conv_handler
 from sync_google_booking import sync_handler
 from create_contract import get_contract_conversation_handler
+from send_bookings import send_bookings_handler  # Добавляем новый импорт
 
 logger = setup_logger("commands")
 
@@ -16,6 +17,7 @@ COMMANDS = [
     ("edit_booking", "Редактирование бронирования"),
     ("view_available_dates", "Просмотр свободных дат"),
     ("create_contract", "Создание договора"),
+    ("send_bookings", "Рассылка бронирований"),  # Добавляем новую команду
     ("help", "Помощь по командам"),
     ("cancel", "Сброс сессии бронирования"),
     ("sync_booking", "Синхронизировать бронирования"),
@@ -45,6 +47,7 @@ def setup_command_handlers(application, bot):
     application.add_handler(edit_booking_conv_handler)
     application.add_handler(CommandHandler("view_available_dates", view_dates_handler))
     application.add_handler(get_contract_conversation_handler())  # Добавляем обработчик договора
+    application.add_handler(CommandHandler("send_bookings", send_bookings_handler))
     application.add_handler(CommandHandler("sync_booking", sync_handler))
     application.add_handler(CommandHandler("exit", exit_bot))
 

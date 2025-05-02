@@ -326,6 +326,130 @@ async def is_user_banned(client, chat_id: int) -> bool:
         return False
 
 
+async def send_to_specific_chat(
+    chat_id: int,
+    title: str,
+    dry_run: bool = False,
+    images: Optional[List[Path]] = None
+):
+    """Отправляет уведомление в конкретный чат/группу по ID
+
+    Args:
+        chat_id (int): ID чата/группы в Telegram
+        title (str): Название объекта для поиска в базе данных
+        dry_run (bool): Если True - только проверяет данные без реальной отправки
+        images (Optional[List[Path]]): Список путей к изображениям для отправки
+    """
+    logger.info(
+        f"Запуск отправки в конкретный чат {chat_id} для объекта: {title} "
+        f"(режим {'dry run' if dry_run else 'реальный'})")
+
+    current_date = datetime.now().date()
+    future_date = current_date + timedelta(days=60)  # 2 месяца вперед
+
+    try:
+        with SessionLocal() as session:
+            # Получаем свободные даты для указанного объекта
+            bookings = session.execute(
+                select(Booking)
+                .where(
+                    and_(
+                        Booking.sheet_name == title,
+                        Booking.check_out >= current_date,
+                        or_(
+                            Booking.check_in <= future_date,
+                            Booking.check_in.is_(None)
+                        )
+                    )
+                )
+                .order_by(Booking.check_in)
+            ).scalars().all()
+
+            if not bookings:
+                logger.info(f"Нет свободных дат для объекта {title}")
+                return
+
+            # Получаем список изображений из папки, если она указана
+            if images is None and IMAGES_FOLDER and IMAGES_FOLDER.exists():
+                images = list(IMAGES_FOLDER.glob('*.*'))
+                images = [img for img in images if
+                          img.suffix.lower() in ['.jpg', '.jpeg', '.png']]
+                logger.info(f"Найдено {len(images)} изображений для отправки")
+
+            # Получаем свободные периоды (используем минимальный период 0 дней)
+            free_periods = await log_booking_periods(bookings, current_date,
+                                                     future_date, 0)
+
+            # Формируем список свободных дат
+            free_dates = []
+            for start, end, nights in free_periods:
+                free_dates.append(
+                    f"{start.strftime('%d.%m.%y')}-{end.strftime('%d.%m.%y')} ({nights} ночей)")
+
+            # Добавляем периоды "и далее"
+            for booking in bookings:
+                if booking.check_in is None and booking.check_out:
+                    free_dates.append(
+                        f"с {booking.check_out.strftime('%d.%m.%y')} и далее")
+
+            if not free_dates:
+                logger.info(f"Нет свободных дат для объекта {title}")
+                return
+
+            # Формируем сообщение
+            message = (
+                f"Аренда квартиры в новом комплексе {title} в 400м от пляжа Най Янг\n"
+                "10 минут езды от аэропорта!\n"
+                "🏡 1BR 36м2, 3й этаж, вид на бассейн\n\n"
+                "🗝️Собственник!\n\n"
+                "СВОБОДНЫЕ ДЛЯ БРОНИРОВАНИЯ ДАТЫ :\n\n"
+                f"{'\n'.join(free_dates)}\n\n"
+                "⚠️Есть и другие варианты, спрашивайте в ЛС."
+            )
+
+            if dry_run:
+                # В режиме dry run только логируем что было бы отправлено
+                logger.info(
+                    f"DRY RUN: Сообщение для чата {chat_id}:\n{message}")
+                if images:
+                    logger.info(f"DRY RUN: Приложено {len(images)} изображений")
+                return
+
+            # Реальная отправка
+            monitor = ChannelMonitor()
+            try:
+                await monitor.client.start(monitor.phone)
+
+                # Проверка бана
+                if await is_user_banned(monitor.client, chat_id):
+                    logger.info(f"Пользователь забанен в чате {chat_id}")
+                    return
+
+                # Отправка сообщения
+                try:
+                    if images:
+                        await monitor.client.send_message(
+                            chat_id,
+                            message,
+                            file=images
+                        )
+                        logger.info(
+                            f"Сообщение с {len(images)} изображениями отправлено в чат {chat_id}")
+                    else:
+                        await monitor.client.send_message(chat_id, message)
+                        logger.info(
+                            f"Текстовое сообщение отправлено в чат {chat_id}")
+                except Exception as e:
+                    logger.error(
+                        f"Ошибка отправки сообщения в чат {chat_id}: {str(e)}")
+
+            finally:
+                await monitor.client.disconnect()
+
+    except Exception as e:
+        logger.error(f"Ошибка при отправке уведомлений: {str(e)}",
+                     exc_info=True)
+
 async def main():
     parser = argparse.ArgumentParser(description='Отправка уведомлений о свободных датах')
     parser.add_argument('title', type=str, help='Название объекта для поиска в базе данных')
@@ -338,7 +462,11 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 
+# Реальная отправка
+#await send_to_specific_chat(123456789, "HALO Title")
 
+# Тестовый режим
+#await send_to_specific_chat(123456789, "HALO Title", dry_run=True)
  # Основные изменения:
 #
 # Добавлен параметр dry_run в функцию send_halo_notifications

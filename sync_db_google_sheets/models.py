@@ -54,6 +54,8 @@ class Chat(Base):
   accepts_images = Column(Boolean)  # Картинки принимает (Да/Нет)
   chat_object = Column(String(100))  # Новый столбец: Объект
   last_updated = Column(DateTime)  # Когда последний раз обновлялась запись
+  last_send = Column(DateTime)  # Когда последний раз обновлялась отправлялась
+  channel_name = Column(String)  #  Наименвоение чата
 
 class ChannelKeyword(Base):
   __tablename__ = 'сhannel_keyword'
@@ -63,3 +65,4 @@ class ChannelKeyword(Base):
   channel = Column(String, nullable=False)  # Наименование канала или групп
   keywords = Column(String, nullable=False)  # ключевые слова
   last_updated = Column(DateTime)  # Когда последний раз обновлялась запись
+  channel_names = Column(String)  # Наименвоение чата
