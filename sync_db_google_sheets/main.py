@@ -17,18 +17,21 @@ from commands import (
   view_dates_handler,
   sync_handler,
   exit_bot,
-  edit_booking_conv_handler  # Добавьте этот импорт
+  edit_booking_conv_handler,
+  send_bookings_handler
 )
 from common.config import Config
 from common.logging_config import setup_logger
 from create_contract import get_contract_conversation_handler
-from sync_db_google_sheets.send_bookings import send_bookings_handler
 from sync_google_booking import process_google_sheets_to_db
 from sync_task import process_notifications_sheet
 from google_sheets_to_channels_keywords import process_channels_keywords_sheet
 
 logger = setup_logger("main")
 
+# Добавляем префиксы для callback-данных
+CALLBACK_PREFIX = "sb_"  # sb = send_bookings
+VB_CALLBACK_PREFIX = "vb_"  # vb = view_booking
 
 class BookingBot:
   def __init__(self):
@@ -88,6 +91,17 @@ class BookingBot:
       handler, update, context)
     self.application.add_handler(CallbackQueryHandler(wrapped_handler))
 
+  def _add_secure_callback_handler(self, handler, pattern=None):
+    """Добавляет обработчик callback с проверкой прав доступа и фильтром"""
+    wrapped_handler = lambda update, context: self._secure_handler_wrapper(
+        handler, update, context)
+
+    if pattern:
+      self.application.add_handler(
+        CallbackQueryHandler(wrapped_handler, pattern=pattern))
+    else:
+      self.application.add_handler(CallbackQueryHandler(wrapped_handler))
+
   def setup_handlers(self):
     """Настройка всех обработчиков с проверкой прав доступа"""
     self.application = Application.builder().token(self.token).build()
@@ -101,20 +115,29 @@ class BookingBot:
     self._add_secure_command_handler("send_bookings", send_bookings_handler)
     self._add_secure_command_handler("exit", exit_bot)
 
-    # 2. ConversationHandler для add_booking (проверка встроена в start_add_booking)
+    # 2. ConversationHandler для add_booking
     booking_handler = AddBookingHandler(self)
     self.application.add_handler(booking_handler.get_conversation_handler())
 
     # 3. Добавляем обработчик редактирования бронирования
     self.application.add_handler(edit_booking_conv_handler)
 
-    # 3. CallbackHandler для view_booking с проверкой доступа
-    self._add_secure_callback_handler(view_booking_handler)
+    # 4. CallbackHandler для view_booking с фильтром по префиксу
+    self._add_secure_callback_handler(
+        view_booking_handler,
+        pattern=f"^{VB_CALLBACK_PREFIX}.*"  # Добавляем фильтр по префиксу
+    )
 
-    # 4. Обработчик создания договора (проверка должна быть встроена в обработчик)
+    # 5. CallbackHandler для send_booking с фильтром по префиксу
+    self._add_secure_callback_handler(
+        send_bookings_handler,
+        pattern=f"^{CALLBACK_PREFIX}.*"  # Добавляем фильтр по префиксу
+    )
+
+    # 6. Обработчик создания договора
     self.application.add_handler(get_contract_conversation_handler())
 
-    # 5. Обработчик неизвестных команд (без проверки доступа)
+    # 7. Обработчик неизвестных команд
     self.application.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, self.unknown_command)
     )

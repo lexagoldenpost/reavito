@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from telethon import TelegramClient, events
+from telethon.tl.functions.messages import ExportChatInviteRequest
 from telethon.tl.types import Message, PeerChat, User, Channel, PeerChannel
 from common.config import Config
 from common.logging_config import setup_logger
@@ -236,12 +237,54 @@ class ChannelMonitor:
                     status = " (Заблокирована)"
 
                 name = getattr(entity, 'title', "Без названия")
-                logger.info("- Группа: '%s'%s (ID: %d, Тип: %s)",
-                            name, status, entity.id, type(entity))
+
+                # Получаем количество участников
+                participants_count = "N/A"
+                try:
+                    if hasattr(entity, 'participants_count'):
+                        participants_count = entity.participants_count
+                    else:
+                        full_chat = await self.client.get_entity(entity)
+                        if hasattr(full_chat, 'participants_count'):
+                            participants_count = full_chat.participants_count
+                except Exception as e:
+                    logger.debug(
+                        f"Не удалось получить количество участников: {str(e)}")
+
+                # Получаем описание группы
+                description = "Нет описания"
+                try:
+                    if hasattr(entity, 'about'):
+                        description = entity.about if entity.about else "Нет описания"
+                except Exception as e:
+                    logger.debug(f"Не удалось получить описание: {str(e)}")
+
+                # Получаем ссылку для приглашения
+                invite_link = "N/A"
+                try:
+                    if hasattr(entity, 'username') and entity.username:
+                        invite_link = f"https://t.me/{entity.username}"
+                    else:
+                        # Пытаемся получить экспортную ссылку
+                        export_result = await self.client(
+                            ExportChatInviteRequest(entity))
+                        if export_result and hasattr(export_result, 'link'):
+                            invite_link = export_result.link
+                except Exception as e:
+                    logger.debug(
+                        f"Не удалось получить ссылку для приглашения: {str(e)}")
+
+                logger.info("- Группа: '%s'%s", name, status)
+                logger.info(f"  ID: {entity.id}")
+                logger.info(f"  Тип: {type(entity)}")
+                logger.info(f"  Участников: {participants_count}")
+                logger.info(f"  Описание: {description}")
+                logger.info(f"  Ссылка для приглашения: {invite_link}")
+                logger.info("------------------------")
 
         except Exception as e:
-            logger.error("Ошибка получения списка групп: %s", str(e), exc_info=True)
-
+            logger.error("Ошибка получения списка групп: %s", str(e),
+                         exc_info=True)
     # ... (остальной код остается без изменений)
 
     async def setup_monitoring(self):
@@ -277,6 +320,7 @@ class ChannelMonitor:
                 matched_identifier = None
                 for identifier in self.group_keywords:
                     # Сравниваем с названием (если есть) или с ID
+                    #logger.debug(f"Сравниваем с названием группы - {group_name}, ид группы - {group_id}")
                     if (group_name and identifier == group_name) or (group_id and identifier == group_id):
                         matched_identifier = identifier
                         break

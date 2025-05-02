@@ -327,7 +327,7 @@ async def is_user_banned(client, chat_id: int) -> bool:
 
 
 async def send_to_specific_chat(
-    chat_id: int,
+    chat_id: str,
     title: str,
     dry_run: bool = False,
     images: Optional[List[Path]] = None

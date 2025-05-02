@@ -7,12 +7,21 @@ from sync_db_google_sheets.models import Booking
 
 logger = setup_logger("view_booking")
 
+# Добавляем префиксы для callback-данных
+VB_CALLBACK_PREFIX = "vb_"  # vb = view_booking
+VB_SHEET_SELECT = f"{VB_CALLBACK_PREFIX}sheet"
+
 
 async def view_booking_handler(update, context):
   """Обработчик для просмотра бронирований"""
   try:
     if update.callback_query:
-      return await handle_callback(update, context)
+      # Проверяем, что callback относится к этому модулю
+      if update.callback_query.data.startswith(VB_CALLBACK_PREFIX):
+        return await handle_callback(update, context)
+      else:
+        # Пропускаем callback, если он не для этого модуля
+        return
     elif update.message:
       return await handle_message(update, context)
     else:
@@ -40,8 +49,9 @@ async def handle_callback(update, context):
   query = update.callback_query
   await query.answer()
 
-  selected_sheet = query.data
-  await show_bookings(update, context, selected_sheet)
+  if query.data.startswith(VB_SHEET_SELECT):
+    selected_sheet = query.data.split('_')[2]
+    await show_bookings(update, context, selected_sheet)
 
   try:
     await query.message.delete()
@@ -65,7 +75,8 @@ async def show_sheet_names(update, context):
         return
 
       keyboard = [
-        [InlineKeyboardButton(sheet, callback_data=sheet)]
+        [InlineKeyboardButton(sheet,
+                              callback_data=f"{VB_SHEET_SELECT}_{sheet}")]
         for sheet in sheet_names
       ]
       reply_markup = InlineKeyboardMarkup(keyboard)
