@@ -312,19 +312,36 @@ def format_date_range(start_date, end_date) -> str:
 async def is_user_banned(client, chat_id: int) -> bool:
     """Проверяет, забанен ли пользователь в чате"""
     try:
-        chat = await client.get_entity(chat_id)
+        try:
+            chat = await client.get_entity(chat_id)
+        except ValueError as e:
+            if "Cannot find any entity corresponding to" in str(e):
+                # Пробуем получить чат через peer_id
+                from telethon.utils import resolve_id
+                try:
+                    peer = await client.get_input_entity(chat_id)
+                    chat = await client.get_entity(peer)
+                except Exception:
+                    logger.warning(f"Не удалось найти чат с ID {chat_id}")
+                    return False
+            else:
+                raise
+
         if isinstance(chat, Channel):
-            participant = await client.get_permissions(chat, 'me')
-            if hasattr(participant, 'banned_rights') and participant.banned_rights:
-                if isinstance(participant.banned_rights, ChatBannedRights):
-                    return participant.banned_rights.view_messages
-            elif hasattr(participant, 'kicked'):
-                return participant.kicked
+            try:
+                participant = await client.get_permissions(chat, 'me')
+                if hasattr(participant, 'banned_rights') and participant.banned_rights:
+                    if isinstance(participant.banned_rights, ChatBannedRights):
+                        return participant.banned_rights.view_messages
+                elif hasattr(participant, 'kicked'):
+                    return participant.kicked
+            except Exception as e:
+                logger.warning(f"Ошибка при получении прав в чате {chat_id}: {str(e)}")
+                return False
         return False
     except Exception as e:
         logger.error(f"Ошибка при проверке бана в чате {chat_id}: {str(e)}")
         return False
-
 
 async def send_to_specific_chat(
     chat_id: str,

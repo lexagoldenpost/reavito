@@ -40,28 +40,21 @@ async def send_bookings_handler(update, context):
   except Exception as e:
     logger.error(f"Error in send_bookings_handler: {e}", exc_info=True)
     error_message = "Произошла ошибка при обработке запроса"
-    if 'user_data' in context:
+    if hasattr(context, 'user_data'):
       context.user_data['step'] = 1  # Сбрасываем step при ошибке
     await send_reply(update, error_message)
 
 
 async def handle_message(update, context):
-  """Обработка текстового сообщения"""
-  logger.info("Entered handle_message")
-  try:
-    if 'step' not in context.user_data:
-      logger.debug("No step in user_data, showing available chats")
-      await show_available_chats(update, context)
-      context.user_data['step'] = 1
-      logger.debug("Set step to 1 in user_data")
-    else:
-      logger.debug(f"Current step in user_data: {context.user_data['step']}")
-  except Exception as e:
-    logger.error(f"Error in handle_message: {e}", exc_info=True)
-    if 'user_data' in context:
-      context.user_data['step'] = 1  # Сбрасываем step при ошибке
-    await send_reply(update,
-                     "Произошла ошибка при обработке сообщения \nВыход /exit")
+  if update.message.text.strip().lower() == '/exit':
+    if hasattr(context, 'user_data'):
+      context.user_data.clear()
+    await send_reply(update, "Сессия завершена. Начните заново.")
+    return
+
+  if not hasattr(context, 'user_data') or 'step' not in context.user_data:
+    await show_available_chats(update, context)
+    context.user_data['step'] = 1
 
 
 async def handle_callback(update, context):
@@ -85,7 +78,7 @@ async def handle_callback(update, context):
         await send_notification_to_chat(update, context, chat_name)
       else:
         logger.error(f"Invalid callback_data format: {query.data}")
-        if 'user_data' in context:
+        if hasattr(context, 'user_data'):
           context.user_data['step'] = 1  # Сбрасываем step при ошибке
         await send_reply(update,
                          "Ошибка: неверный формат запроса \nВыход /exit")
@@ -98,10 +91,9 @@ async def handle_callback(update, context):
       return
   except Exception as e:
     logger.error(f"Error in handle_callback: {e}", exc_info=True)
-    if 'user_data' in context:
-      context.user_data['step'] = 1  # Сбрасываем step при ошибке
-    await send_reply(update,
-                     "Произошла ошибка при обработке запроса \nВыход /exit")
+    await send_reply(update, "❌ Ошибка. Используйте /exit для сброса.")
+    if hasattr(context, 'user_data'):
+      context.user_data.clear()
   finally:
     try:
       logger.debug("Attempting to delete callback message")
@@ -143,7 +135,7 @@ async def show_available_chats(update, context):
 
       if not available_chats:
         logger.info("No available chats found")
-        if 'user_data' in context:
+        if hasattr(context, 'user_data'):
           context.user_data['step'] = 1  # Сбрасываем step при отсутствии чатов
         await send_reply(update,
                          "Нет чатов, доступных для рассылки в данный момент \nВыход /exit")
@@ -191,7 +183,7 @@ async def show_available_chats(update, context):
 
   except Exception as e:
     logger.error(f"Error in show_available_chats: {e}", exc_info=True)
-    if 'user_data' in context:
+    if hasattr(context, 'user_data'):
       context.user_data['step'] = 1  # Сбрасываем step при ошибке
     await send_reply(update, "Ошибка при получении списка чатов \nВыход /exit")
 
@@ -210,9 +202,9 @@ async def send_notification_to_chat(update, context, chat_name):
 
       if not chat:
         logger.error(f"Chat not found in database: {chat_name}")
-        if 'user_data' in context:
-          context.user_data['step'] = 1  # Сбрасываем step при ошибке
-        await send_reply(update, "Чат не найден в базе данных \nВыход /exit")
+        await send_reply(update, "❌ Чат не найден. Выход /exit")
+        if hasattr(context, 'user_data'):
+          context.user_data.clear()  # Полностью очищаем user_data
         return
 
       display_name = chat.channel_name if chat.channel_name else chat.chat_name
@@ -240,9 +232,11 @@ async def send_notification_to_chat(update, context, chat_name):
             f"ID чата: {chat.chat_name}"
         )
         logger.info("Success notification sent to user")
+        if hasattr(context, 'user_data'):
+          context.user_data.clear()  # Сбрасываем состояние
       else:
         logger.error(f"Failed to send notification to chat {chat.chat_name}")
-        if 'user_data' in context:
+        if hasattr(context, 'user_data'):
           context.user_data['step'] = 1  # Сбрасываем step при ошибке
         await send_reply(
             update,
@@ -251,9 +245,9 @@ async def send_notification_to_chat(update, context, chat_name):
 
   except Exception as e:
     logger.error(f"Error in send_notification_to_chat: {e}", exc_info=True)
-    if 'user_data' in context:
-      context.user_data['step'] = 1  # Сбрасываем step при ошибке
-    await send_reply(update, "Ошибка при отправке рассылки \nВыход /exit")
+    await send_reply(update, "❌ Критическая ошибка. Сессия сброшена. /exit")
+    if hasattr(context, 'user_data'):
+      context.user_data.clear()  # Принудительный сброс
 
 
 async def send_reply(update, text, reply_markup=None, parse_mode=None):

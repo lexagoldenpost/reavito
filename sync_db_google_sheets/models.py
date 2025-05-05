@@ -1,6 +1,6 @@
 # models.py
 from sqlalchemy import Column, String, Integer, Date, Text, Time, DateTime, \
-  Boolean
+  Boolean, LargeBinary, func
 
 from common.database import Base
 
@@ -58,7 +58,7 @@ class Chat(Base):
   channel_name = Column(String)  #  Наименвоение чата
 
 class ChannelKeyword(Base):
-  __tablename__ = 'сhannel_keyword'
+  __tablename__ = 'channel_keyword'
   __table_args__ = {'extend_existing': True}
 
   id = Column(Integer, primary_key=True)
@@ -66,3 +66,23 @@ class ChannelKeyword(Base):
   keywords = Column(String, nullable=False)  # ключевые слова
   last_updated = Column(DateTime)  # Когда последний раз обновлялась запись
   channel_names = Column(String)  # Наименвоение чата
+
+
+class TelethonSession(Base):
+  __tablename__ = 'telethon_sessions'
+  __table_args__ = {'extend_existing': True}
+
+  id = Column(Integer, primary_key=True)
+  session_id = Column(String(255), nullable=False, unique=True)
+  dc_id = Column(Integer)
+  server_address = Column(String(255))
+  port = Column(Integer)
+  auth_key = Column(LargeBinary)
+  takeout_id = Column(Integer)
+  update_state = Column(LargeBinary)
+  pts = Column(Integer)
+  qts = Column(Integer)
+  date = Column(DateTime)
+  seq = Column(Integer)
+  created_at = Column(DateTime, server_default=func.now())
+  updated_at = Column(DateTime, onupdate=func.now())
