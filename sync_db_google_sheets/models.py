@@ -86,3 +86,4 @@ class TelethonSession(Base):
   seq = Column(Integer)
   created_at = Column(DateTime, server_default=func.now())
   updated_at = Column(DateTime, onupdate=func.now())
+  session_string=Column(Text)  # Сериализованная сессия в base64

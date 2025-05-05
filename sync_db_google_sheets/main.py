@@ -1,4 +1,8 @@
 # main.py
+import io
+import sys
+
+from dotenv import load_dotenv
 from telegram.ext import (
   Application,
   CommandHandler,
@@ -172,6 +176,11 @@ class BookingBot:
 
 
 if __name__ == "__main__":
+  try:
+    load_dotenv()
+  except Exception as e:
+    print(f"Error loading .env file: {e}")
+    exit(1)
   try:
     logger.info("Sync booking start...")
     process_google_sheets_to_db()
