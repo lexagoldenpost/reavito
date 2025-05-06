@@ -211,11 +211,11 @@ async def send_notification_to_chat(update, context, chat_name):
       title = chat.chat_object if chat.chat_object else "HALO Title"
 
       logger.info(
-        f"Sending announcement to chat {chat.chat_name} with object {title}")
+          f"Sending announcement to chat {chat.chat_name} with object {title}")
       success = await send_to_specific_chat(
           chat_id=chat.chat_name,
-          title=title,
-          dry_run=False
+          title=title
+          # Removed the dry_run parameter
       )
 
       if success:
@@ -248,7 +248,6 @@ async def send_notification_to_chat(update, context, chat_name):
     await send_reply(update, "❌ Критическая ошибка. Сессия сброшена. /exit")
     if hasattr(context, 'user_data'):
       context.user_data.clear()  # Принудительный сброс
-
 
 async def send_reply(update, text, reply_markup=None, parse_mode=None):
   """Универсальная функция отправки сообщения"""
