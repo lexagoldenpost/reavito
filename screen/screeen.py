@@ -3,6 +3,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 import time
+
+import mss
 import pyautogui
 from datetime import datetime
 import ssl
@@ -51,7 +53,7 @@ def should_stop_script(stop_time):
 
 def main():
     # Настройки
-    interval_minutes = 5  # Интервал между скриншотами в минутах
+    interval_minutes = 15  # Интервал между скриншотами в минутах
     sender_email = "lexagoldenpost@yandex.ru"
     sender_password = "whwooytowcrkgumj"
     receiver_email = "lexagoldenpost@yandex.ru"
