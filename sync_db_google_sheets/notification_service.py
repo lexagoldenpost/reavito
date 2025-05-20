@@ -149,7 +149,7 @@ def get_booking_date(booking: Booking, notification: Notification) -> tuple:
     )
     return is_trigger_day, target_date, "заезда"
   elif notification.trigger_column == 'Выезд':
-    if booking.check_in == target_date:
+    if booking.check_out == target_date:
       is_trigger_day = 0
     logger.debug(
         f"Используется текущая дата с корректировкой: {target_date} "
@@ -244,7 +244,7 @@ def format_notification_message(booking: Booking, notification: Notification,
     booking_date, date_type: str) -> str:
   """Форматирует сообщение уведомления"""
   logger.debug("Форматирование информационного сообщения об уведомлении")
-  trigger_type = "до" if notification.trigger_days < 0 else "после"
+  trigger_type = "после" if notification.trigger_days < 0 else "до"
   return (
     "🔔 <b>Сработало уведомление</b> 🔔\n"
     f"🏠 <b>Объект:</b> {notification.trigger_object}\n"
