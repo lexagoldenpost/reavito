@@ -168,7 +168,7 @@ async def send_notification(http_session, booking: Booking,
   trigger_info = format_notification_message(booking, notification,
                                              booking_date, date_type)
   # Форматируем сообщение, заменяя {field_name} на значения из booking
-  formatted_message = format_message_with_booking_data(notification.message,
+  formatted_message = format_message_with_booking_data(notification.message, notification.notification_type,
                                                        booking)
   logger.debug(f"Сформированное сообщение:\n{formatted_message}")
 
@@ -177,8 +177,10 @@ async def send_notification(http_session, booking: Booking,
   logger.info(f"Уведомление для бронирования ID: {booking.id} отправлено")
 
 
-def format_message_with_booking_data(message: str, booking: Booking) -> str:
-  """Заменяет {field_name} в сообщении на значения из объекта Booking"""
+def format_message_with_booking_data(message: str, notification_type: str, booking: Booking) -> str:
+  """Заменяет {field_name} в сообщении на значения из объекта Booking.
+  Форматирует даты в дд.мм.уууу. Для типа 'Отправка планирование уборки'
+  использует тайский календарь (+543 года)."""
   logger.debug(f"Форматирование сообщения с данными бронирования")
   if not message:
     logger.debug("Сообщение пустое - пропускаем форматирование")
@@ -199,18 +201,24 @@ def format_message_with_booking_data(message: str, booking: Booking) -> str:
         f"Замена плейсхолдера {placeholder} на значение: {field_value}")
 
       # Преобразуем даты в читаемый формат
-      if isinstance(field_value, datetime):
-        field_value = field_value.strftime('%d.%m.%Y')
+      if isinstance(field_value, (datetime, date)):
+        if notification_type == 'Отправка планирование уборки':
+          # Для уведомлений об уборке используем тайский год
+          thai_year = field_value.year + 543
+          formatted_date = field_value.strftime(f'%d.%m.{thai_year}')
+        else:
+          # Для остальных случаев стандартный формат
+          formatted_date = field_value.strftime('%d.%m.%Y')
+        field_value = formatted_date
       elif field_value is None:
         field_value = ""
 
       # Заменяем плейсхолдер на значение
       formatted_message = formatted_message.replace(placeholder,
-                                                    str(field_value))
+                                                  str(field_value))
 
   logger.debug(f"Результат форматирования:\n{formatted_message}")
   return formatted_message
-
 
 async def send_telegram_message(http_session, message: str):
   """Асинхронно отправляет сообщение в несколько Telegram чатов"""
