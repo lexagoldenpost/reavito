@@ -155,58 +155,61 @@ class AddBookingHandler:
                "Для нового бронирования используйте /add_booking"
       )
 
-    async def start_add_booking(self, update: Update,
-        context: ContextTypes.DEFAULT_TYPE) -> int:
-      """Начало процесса бронирования с проверкой активных сессий"""
-      try:
-        user = update.effective_user
-        logger.info(f"User {user.username} started add_booking")
+    async def start_add_booking(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Начало процесса бронирования с проверкой активных сессий"""
+        try:
+            user = update.effective_user
+            logger.info(f"User {user.username} started add_booking")
 
-        if not await self.bot.check_user_permission(update):
-          return ConversationHandler.END
+            if not await self.bot.check_user_permission(update):
+                return ConversationHandler.END
 
-        # Если у пользователя уже есть активная сессия
-        if user.id in self.active_sessions:
-          # Предлагаем продолжить или сбросить
-          keyboard = [
-            [InlineKeyboardButton("🔄 Сбросить и начать новое",
-                                  callback_data="force_new")],
-            [InlineKeyboardButton("❌ Отменить", callback_data="exit_command")],
-          ]
-          reply_markup = InlineKeyboardMarkup(keyboard)
+            # Get the message object whether it's from a command or callback
+            message = update.message or update.callback_query.message
 
-          await update.message.reply_text(
-              "⚠️ У вас уже есть активная сессия бронирования.\n"
-              "Хотите сбросить её и начать новое бронирование?",
-              reply_markup=reply_markup
-          )
-          return SELECT_SHEET
+            # Если у пользователя уже есть активная сессия
+            if user.id in self.active_sessions:
+                # Предлагаем продолжить или сбросить
+                keyboard = [
+                    [InlineKeyboardButton("🔄 Сбросить и начать новое",
+                                          callback_data="force_new")],
+                    [InlineKeyboardButton("❌ Отменить", callback_data="exit_command")],
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
 
-        # Новая сессия
-        self.active_sessions.add(user.id)
-        context.user_data.clear()
-        context.user_data["booking_date"] = datetime.now().strftime("%d-%m-%Y")
+                await message.reply_text(
+                    "⚠️ У вас уже есть активная сессия бронирования.\n"
+                    "Хотите сбросить её и начать новое бронирование?",
+                    reply_markup=reply_markup
+                )
+                return SELECT_SHEET
 
-        keyboard = [
-          [InlineKeyboardButton(name, callback_data=name)]
-          for name in self.SHEETS.values()
-        ]
-        # Добавляем кнопку выхода
-        keyboard.append(
-            [InlineKeyboardButton("🚪 Выход", callback_data="exit_command")])
-        reply_markup = InlineKeyboardMarkup(keyboard)
+            # Новая сессия
+            self.active_sessions.add(user.id)
+            context.user_data.clear()
+            context.user_data["booking_date"] = datetime.now().strftime("%d-%m-%Y")
 
-        await update.message.reply_text(
-            "📋 Выберите таблицу для бронирования:",
-            reply_markup=reply_markup
-        )
-        return SELECT_SHEET
+            keyboard = [
+                [InlineKeyboardButton(name, callback_data=name)]
+                for name in self.SHEETS.values()
+            ]
+            # Добавляем кнопку выхода
+            keyboard.append(
+                [InlineKeyboardButton("🚪 Выход", callback_data="exit_command")])
+            reply_markup = InlineKeyboardMarkup(keyboard)
 
-      except Exception as e:
-        logger.error(f"Error in start_add_booking: {e}", exc_info=True)
-        await update.message.reply_text(
-          "⚠️ Произошла ошибка. Попробуйте позже.")
-        return ConversationHandler.END
+            await message.reply_text(
+                "📋 Выберите таблицу для бронирования:",
+                reply_markup=reply_markup
+            )
+            return SELECT_SHEET
+
+        except Exception as e:
+            logger.error(f"Error in start_add_booking: {e}", exc_info=True)
+            message = update.message or update.callback_query.message
+            await message.reply_text(
+                "⚠️ Произошла ошибка. Попробуйте позже.")
+            return ConversationHandler.END
 
     async def select_sheet(self, update: Update,
         context: ContextTypes.DEFAULT_TYPE) -> int:
