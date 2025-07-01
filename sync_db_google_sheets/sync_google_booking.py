@@ -79,278 +79,237 @@ def calculate_nights(check_in, check_out):
     return None
 
 def process_google_sheets_to_db(
-    google_sheet_key: str = None,
-    credentials_json: Union[Dict[str, Any], str] = None
-) -> Dict[str, str]:
-  """
-  Основная функция синхронизации данных между Google Sheets и БД
-  с автоматическим расчетом количества ночей
-  """
-  if Config.IS_SYNC_BOOKING == "false":
-    logger.info(
-      f"Не синхронизируем IS_SYNC_BOOKING: {Config.IS_SYNC_BOOKING}")
-    return {"status": "success",  # Changed from None to return a proper dict
-            "message": "Синхронизация отключена в настройках (IS_SYNC_BOOKING=false)"}
+          google_sheet_key: str = None,
+          credentials_json: Union[Dict[str, Any], str] = None
+  ) -> Dict[str, str]:
+    """
+    Основная функция синхронизации данных между Google Sheets и БД
+    с автоматическим расчетом количества ночей и гарантированным заполнением ID
+    """
+    if Config.IS_SYNC_BOOKING == "false":
+      logger.info(f"Не синхронизируем IS_SYNC_BOOKING: {Config.IS_SYNC_BOOKING}")
+      return {
+        "status": "success",
+        "message": "Синхронизация отключена в настройках (IS_SYNC_BOOKING=false)"
+      }
 
-  if google_sheet_key is None:
-    google_sheet_key = Config.SAMPLE_SPREADSHEET_ID
-  if credentials_json is None:
-    credentials_json = Config.SERVICE_ACCOUNT_FILE
+    if google_sheet_key is None:
+      google_sheet_key = Config.SAMPLE_SPREADSHEET_ID
+    if credentials_json is None:
+      credentials_json = Config.SERVICE_ACCOUNT_FILE
 
-  with sync_lock:
-    try:
-      # Авторизация в Google Sheets API
-      scope = ['https://spreadsheets.google.com/feeds',
-               'https://www.googleapis.com/auth/drive']
+    with sync_lock:
+      try:
+        # Авторизация в Google Sheets API
+        scope = [
+          'https://spreadsheets.google.com/feeds',
+          'https://www.googleapis.com/auth/drive'
+        ]
 
-      if isinstance(credentials_json, str):
-        try:
-          credentials_json = json.loads(credentials_json)
-        except json.JSONDecodeError:
-          logger.error("Неверный формат credentials_json")
-          return {"status": "error",
-                  "message": "Неверный формат credentials_json"}
-
-      creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_json,
-                                                               scope)
-      client = gspread.authorize(creds)
-
-      # Открываем таблицу
-      spreadsheet = client.open_by_key(google_sheet_key)
-      updates = []
-      id_clear_updates = []
-
-      # Обрабатываем каждый лист
-      for sheet in spreadsheet.worksheets():
-        sheet_name = sheet.title
-        logger.info(f"Обработка листа: {sheet_name}")
-
-        # Получаем все данные листа
-        try:
-          all_values = sheet.get_all_values()
-          if len(all_values) < 1:
-            continue
-
-          headers = all_values[0]
-          df = pd.DataFrame(all_values[1:], columns=headers)
-        except Exception as e:
-          logger.error(f"Ошибка при чтении листа {sheet_name}: {str(e)}")
-          continue
-
-        # Определяем позиции столбцов
-        col_positions = {
-          'id': headers.index('ID') + 1 if 'ID' in headers else None,
-          'nights': headers.index(
-              'Количество ночей') + 1 if 'Количество ночей' in headers else None,
-          'check_in': headers.index(
-              'Заезд') + 1 if 'Заезд' in headers else None,
-          'check_out': headers.index(
-              'Выезд') + 1 if 'Выезд' in headers else None
-        }
-
-        # Очищаем и преобразуем данные
-        df = clean_data(df)
-        df['sheet_name'] = sheet_name
-
-        # Список для обновлений количества ночей
-        nights_updates = []
-
-        # Обрабатываем строки для расчета количества ночей
-        for idx, row in enumerate(all_values[1:]):
-          row_num = idx + 2
+        if isinstance(credentials_json, str):
           try:
-            # Проверяем наличие необходимых столбцов
-            if (col_positions['nights'] is not None and
-                col_positions['check_in'] is not None and
-                col_positions['check_out'] is not None):
+            credentials_json = json.loads(credentials_json)
+          except json.JSONDecodeError:
+            logger.error("Неверный формат credentials_json")
+            return {
+              "status": "error",
+              "message": "Неверный формат credentials_json"
+            }
 
-              # Получаем значения из строки
-              nights_val = row[col_positions['nights'] - 1] if col_positions[
-                                                                 'nights'] <= len(
-                  row) else None
-              check_in = row[col_positions['check_in'] - 1] if col_positions[
-                                                                 'check_in'] <= len(
-                  row) else None
-              check_out = row[col_positions['check_out'] - 1] if col_positions[
-                                                                   'check_out'] <= len(
-                  row) else None
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_json, scope)
+        client = gspread.authorize(creds)
 
-              # Если количество ночей не заполнено, но есть даты
-              if (not nights_val or str(nights_val).strip() in (
-                  '', 'None')) and check_in and check_out:
-                try:
-                  # Парсим даты
-                  check_in_dt = pd.to_datetime(check_in, dayfirst=True)
-                  check_out_dt = pd.to_datetime(check_out, dayfirst=True)
+        # Открываем таблицу
+        spreadsheet = client.open_by_key(google_sheet_key)
+        all_updates = []
+        id_clear_updates = []
 
-                  if pd.notna(check_in_dt) and pd.notna(check_out_dt):
-                    nights = (check_out_dt - check_in_dt).days
-                    if nights > 0:
-                      # Формируем правильный диапазон для обновления
-                      col_letter = \
-                        gspread.utils.rowcol_to_a1(1, col_positions['nights'])[
-                          0]
-                      range_name = f"{col_letter}{row_num}"
+        # Обрабатываем каждый лист
+        for sheet in spreadsheet.worksheets():
+          sheet_name = sheet.title
+          logger.info(f"Обработка листа: {sheet_name}")
+          updates = []
 
-                      # Добавляем обновление
-                      nights_updates.append({
-                        'range': range_name,
-                        'values': [[str(nights)]]
-                      })
-                      # Обновляем значение в DataFrame
-                      df.iloc[idx, col_positions['nights'] - 1] = str(nights)
-                except Exception as e:
-                  logger.error(
-                      f"Ошибка расчета ночей для строки {row_num}: {e}")
-          except Exception as e:
-            logger.error(f"Ошибка при обработке строки {row_num}: {str(e)}")
-            continue
-
-        # Применяем обновления количества ночей
-        if nights_updates:
           try:
-            # Обновляем Google Sheets с новым порядком аргументов
-            for update in nights_updates:
-              sheet.update(values=update['values'], range_name=update['range'])
-            logger.info(
-                f"Обновлено {len(nights_updates)} значений количества ночей в листе {sheet_name}")
-          except Exception as e:
-            logger.error(f"Ошибка при обновлении количества ночей: {e}")
-
-        # Определяем позицию столбца ID
-        if 'ID' not in headers:
-          sheet.add_cols(1)
-          id_col_idx = len(headers) + 1
-          sheet.update_cell(1, id_col_idx, 'ID')
-          headers.append('ID')
-          logger.info(f"Добавлен столбец ID в лист {sheet_name}")
-          id_col_letter = gspread.utils.rowcol_to_a1(1, id_col_idx)[0]
-        else:
-          id_col_idx = headers.index('ID') + 1
-          id_col_letter = gspread.utils.rowcol_to_a1(1, id_col_idx)[0]
-
-        # Синхронизируем данные с БД
-        with SessionLocal() as session:
-          existing_records = session.execute(
-              select(Booking).where(Booking.sheet_name == sheet_name)
-          ).scalars().all()
-
-          existing_by_id = {r.id: r for r in existing_records}
-          existing_by_key = {(r.sheet_name, r.guest, r.booking_date): r
-                             for r in existing_records
-                             if r.guest and r.booking_date}
-
-          records_to_keep = set()
-
-          for idx, row in df.iterrows():
-            row_num = idx + 2
-            try:
-              row_id = row.get('id')
-              is_empty = is_row_empty(row, ['id', 'sheet_name'])
-
-              if is_empty and not row_id:
-                continue
-
-              if is_empty and row_id:
-                if row_id in existing_by_id:
-                  session.delete(existing_by_id[row_id])
-                  logger.info(f"Удалена запись с ID: {row_id} (пустая строка)")
-                  id_clear_updates.append({
-                    'range': f"{gspread.utils.rowcol_to_a1(1, id_col_idx)[0]}{row_num}",
-                    'values': [[]]
-                  })
-                continue
-
-              if pd.isna(row.get('guest')) or pd.isna(row.get('booking_date')):
-                continue
-
-              if not row_id:
-                record_key = (sheet_name, row['guest'], row['booking_date'])
-
-                if record_key in existing_by_key:
-                  db_record = existing_by_key[record_key]
-                  if has_changes(db_record, row):
-                    update_record(db_record, row)
-                    logger.info(f"Обновлена запись с ID: {db_record.id}")
-
-                  updates.append({
-                    'range': f"{gspread.utils.rowcol_to_a1(1, id_col_idx)[0]}{row_num}",
-                    'values': [[str(db_record.id)]]
-                  })
-                  records_to_keep.add(db_record.id)
-                else:
-                  new_record = create_new_record(row)
-                  session.add(new_record)
-                  session.flush()
-
-                  updates.append({
-                    'range': f"{gspread.utils.rowcol_to_a1(1, id_col_idx)[0]}{row_num}",
-                    'values': [[str(new_record.id)]]
-                  })
-                  records_to_keep.add(new_record.id)
-                  logger.info(f"Добавлена новая запись с ID: {new_record.id}")
-
-              elif row_id:
-                if row_id in existing_by_id:
-                  db_record = existing_by_id[row_id]
-                  if has_changes(db_record, row):
-                    update_record(db_record, row)
-                    logger.info(f"Обновлена запись с ID: {row_id}")
-                  records_to_keep.add(row_id)
-                else:
-                  new_record = create_new_record(row)
-                  new_record.id = row_id
-                  session.add(new_record)
-                  session.flush()
-                  records_to_keep.add(row_id)
-                  logger.info(
-                      f"Добавлена новая запись с существующим ID: {row_id}")
-
-            except Exception as e:
-              logger.error(f"Ошибка при обработке строки {row_num}: {str(e)}")
+            # Получаем все данные листа
+            all_values = sheet.get_all_values()
+            if len(all_values) < 1:
+              logger.info(f"Лист {sheet_name} пуст, пропускаем")
               continue
 
-          for record in existing_records:
-            if record.id not in records_to_keep:
-              session.delete(record)
-              logger.info(
-                  f"Удалена запись с ID: {record.id} (отсутствует в таблице)")
+            headers = all_values[0]
+            df = pd.DataFrame(all_values[1:], columns=headers)
 
-          session.commit()
+            # Убедимся, что столбец ID существует
+            if 'ID' not in headers:
+              logger.info(f"Добавляем столбец ID в лист {sheet_name}")
+              sheet.add_cols(1)
+              id_col_idx = len(headers) + 1
+              sheet.update_cell(1, id_col_idx, 'ID')
+              headers.append('ID')
+              # Обновляем данные после добавления столбца
+              all_values = sheet.get_all_values()
+              headers = all_values[0]
+              df = pd.DataFrame(all_values[1:], columns=headers)
 
-      # Применяем все обновления к Google таблице
-      if updates or id_clear_updates:
-        try:
-          # Объединяем все обновления
-          all_updates = updates + id_clear_updates
+            id_col_idx = headers.index('ID') + 1
+            id_col_letter = gspread.utils.rowcol_to_a1(1, id_col_idx)[0]
 
-          # Применяем обновления порциями по 100 записей
-          batch_size = 100
-          for i in range(0, len(all_updates), batch_size):
-            batch = all_updates[i:i + batch_size]
-            for update in batch:
-              sheet = spreadsheet.worksheet(
-                  update['range'].split('!')[0]) if '!' in update[
-                'range'] else spreadsheet.sheet1
-              range_name = update['range'].split('!')[1] if '!' in update[
-                'range'] else update['range']
-              sheet.update(values=update['values'], range_name=range_name)
+            # Очищаем и преобразуем данные
+            df = clean_data(df)
+            df['sheet_name'] = sheet_name
 
-        except Exception as e:
-          logger.error(f"Ошибка при обновлении Google таблицы: {str(e)}",
-                       exc_info=True)
-          return {"status": "error",
-                  "message": f"Ошибка при обновлении таблицы: {str(e)}"}
+            # Рассчитываем количество ночей для новых записей
+            nights_updates = []
+            if 'check_in' in df.columns and 'check_out' in df.columns:
+              for idx, row in df.iterrows():
+                row_num = idx + 2
+                if pd.isna(row.get('nights')) and not pd.isna(row.get('check_in')) and not pd.isna(
+                        row.get('check_out')):
+                  nights = calculate_nights(row['check_in'], row['check_out'])
+                  if nights:
+                    cell = f"{gspread.utils.rowcol_to_a1(1, headers.index('Количество ночей') + 1)[0]}{row_num}"
+                    nights_updates.append({
+                      'range': cell,
+                      'values': [[nights]]
+                    })
+                    df.at[idx, 'nights'] = nights
 
-      logger.info("Синхронизация данных завершена")
-      return {"status": "success", "message": "Синхронизация успешно завершена"}
+            # Применяем обновления количества ночей
+            if nights_updates:
+              try:
+                sheet.batch_update(nights_updates)
+                logger.info(f"Обновлено {len(nights_updates)} значений количества ночей в листе {sheet_name}")
+              except Exception as e:
+                logger.error(f"Ошибка при обновлении количества ночей: {e}")
 
-    except Exception as e:
-      logger.error(f"Ошибка при обработке Google таблицы: {str(e)}",
-                   exc_info=True)
-      return {"status": "error",
-              "message": f"Ошибка при синхронизации: {str(e)}"}
+            # Синхронизируем данные с БД
+            with SessionLocal() as session:
+              # Получаем существующие записи из БД
+              existing_records = session.execute(
+                select(Booking).where(Booking.sheet_name == sheet_name)
+              ).scalars().all()
 
+              existing_by_id = {r.id: r for r in existing_records}
+              existing_by_key = {
+                (r.sheet_name, r.guest, r.booking_date): r
+                for r in existing_records
+                if r.guest and r.booking_date
+              }
+
+              records_to_keep = set()
+
+              # Обрабатываем каждую строку в таблице
+              for idx, row in df.iterrows():
+                row_num = idx + 2
+                try:
+                  row_id = row.get('id')
+                  is_empty = is_row_empty(row, ['id', 'sheet_name'])
+
+                  # Обработка пустых строк
+                  if is_empty:
+                    if row_id and row_id in existing_by_id:
+                      session.delete(existing_by_id[row_id])
+                      logger.info(f"Удалена запись с ID: {row_id} (пустая строка)")
+                      updates.append({
+                        'range': f"{id_col_letter}{row_num}",
+                        'values': [[""]]
+                      })
+                    continue
+
+                  # Пропускаем строки без гостя или даты бронирования
+                  if pd.isna(row.get('guest')) or pd.isna(row.get('booking_date')):
+                    continue
+
+                  # Если ID нет в строке
+                  if not row_id or str(row_id).strip() in ('', 'None'):
+                    record_key = (sheet_name, row['guest'], row['booking_date'])
+
+                    # Ищем существующую запись
+                    if record_key in existing_by_key:
+                      db_record = existing_by_key[record_key]
+                      if has_changes(db_record, row):
+                        update_record(db_record, row)
+                        logger.info(f"Обновлена запись с ID: {db_record.id}")
+
+                      # Добавляем ID в таблицу
+                      updates.append({
+                        'range': f"{id_col_letter}{row_num}",
+                        'values': [[str(db_record.id)]]
+                      })
+                      records_to_keep.add(db_record.id)
+                    else:
+                      # Создаем новую запись
+                      new_record = create_new_record(row)
+                      session.add(new_record)
+                      session.flush()
+
+                      # Добавляем ID в таблицу
+                      updates.append({
+                        'range': f"{id_col_letter}{row_num}",
+                        'values': [[str(new_record.id)]]
+                      })
+                      records_to_keep.add(new_record.id)
+                      logger.info(f"Добавлена новая запись с ID: {new_record.id}")
+                  else:
+                    # Для строк с существующим ID
+                    if row_id in existing_by_id:
+                      db_record = existing_by_id[row_id]
+                      if has_changes(db_record, row):
+                        update_record(db_record, row)
+                        logger.info(f"Обновлена запись с ID: {row_id}")
+                      records_to_keep.add(row_id)
+                    else:
+                      # Создаем новую запись с существующим ID
+                      new_record = create_new_record(row)
+                      new_record.id = row_id
+                      session.add(new_record)
+                      session.flush()
+                      records_to_keep.add(row_id)
+                      logger.info(f"Добавлена новая запись с существующим ID: {row_id}")
+
+                      # Обновляем ID в таблице (на случай если он был неверным)
+                      updates.append({
+                        'range': f"{id_col_letter}{row_num}",
+                        'values': [[str(row_id)]]
+                      })
+
+                except Exception as e:
+                  logger.error(f"Ошибка при обработке строки {row_num}: {str(e)}")
+                  continue
+
+              # Удаляем записи, которых нет в таблице
+              for record in existing_records:
+                if record.id not in records_to_keep:
+                  session.delete(record)
+                  logger.info(f"Удалена запись с ID: {record.id} (отсутствует в таблице)")
+
+              session.commit()
+
+            # Применяем обновления ID к текущему листу
+            if updates:
+              try:
+                sheet.batch_update(updates)
+                logger.info(f"Успешно обновлено {len(updates)} ID в листе {sheet_name}")
+              except Exception as e:
+                logger.error(f"Ошибка при обновлении ID в листе {sheet_name}: {str(e)}")
+
+          except Exception as e:
+            logger.error(f"Ошибка при обработке листа {sheet_name}: {str(e)}")
+            continue
+
+        logger.info("Синхронизация данных завершена")
+        return {
+          "status": "success",
+          "message": "Синхронизация успешно завершена"
+        }
+
+      except Exception as e:
+        logger.error(f"Ошибка при обработке Google таблицы: {str(e)}", exc_info=True)
+        return {
+          "status": "error",
+          "message": f"Ошибка при синхронизации: {str(e)}"
+        }
 
 def is_row_empty(row, exclude_columns=None):
   exclude_columns = exclude_columns or []
