@@ -8,7 +8,7 @@ from main_tg_bot.command.sync_command import sync_handler
 #from edit_booking import edit_booking_conv_handler
 #from send_bookings import send_bookings_handler  # Добавляем новый импорт
 from main_tg_bot.command.view_booking import view_booking_handler
-#from view_dates import view_dates_handler
+from main_tg_bot.command.view_dates import view_dates_handler
 
 logger = setup_logger("commands")
 
@@ -47,7 +47,7 @@ def setup_command_handlers(application, bot):
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("view_booking", view_booking_handler))
     #application.add_handler(edit_booking_conv_handler)
-    #application.add_handler(CommandHandler("view_available_dates", view_dates_handler))
+    application.add_handler(CommandHandler("view_available_dates", view_dates_handler))
     #application.add_handler(get_contract_conversation_handler())  # Добавляем обработчик договора
     #application.add_handler(CommandHandler("send_bookings", send_bookings_handler))
     application.add_handler(CommandHandler("sync_booking", sync_handler))

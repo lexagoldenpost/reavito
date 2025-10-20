@@ -14,7 +14,7 @@ from main_tg_bot.command.commands import (
   start,
   help_command,
   view_booking_handler,
-  #view_dates_handler,
+  view_dates_handler,
   sync_handler,
   exit_bot,
   ##edit_booking_conv_handler,
@@ -108,7 +108,7 @@ class BookingBot:
     self._add_secure_command_handler("start", start)
     self._add_secure_command_handler("help", help_command)
     self._add_secure_command_handler("view_booking", view_booking_handler)
-    #self._add_secure_command_handler("view_available_dates", view_dates_handler)
+    self._add_secure_command_handler("view_available_dates", view_dates_handler)
     self._add_secure_command_handler("sync_booking", sync_handler)
     #self._add_secure_command_handler("send_bookings", send_bookings_handler)
     self._add_secure_command_handler("exit", exit_bot)
