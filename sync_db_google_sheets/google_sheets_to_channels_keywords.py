@@ -64,7 +64,7 @@ def process_channels_keywords_sheet(google_sheet_key: str = None,
   """
   # Установка значений по умолчанию из конфига
   if google_sheet_key is None:
-    google_sheet_key = Config.NOTIFICATIONS_SPREADSHEET_ID
+    google_sheet_key = Config.BOOKING_TASK_SPREADSHEET_ID
   if credentials_json is None:
     credentials_json = Config.SERVICE_ACCOUNT_FILE
 

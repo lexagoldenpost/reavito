@@ -94,7 +94,7 @@ def process_google_sheets_to_db(
       }
 
     if google_sheet_key is None:
-      google_sheet_key = Config.SAMPLE_SPREADSHEET_ID
+      google_sheet_key = Config.BOOKING_SPREADSHEET_ID
     if credentials_json is None:
       credentials_json = Config.SERVICE_ACCOUNT_FILE
 
@@ -392,7 +392,7 @@ def update_single_record_in_google_sheet(
       Словарь с результатом операции {'status': 'success'/'error', 'message': str}
   """
   if google_sheet_key is None:
-    google_sheet_key = Config.SAMPLE_SPREADSHEET_ID
+    google_sheet_key = Config.BOOKING_SPREADSHEET_ID
   if credentials_json is None:
     credentials_json = Config.SERVICE_ACCOUNT_FILE
 

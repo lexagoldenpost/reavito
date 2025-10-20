@@ -44,7 +44,7 @@ class AddBookingHandler:
     def __init__(self, bot):
         self.bot = bot
         self.active_sessions = set()
-        self.sheets_handler = GoogleSheetsHandler(Config.SAMPLE_SPREADSHEET_ID)
+        self.sheets_handler = GoogleSheetsHandler(Config.BOOKING_SPREADSHEET_ID)
         self.SHEETS = {
             "HALO Title": "HALO Title",
             "Citygate Р311": "Citygate Р311",

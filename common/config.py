@@ -6,14 +6,8 @@ from dotenv import load_dotenv
 # Загружаем переменные окружения из файла .env
 load_dotenv()
 
-class Config:
-    # Настройки PostgreSQL
-    POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
-    POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
-    POSTGRES_DB = os.getenv("POSTGRES_DB")
-    POSTGRES_USER = os.getenv("POSTGRES_USER")
-    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
 
+class Config:
     # Настройки Telegram Bot
     TELEGRAM_BOOKING_BOT_TOKEN = os.getenv("TELEGRAM_BOOKING_BOT_TOKEN")
     ALLOWED_TELEGRAM_USERNAMES = literal_eval(os.getenv("ALLOWED_TELEGRAM_USERNAMES", "[]"))
@@ -51,16 +45,19 @@ class Config:
     # Расположение credentials
     SERVICE_ACCOUNT_FILE = os.getenv("SERVICE_ACCOUNT_FILE")
     # ID Google Sheet документа
-    SAMPLE_SPREADSHEET_ID = os.getenv("SAMPLE_SPREADSHEET_ID")
-    NOTIFICATIONS_SPREADSHEET_ID = os.getenv("NOTIFICATIONS_SPREADSHEET_ID")
+    BOOKING_SPREADSHEET_ID = os.getenv("BOOKING_SPREADSHEET_ID")
+    BOOKING_TASK_SPREADSHEET_ID = os.getenv("BOOKING_TASK_SPREADSHEET_ID")
+
+    # Список наших аппартаментов - исправленная версия
+    BOOKING_FILE_CSV_ID = os.getenv("BOOKING_FILE_CSV_ID", "citygate_p311.csv,halo_title.csv,citygate_b209.csv,halo_ju701.csv,palmetto_karon.csv,title_residence.csv").split(",")
+
     WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 
     # Настройки логирования
     LOG_DIR = "logs"
     LOG_FILE = "service.log"
-    LOG_ROTATION = "10 MB"  # Ротация при достижении 10 МБ
-    LOG_RETENTION = 3       # Хранение 3 архивов
+    LOG_ROTATION = "3 MB"  # Ротация при достижении 10 МБ
+    LOG_RETENTION = 3  # Хранение 3 архивов
 
-    #Настройки шедуллера
-    SCHEDULER_PERIOD = float(os.getenv("SCHEDULER_PERIOD"))  # период в минутах
-    IS_SYNC_BOOKING = os.getenv("IS_SYNC_BOOKING") #Синхронизировать бронирования, только для одного компа, чтобы БД была норм иначе поедут ИД, для тесмтовых делаем бекапы
+    # Настройки шедуллера
+    SCHEDULER_PERIOD = float(os.getenv("SCHEDULER_PERIOD", "5"))  # период в минутах

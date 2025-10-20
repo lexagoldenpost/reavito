@@ -1,7 +1,5 @@
 # booking_bot.py
-import io
-import sys
-
+from main_tg_bot.command.sync_command import sync_handler
 from dotenv import load_dotenv
 from telegram.ext import (
   Application,
@@ -11,27 +9,23 @@ from telegram.ext import (
   CallbackQueryHandler
 )
 
-from add_booking import AddBookingHandler
-from chat_sync import process_chats_sheet
-from commands import (
+from main_tg_bot.command.commands import (
   COMMANDS,
   start,
   help_command,
   view_booking_handler,
-  view_dates_handler,
+  #view_dates_handler,
   sync_handler,
   exit_bot,
-  edit_booking_conv_handler,
-  send_bookings_handler
+  ##edit_booking_conv_handler,
+  #send_bookings_handler
 )
 from common.config import Config
 from common.logging_config import setup_logger
-from create_contract import get_contract_conversation_handler
-from sync_google_booking import process_google_sheets_to_db
-from sync_task import process_notifications_sheet
-from google_sheets_to_channels_keywords import process_channels_keywords_sheet
+from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
 
-logger = setup_logger("main")
+
+logger = setup_logger("booking_bot")
 
 # Добавляем префиксы для callback-данных
 CALLBACK_PREFIX = "sb_"  # sb = send_bookings
@@ -114,17 +108,17 @@ class BookingBot:
     self._add_secure_command_handler("start", start)
     self._add_secure_command_handler("help", help_command)
     self._add_secure_command_handler("view_booking", view_booking_handler)
-    self._add_secure_command_handler("view_available_dates", view_dates_handler)
+    #self._add_secure_command_handler("view_available_dates", view_dates_handler)
     self._add_secure_command_handler("sync_booking", sync_handler)
-    self._add_secure_command_handler("send_bookings", send_bookings_handler)
+    #self._add_secure_command_handler("send_bookings", send_bookings_handler)
     self._add_secure_command_handler("exit", exit_bot)
 
     # 2. ConversationHandler для add_booking
-    booking_handler = AddBookingHandler(self)
-    self.application.add_handler(booking_handler.get_conversation_handler())
+    #booking_handler = AddBookingHandler(self)
+    #self.application.add_handler(booking_handler.get_conversation_handler())
 
     # 3. Добавляем обработчик редактирования бронирования
-    self.application.add_handler(edit_booking_conv_handler)
+    #self.application.add_handler(edit_booking_conv_handler)
 
     # 4. CallbackHandler для view_booking с фильтром по префиксу
     self._add_secure_callback_handler(
@@ -133,13 +127,13 @@ class BookingBot:
     )
 
     # 5. CallbackHandler для send_booking с фильтром по префиксу
-    self._add_secure_callback_handler(
-        send_bookings_handler,
-        pattern=f"^{CALLBACK_PREFIX}.*"  # Добавляем фильтр по префиксу
-    )
+    # self._add_secure_callback_handler(
+    #     send_bookings_handler,
+    #     pattern=f"^{CALLBACK_PREFIX}.*"  # Добавляем фильтр по префиксу
+    # )
 
     # 6. Обработчик создания договора
-    self.application.add_handler(get_contract_conversation_handler())
+    #self.application.add_handler(get_contract_conversation_handler())
 
     # 7. Обработчик неизвестных команд
     self.application.add_handler(
@@ -174,6 +168,44 @@ class BookingBot:
       logger.error(f"Bot crashed: {e}", exc_info=True)
       raise
 
+def sync_google_sheets():
+    # Создаем экземпляр синхронизатора
+    sync_manager = GoogleSheetsCSVSync(
+      data_folder='booking_data'
+    )
+
+    # Синхронизация всех листов
+    print("Синхронизация всех листов...")
+    results = sync_manager.sync_all_sheets()
+    print(f"Результаты: {results}")
+
+    # Синхронизация только определенных листов
+    # print("\nСинхронизация только бронирований...")
+    # booking_sheets = ['HALO Title', 'Citygate Р311', 'Citygate B209']
+    # results = sync_manager.sync_selected_sheets(booking_sheets)
+    # print(f"Результаты: {results}")
+
+    # Получение списка доступных листов
+    available_sheets = sync_manager.get_available_sheets()
+    print(f"\nДоступные листы: {available_sheets}")
+    #
+    # 1. Первый запуск (автоматически из Google → CSV):
+    #
+    # sync = GoogleSheetsCSVSync()
+    # sync.sync_all_sheets()  # direction='auto' → так как CSV нет, будет google_to_csv
+    #
+    # 2.    После    редактирования    CSV — отправить    в    Google:
+    #
+    # sync.sync_sheet('HALO Title', direction='csv_to_google')
+    # # или
+    # sync.sync_selected_sheets(['HALO Title'], direction='csv_to_google')
+    # 3.     После     редактирования      Google — обновить     CSV:
+    #
+    # sync.sync_sheet('HALO Title', direction='google_to_csv')
+    #
+    # 4.    Полная    двусторонняя    синхронизация(по    времени)    python
+    # sync.sync_sheet('HALO Title', direction='bidirectional')
+
 
 if __name__ == "__main__":
   try:
@@ -183,11 +215,8 @@ if __name__ == "__main__":
     exit(1)
   try:
     logger.info("Sync booking start...")
-    process_google_sheets_to_db()
-    process_notifications_sheet()
-    process_chats_sheet()
-    process_channels_keywords_sheet()
     logger.info("Starting bot initialization...")
+    #sync_google_sheets()
     bot = BookingBot()
     bot.run()
   except Exception as e:
