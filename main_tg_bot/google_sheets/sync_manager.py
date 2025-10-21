@@ -32,7 +32,7 @@ class GoogleSheetsCSVSync:
                 'Citygate B209': 'citygate_b209.csv',
                 'Palmetto Karon': 'palmetto_karon.csv',
                 'Title Residence': 'title_residence.csv',
-                'Halo JU701 двушка': 'halo_ju701.csv',
+                'Halo JU701 двушка': 'halo_ju701_двушка.csv',
             },
             Config.BOOKING_TASK_SPREADSHEET_ID: {
                 'Задачи': 'tasks.csv',
@@ -293,3 +293,17 @@ class GoogleSheetsCSVSync:
         for sheets in self.sheets_config.values():
             all_sheets.extend(sheets.keys())
         return all_sheets
+
+
+if __name__ == "__main__":
+    # Пример использования
+    # Создаем экземпляр синхронизатора
+    # Если отсюда запускать сохраняет в другую папку
+    sync_manager = GoogleSheetsCSVSync(
+        data_folder='booking_data'
+    )
+
+    # Синхронизация всех листов
+    print("Синхронизация всех листов...")
+    results = sync_manager.sync_all_sheets()
+    print(f"Результаты: {results}")

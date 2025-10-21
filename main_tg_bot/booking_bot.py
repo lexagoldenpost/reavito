@@ -1,4 +1,9 @@
 # booking_bot.py
+import asyncio
+import multiprocessing
+import signal
+import sys
+
 from main_tg_bot.command.sync_command import sync_handler
 from dotenv import load_dotenv
 from telegram.ext import (
@@ -23,7 +28,7 @@ from main_tg_bot.command.commands import (
 from common.config import Config
 from common.logging_config import setup_logger
 from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
-
+from main_tg_bot.scheduler.scheduler import AsyncScheduler
 
 logger = setup_logger("booking_bot")
 
@@ -37,6 +42,7 @@ class BookingBot:
     self.allowed_usernames = [u.lower() for u in
                               Config.ALLOWED_TELEGRAM_USERNAMES]
     self.application = None
+    self.scheduler_process = None
     logger.info("BookingBot initialized")
     logger.info(f"Token: {self.token[:10]}...")
     logger.info(f"Allowed users: {self.allowed_usernames}")
@@ -155,18 +161,59 @@ class BookingBot:
     )
 
   def run(self):
-    """Запуск бота"""
-    try:
-      self.setup_handlers()
-      logger.info("Starting bot polling...")
-      print("Бот запущен. Доступные команды:")
-      for cmd, desc in COMMANDS:
-        print(f"/{cmd} - {desc}")
+      """Запуск бота"""
+      try:
+          # Запускаем планировщик
+          self.start_scheduler()
 
-      self.application.run_polling(drop_pending_updates=True)
-    except Exception as e:
-      logger.error(f"Bot crashed: {e}", exc_info=True)
-      raise
+          # Настраиваем обработчик завершения
+          def signal_handler(signum, frame):
+              logger.info("Received shutdown signal")
+              self.stop_scheduler()
+              sys.exit(0)
+
+          signal.signal(signal.SIGINT, signal_handler)
+          signal.signal(signal.SIGTERM, signal_handler)
+
+          self.setup_handlers()
+          logger.info("Starting bot polling...")
+          print("Бот запущен. Доступные команды:")
+          for cmd, desc in COMMANDS:
+              print(f"/{cmd} - {desc}")
+
+          self.application.run_polling(drop_pending_updates=True)
+      except Exception as e:
+          logger.error(f"Bot crashed: {e}", exc_info=True)
+          self.stop_scheduler()
+          raise
+
+  def start_scheduler(self):
+        """Запуск планировщика в отдельном процессе"""
+        try:
+            from scheduler import AsyncScheduler
+            self.scheduler_process = multiprocessing.Process(
+                target=self._run_scheduler,
+                name="SchedulerProcess"
+            )
+            self.scheduler_process.start()
+            logger.info("Scheduler started in separate process")
+        except Exception as e:
+            logger.error(f"Failed to start scheduler: {e}")
+
+  def _run_scheduler(self):
+        """Запуск асинхронного планировщика в отдельном процессе"""
+        try:
+            scheduler = AsyncScheduler()
+            asyncio.run(scheduler.run())
+        except Exception as e:
+            logger.error(f"Scheduler process error: {e}")
+
+  def stop_scheduler(self):
+        """Остановка планировщика"""
+        if self.scheduler_process and self.scheduler_process.is_alive():
+            self.scheduler_process.terminate()
+            self.scheduler_process.join()
+            logger.info("Scheduler stopped")
 
 def sync_google_sheets():
     # Создаем экземпляр синхронизатора
@@ -208,16 +255,20 @@ def sync_google_sheets():
 
 
 if __name__ == "__main__":
-  try:
-    load_dotenv()
-  except Exception as e:
-    print(f"Error loading .env file: {e}")
-    exit(1)
-  try:
-    logger.info("Sync booking start...")
-    logger.info("Starting bot initialization...")
-    #sync_google_sheets()
-    bot = BookingBot()
-    bot.run()
-  except Exception as e:
-    logger.critical(f"Failed to start bot: {e}", exc_info=True)
+    try:
+        load_dotenv()
+    except Exception as e:
+        print(f"Error loading .env file: {e}")
+        exit(1)
+    try:
+        logger.info("Sync booking start...")
+        logger.info("Starting bot initialization...")
+        sync_google_sheets()
+        bot = BookingBot()
+        bot.run()
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+        bot.stop_scheduler()
+    except Exception as e:
+        logger.critical(f"Failed to start bot: {e}", exc_info=True)
+        bot.stop_scheduler()

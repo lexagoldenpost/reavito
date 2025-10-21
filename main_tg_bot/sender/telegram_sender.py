@@ -170,7 +170,7 @@ if __name__ == "__main__":
   # Пример 1: Только текст
   print("Отправка текстового сообщения:")
   result = sender.send_message(
-      channel_name="@LapkaAvitoBot",
+      channel_name="@PolyakovTestBot",
       message="Тестовое текстовое сообщение"
   )
   print("Результат:", "Успешно" if result else "Ошибка")
@@ -178,7 +178,7 @@ if __name__ == "__main__":
   # Пример 2: Текст с одним изображением
   print("\nОтправка сообщения с изображением:")
   result = sender.send_message(
-      channel_name="@LapkaAvitoBot",
+      channel_name="@PolyakovTestBot",
       message="Сообщение с картинкой",
       media_files="test_image.jpg"
   )
@@ -187,7 +187,7 @@ if __name__ == "__main__":
   # Пример 3: Несколько медиафайлов
   print("\nОтправка нескольких медиафайлов:")
   result = sender.send_message(
-      channel_name="@LapkaAvitoBot",
+      channel_name="@PolyakovTestBot",
       media_files=["image1.jpg", "document.pdf"]
   )
   print("Результат:", "Успешно" if result else "Ошибка")
