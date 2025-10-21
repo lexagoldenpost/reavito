@@ -162,7 +162,15 @@ class BookingBot:
         """Запуск веб-сервера для Web App с ожиданием готовности"""
         try:
             if not self.web_server_started:
-                print("🔄 Запуск веб-сервера...")
+                print("🔄 Запуск локального HTTPS веб-сервера...")
+
+                # Попробуем принудительно сгенерировать сертификаты если нужно
+                try:
+                    from web_app_server import generate_ssl_certificates_force
+                    generate_ssl_certificates_force()
+                except Exception as e:
+                    print(f"⚠️  Не удалось сгенерировать сертификаты: {e}")
+
                 public_url = start_web_server()
 
                 if public_url:
@@ -221,7 +229,8 @@ class BookingBot:
             logger.info("Starting bot polling...")
             print("=" * 50)
             print("🤖 Бот запущен!")
-            print(f"🌐 Веб-сервер: {self.web_app_public_url}")
+            print(f"🌐 Локальный HTTPS сервер: {self.web_app_public_url}")
+            print("⚠️  Внимание: Для работы Web App необходим HTTPS")
             print("📋 Доступные команды:")
             for cmd, desc in COMMANDS:
                 print(f"   /{cmd} - {desc}")
