@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Форма бронирования</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .date-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .submit-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+
+        .required::after {
+            content: " *";
+            color: #e74c3c;
+        }
+
+        .object-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .object-info h3 {
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .object-info p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .error {
+            color: #e74c3c;
+            font-size: 12px;
+            margin-top: 5px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📅 Форма бронирования</h1>
+            <p>Заполните все необходимые поля</p>
+        </div>
+
+        <div class="object-info">
+            <h3 id="objectName">CityGate P311</h3>
+            <p id="objectDetails">Апартаменты для бронирования</p>
+        </div>
+
+        <form id="bookingForm">
+            <div class="form-group">
+                <label for="guest_name" class="required">ФИО гостя</label>
+                <input type="text" id="guest_name" name="guest_name" required placeholder="Иванов Иван Иванович">
+                <div class="error" id="guest_name_error">Поле обязательно для заполнения</div>
+            </div>
+
+            <div class="form-group">
+                <label for="booking_date" class="required">Дата бронирования</label>
+                <input type="date" id="booking_date" name="booking_date" required>
+                <div class="error" id="booking_date_error">Поле обязательно для заполнения</div>
+            </div>
+
+            <div class="form-group date-group">
+                <div>
+                    <label for="check_in" class="required">Дата заезда</label>
+                    <input type="date" id="check_in" name="check_in" required>
+                    <div class="error" id="check_in_error">Поле обязательно для заполнения</div>
+                </div>
+                <div>
+                    <label for="check_out" class="required">Дата выезда</label>
+                    <input type="date" id="check_out" name="check_out" required>
+                    <div class="error" id="check_out_error">Поле обязательно для заполнения</div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="nights_count">Количество ночей</label>
+                <input type="number" id="nights_count" name="nights_count" placeholder="Автоматический расчет" readonly>
+            </div>
+
+            <div class="form-group">
+                <label for="total_baht" class="required">Общая сумма (Батты)</label>
+                <input type="text" id="total_baht" name="total_baht" required placeholder="58 064">
+                <div class="error" id="total_baht_error">Поле обязательно для заполнения</div>
+            </div>
+
+            <div class="form-group">
+                <label for="advance_payment">Аванс (Батты/Рубли)</label>
+                <input type="text" id="advance_payment" name="advance_payment" placeholder="6774/17163">
+            </div>
+
+            <div class="form-group">
+                <label for="additional_payment">Доплата (Батты/Рубли)</label>
+                <input type="text" id="additional_payment" name="additional_payment" placeholder="51290">
+            </div>
+
+            <div class="form-group">
+                <label for="source" class="required">Источник бронирования</label>
+                <select id="source" name="source" required>
+                    <option value="">Выберите источник</option>
+                    <option value="телеграмм">Telegram</option>
+                    <option value="Авито">Авито</option>
+                    <option value="Авито Вотс ап">Авито WhatsApp</option>
+                    <option value="сайт">Сайт</option>
+                    <option value="рекомендация">Рекомендация</option>
+                </select>
+                <div class="error" id="source_error">Поле обязательно для заполнения</div>
+            </div>
+
+            <div class="form-group">
+                <label for="extra_charges">Дополнительные доплаты</label>
+                <textarea id="extra_charges" name="extra_charges" placeholder="Свет, вода по факту выезда"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="expenses">Расходы</label>
+                <input type="text" id="expenses" name="expenses" placeholder="уборки раз в месяц со сменой белья">
+            </div>
+
+            <div class="form-group">
+                <label for="payment_method">Способ оплаты</label>
+                <select id="payment_method" name="payment_method">
+                    <option value="">Выберите способ оплаты</option>
+                    <option value="Т-Банк">Т-Банк</option>
+                    <option value="Райф">Райффайзенбанк</option>
+                    <option value="ГПБ">Газпромбанк</option>
+                    <option value="Сбер">Сбербанк</option>
+                    <option value="наличные">Наличные</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="phone" class="required">Телефон</label>
+                <input type="tel" id="phone" name="phone" required placeholder="+7 900 123-45-67">
+                <div class="error" id="phone_error">Поле обязательно для заполнения</div>
+            </div>
+
+            <div class="form-group">
+                <label for="additional_phone">Дополнительный телефон</label>
+                <input type="tel" id="additional_phone" name="additional_phone" placeholder="+7 900 123-45-67">
+            </div>
+
+            <div class="form-group">
+                <label for="flights">Рейсы</label>
+                <input type="text" id="flights" name="flights" placeholder="SU 1234, SU 5678">
+            </div>
+
+            <div class="form-group">
+                <label for="comment">Комментарий</label>
+                <textarea id="comment" name="comment" placeholder="Дополнительная информация о бронировании"></textarea>
+            </div>
+
+            <button type="submit" class="submit-btn">
+                💾 Сохранить бронирование
+            </button>
+        </form>
+    </div>
+
+    <script>
+        // Инициализация Telegram Web App
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.MainButton.setText("Отправить данные").hide();
+
+        // Получаем параметры из URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const objectId = urlParams.get('object');
+        const userId = urlParams.get('user_id');
+
+        // Устанавливаем текущую дату как дату бронирования по умолчанию
+        document.getElementById('booking_date').valueAsDate = new Date();
+
+        // Расчет количества ночей
+        const checkInInput = document.getElementById('check_in');
+        const checkOutInput = document.getElementById('check_out');
+        const nightsInput = document.getElementById('nights_count');
+
+        function calculateNights() {
+            const checkIn = new Date(checkInInput.value);
+            const checkOut = new Date(checkOutInput.value);
+
+            if (checkIn && checkOut && checkOut > checkIn) {
+                const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+                nightsInput.value = nights;
+            } else {
+                nightsInput.value = '';
+            }
+        }
+
+        checkInInput.addEventListener('change', calculateNights);
+        checkOutInput.addEventListener('change', calculateNights);
+
+        // Валидация формы
+        function validateForm() {
+            let isValid = true;
+            const requiredFields = document.querySelectorAll('input[required], select[required]');
+
+            requiredFields.forEach(field => {
+                const errorElement = document.getElementById(field.id + '_error');
+                if (!field.value.trim()) {
+                    errorElement.style.display = 'block';
+                    field.style.borderColor = '#e74c3c';
+                    isValid = false;
+                } else {
+                    errorElement.style.display = 'none';
+                    field.style.borderColor = '#e1e5e9';
+                }
+            });
+
+            return isValid;
+        }
+
+        // Обработка отправки формы
+        document.getElementById('bookingForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            if (!validateForm()) {
+                tg.showAlert('Пожалуйста, заполните все обязательные поля');
+                return;
+            }
+
+            // Собираем данные формы
+            const formData = new FormData(this);
+            const bookingData = {};
+
+            for (let [key, value] of formData.entries()) {
+                bookingData[key] = value;
+            }
+
+            // Добавляем дополнительные данные
+            bookingData.object_id = objectId;
+            bookingData.user_id = userId;
+            bookingData.timestamp = new Date().toISOString();
+
+            // Отправляем данные в Telegram бот
+            tg.sendData(JSON.stringify(bookingData));
+
+            // Закрываем Web App
+            tg.close();
+        });
+
+        // Показываем кнопку отправки когда форма валидна
+        const form = document.getElementById('bookingForm');
+        const inputs = form.querySelectorAll('input[required], select[required]');
+
+        function checkFormValidity() {
+            const isValid = Array.from(inputs).every(input => input.value.trim() !== '');
+            if (isValid) {
+                tg.MainButton.show();
+            } else {
+                tg.MainButton.hide();
+            }
+        }
+
+        inputs.forEach(input => {
+            input.addEventListener('input', checkFormValidity);
+            input.addEventListener('change', checkFormValidity);
+        });
+
+        // Инициализация проверки формы
+        checkFormValidity();
+    </script>
+</body>
+</html>
