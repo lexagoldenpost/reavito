@@ -59,5 +59,6 @@ class Config:
     LOG_ROTATION = "3 MB"  # Ротация при достижении 10 МБ
     LOG_RETENTION = 3  # Хранение 3 архивов
 
-    # Настройки шедуллера
-    SCHEDULER_PERIOD = float(os.getenv("SCHEDULER_PERIOD", "5"))  # период в минутах
+    # Урл сайта где формы
+    REMOTE_WEB_APP_URL= "https://ci84606-wordpress-rdeld.tw1.ru"
+    REMOTE_WEB_APP_CREATE_BOOKING_URL = "/?page_id=8"

@@ -30,20 +30,6 @@ from common.logging_config import setup_logger
 from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
 from main_tg_bot.scheduler.scheduler import AsyncScheduler
 
-# Импортируем веб-сервер
-try:
-    from web_app_server import start_web_server, stop_web_server, wait_for_web_server
-except ImportError:
-    def start_web_server():
-        print("❌ web_app_server.py не найден")
-        return None
-
-    def stop_web_server():
-        pass
-
-    def wait_for_web_server(timeout=30):
-        return False
-
 logger = setup_logger("booking_bot")
 
 # Добавляем префиксы для callback-данных
@@ -58,11 +44,12 @@ class BookingBot:
                                   Config.ALLOWED_TELEGRAM_USERNAMES]
         self.application = None
         self.scheduler_process = None
-        self.web_server_started = False
-        self.web_app_public_url = None
+        # Удаленный веб-сервер уже запущен, не нужно запускать локальный
+        self.remote_web_app_url = Config.REMOTE_WEB_APP_URL
         logger.info("BookingBot initialized")
         logger.info(f"Token: {self.token[:10]}...")
         logger.info(f"Allowed users: {self.allowed_usernames}")
+        logger.info(f"Remote web app URL: {self.remote_web_app_url}")
 
     async def check_user_permission(self, update):
         """Проверка прав доступа пользователя"""
@@ -157,58 +144,19 @@ class BookingBot:
             "\n".join(f"/{cmd} - {desc}" for cmd, desc in COMMANDS)
         )
 
-    def start_web_server(self):
-        """Запуск веб-сервера для Web App с ожиданием готовности"""
-        try:
-            if not self.web_server_started:
-                print("🔄 Запуск локального HTTPS веб-сервера...")
-
-                # Попробуем принудительно сгенерировать сертификаты если нужно
-                try:
-                    from web_app_server import generate_ssl_certificates_force
-                    generate_ssl_certificates_force()
-                except Exception as e:
-                    print(f"⚠️  Не удалось сгенерировать сертификаты: {e}")
-
-                public_url = start_web_server()
-
-                if public_url:
-                    self.web_server_started = True
-                    self.web_app_public_url = public_url
-                    logger.info(f"Web server started: {public_url}")
-                    return True
-                else:
-                    logger.error("Failed to start web server - no URL returned")
-                    return False
-            else:
-                logger.info("Web server already running")
-                return True
-        except Exception as e:
-            logger.error(f"Failed to start web server: {e}")
-            return False
-
-    def stop_web_server(self):
-        """Остановка веб-сервера"""
-        try:
-            stop_web_server()
-            self.web_server_started = False
-            logger.info("Web server stopped")
-        except Exception as e:
-            logger.error(f"Error stopping web server: {e}")
+    def get_web_app_url(self):
+        """Получение URL удаленного веб-приложения"""
+        if self.remote_web_app_url:
+            return self.remote_web_app_url
+        else:
+            raise Exception("Remote web app URL not configured")
 
     def run(self):
         """Запуск бота"""
         try:
-            # Запускаем веб-сервер для Web App и проверяем успешность
-            print("🔄 Запуск веб-сервера...")
-            if not self.start_web_server():
-                logger.error("Failed to start web server, bot cannot continue")
-                return
-
-            # Ждем полной готовности веб-сервера
-            print("⏳ Ожидание готовности веб-сервера...")
-            if not self.wait_for_web_server_ready(timeout=30):
-                logger.error("Web server failed to become ready in time")
+            # Проверяем наличие URL удаленного сервера
+            if not self.remote_web_app_url:
+                logger.error("Remote web app URL not configured, bot cannot continue")
                 return
 
             # Запускаем планировщик
@@ -218,7 +166,6 @@ class BookingBot:
             def signal_handler(signum, frame):
                 logger.info("Received shutdown signal")
                 self.stop_scheduler()
-                self.stop_web_server()
                 sys.exit(0)
 
             signal.signal(signal.SIGINT, signal_handler)
@@ -228,8 +175,7 @@ class BookingBot:
             logger.info("Starting bot polling...")
             print("=" * 50)
             print("🤖 Бот запущен!")
-            print(f"🌐 Локальный HTTPS сервер: {self.web_app_public_url}")
-            print("⚠️  Внимание: Для работы Web App необходим HTTPS")
+            print(f"🌐 Удаленный сервер форм: {self.remote_web_app_url}")
             print("📋 Доступные команды:")
             for cmd, desc in COMMANDS:
                 print(f"   /{cmd} - {desc}")
@@ -239,32 +185,11 @@ class BookingBot:
         except Exception as e:
             logger.error(f"Bot crashed: {e}", exc_info=True)
             self.stop_scheduler()
-            self.stop_web_server()
             raise
-
-    def get_web_app_url(self):
-        """Получение URL веб-приложения"""
-        if self.web_app_public_url:
-            return self.web_app_public_url
-        else:
-            raise Exception("Web server not ready")
-
-    def wait_for_web_server_ready(self, timeout=30):
-        """Ожидание готовности веб-сервера"""
-        try:
-            if self.web_server_started and self.web_app_public_url:
-                return True
-
-            # Ждем готовности сервера
-            return wait_for_web_server(timeout=timeout)
-        except Exception as e:
-            logger.error(f"Error waiting for web server: {e}")
-            return False
 
     def start_scheduler(self):
         """Запуск планировщика в отдельном процессе"""
         try:
-            # ИСПРАВЛЕННЫЙ ИМПОРТ - используем правильный путь
             from main_tg_bot.scheduler.scheduler import AsyncScheduler
             self.scheduler_process = multiprocessing.Process(
                 target=self._run_scheduler,
@@ -322,8 +247,6 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
         bot.stop_scheduler()
-        bot.stop_web_server()
     except Exception as e:
         logger.critical(f"Failed to start bot: {e}", exc_info=True)
         bot.stop_scheduler()
-        bot.stop_web_server()
