@@ -34,7 +34,6 @@ from main_tg_bot.scheduler.scheduler import AsyncScheduler
 try:
     from web_app_server import start_web_server, stop_web_server, wait_for_web_server
 except ImportError:
-    # Создаем заглушки если модуль не найден
     def start_web_server():
         print("❌ web_app_server.py не найден")
         return None

@@ -80,7 +80,7 @@ class AddBookingHandler:
                 base_url = self.bot.get_web_app_url()
             else:
                 # Fallback: пытаемся получить URL самостоятельно
-                from main_tg_bot.web_app_server import get_web_app_url
+                from web_app_server import get_web_app_url
                 base_url = get_web_app_url()
 
             if not base_url:
