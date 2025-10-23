@@ -51,6 +51,7 @@ class Config:
     # Список наших аппартаментов - исправленная версия
     BOOKING_DATA_DIR="booking_files"
     TASK_DATA_DIR="task_files"
+    SCHEDULER_DATA_DIR="scheduler"
     WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 
     # Настройки логирования

@@ -3,32 +3,35 @@ import asyncio
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
 from common.logging_config import setup_logger
+from main_tg_bot.booking_objects import PROJECT_ROOT
+from common.config import Config
 
 logger = setup_logger("simple_scheduler")
+SCHEDULER_DIR = PROJECT_ROOT
 
 class AsyncScheduler:
     def __init__(self):
         # Просто список задач: имя, путь к скрипту, интервал в секундах
         self.jobs = [
-            {"name": "notifications_service", "script": "main_tg_bot/notification_service.py", "interval": 30 * 60}
+            {"name": "notifications_service", "script": SCHEDULER_DIR / Config.SCHEDULER_DATA_DIR / "notification_service.py", "interval": 30 * 60}
            # {"name": "notifications", "script": "sync_db_google_sheets/check_notifications.py", "interval": 30 * 60},
           #  {"name": "sync", "script": "main_tg_bot/google_sheets/sync.py", "interval": 60 * 60},
             # Добавляйте сюда новые задачи
         ]
 
-    async def run_script(self, script_path: str):
+    async def run_script(self, script_path: Path):
         """Запускает скрипт в новом процессе (асинхронно)"""
-        full_path = os.path.abspath(script_path)
-        if not os.path.exists(full_path):
-            logger.error(f"Script not found: {full_path}")
+        if not script_path.exists():
+            logger.error(f"Script not found: {script_path}")
             return
 
         logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] Starting: {script_path}")
         try:
             process = await asyncio.create_subprocess_exec(
-                sys.executable, full_path,
+                sys.executable, str(script_path),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )

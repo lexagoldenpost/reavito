@@ -19,7 +19,7 @@ from telegram.ext import (
 from common.config import Config
 from common.logging_config import setup_logger
 
-logger = setup_logger("add_booking")
+logger = setup_logger("add_booking_form")
 
 # Состояния для ConversationHandler
 SELECTING_OBJECT, FILLING_FORM = range(2)
@@ -434,7 +434,7 @@ class AddBookingHandler:
         logger.info("Booking process timeout")
         await update.message.reply_text(
             "⏰ *Время сессии истекло*\n\n"
-            "Используйте /add_booking чтобы начать заново.",
+            "Используйте /add_booking_form чтобы начать заново.",
             parse_mode='Markdown'
         )
         return ConversationHandler.END
@@ -442,7 +442,7 @@ class AddBookingHandler:
     def get_conversation_handler(self):
         """Возвращает ConversationHandler для добавления бронирований"""
         return ConversationHandler(
-            entry_points=[CommandHandler('add_booking', self.start_booking)],
+            entry_points=[CommandHandler('add_booking_form', self.start_booking)],
             states={
                 SELECTING_OBJECT: [
                     CallbackQueryHandler(self.select_object, pattern='^object_')
@@ -454,7 +454,7 @@ class AddBookingHandler:
             },
             fallbacks=[
                 CommandHandler('cancel', self.cancel),
-                CommandHandler('add_booking', self.start_booking)
+                CommandHandler('add_booking_form', self.start_booking)
             ],
             conversation_timeout=300,  # 5 минут таймаут
             name="add_booking_conversation"

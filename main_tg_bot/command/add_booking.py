@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 import pandas as pd
-from booking_objects import BOOKING_SHEETS, get_booking_sheet
+from main_tg_bot.booking_objects import BOOKING_SHEETS, get_booking_sheet
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     CommandHandler,
@@ -15,7 +15,7 @@ from telegram.ext import (
 
 from common.logging_config import setup_logger
 
-logger = setup_logger("add_booking_local")
+logger = setup_logger("add_booking")
 
 # Состояния диалога
 (
@@ -41,7 +41,7 @@ logger = setup_logger("add_booking_local")
 ) = range(19)
 
 
-class AddBookingLocalHandler:
+class AddBookingHandler:
     def __init__(self, bot):
         self.bot = bot
         self.active_sessions = set()

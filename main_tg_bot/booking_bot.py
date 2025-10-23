@@ -15,7 +15,7 @@ from telegram.ext import (
 
 from common.config import Config
 from common.logging_config import setup_logger
-from main_tg_bot.command.add_booking_form import AddBookingHandler
+from main_tg_bot.command.add_booking import AddBookingHandler
 from main_tg_bot.command.commands import (
     COMMANDS,
     start,
@@ -26,7 +26,7 @@ from main_tg_bot.command.commands import (
     exit_bot,
 )
 from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
-from main_tg_bot.scheduler.scheduler import AsyncScheduler
+from scheduler.scheduler import AsyncScheduler
 
 logger = setup_logger("booking_bot")
 
@@ -188,7 +188,7 @@ class BookingBot:
     def start_scheduler(self):
         """Запуск планировщика в отдельном процессе"""
         try:
-            from main_tg_bot.scheduler.scheduler import AsyncScheduler
+            from scheduler.scheduler import AsyncScheduler
             self.scheduler_process = multiprocessing.Process(
                 target=self._run_scheduler,
                 name="SchedulerProcess"
@@ -245,7 +245,7 @@ if __name__ == "__main__":
     try:
         logger.info("Sync booking start...")
         logger.info("Starting bot initialization...")
-        sync_google_sheets()
+        #sync_google_sheets()
         bot = BookingBot()
         bot.run()
     except KeyboardInterrupt:
