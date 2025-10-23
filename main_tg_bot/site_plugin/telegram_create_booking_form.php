@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Telegram Booking Form
  * Description: Форма бронирования для Telegram бота
- * Version: 1.0
+ * Version: 1.3
  * Author: Your Name
  */
 
@@ -16,6 +16,7 @@ class TelegramBookingForm {
     public function __construct() {
         add_shortcode('telegram_booking', array($this, 'booking_form_shortcode'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
+        // Убираем AJAX обработку, так как данные будут отправляться через Telegram WebApp
     }
 
     public function enqueue_scripts() {
@@ -28,13 +29,8 @@ class TelegramBookingForm {
     }
 
     private function enqueue_form_assets() {
-        // Подключаем jQuery
         wp_enqueue_script('jquery');
-
-        // Inline styles
         wp_add_inline_style('wp-block-library', $this->get_form_styles());
-
-        // Inline scripts
         wp_add_inline_script('jquery', $this->get_form_scripts());
     }
 
@@ -42,7 +38,9 @@ class TelegramBookingForm {
         $atts = shortcode_atts(array(
             'object' => 'citygate_p311',
             'user_id' => '0',
-            'title' => 'Форма бронирования'
+            'title' => 'Форма бронирования',
+            'bot_token' => '',
+            'chat_id' => ''
         ), $atts);
 
         return $this->get_form_html($atts);
@@ -59,33 +57,28 @@ class TelegramBookingForm {
             overflow: hidden;
             font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
         }
-
         .telegram-booking-header {
-            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
             color: white;
             padding: 30px 20px;
             text-align: center;
         }
-
         .telegram-booking-header h1 {
+            margin: 0 0 10px 0;
             font-size: 24px;
-            margin-bottom: 8px;
             font-weight: 600;
         }
-
         .telegram-booking-header p {
+            margin: 0;
             opacity: 0.9;
             font-size: 14px;
         }
-
         .telegram-form-container {
             padding: 30px;
         }
-
         .telegram-form-group {
             margin-bottom: 20px;
         }
-
         .telegram-form-group label {
             display: block;
             margin-bottom: 8px;
@@ -93,181 +86,80 @@ class TelegramBookingForm {
             color: #374151;
             font-size: 14px;
         }
-
         .telegram-form-control {
             width: 100%;
             padding: 12px 16px;
             border: 2px solid #e5e7eb;
-            border-radius: 12px;
+            border-radius: 10px;
             font-size: 16px;
-            transition: all 0.3s ease;
-            background: #f9fafb;
+            transition: all 0.3s;
+            box-sizing: border-box;
         }
-
         .telegram-form-control:focus {
             outline: none;
             border-color: #4f46e5;
-            background: white;
             box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
         }
-
         .telegram-form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
+            display: flex;
             gap: 15px;
         }
-
-        .telegram-btn {
+        .telegram-form-row .telegram-form-group {
+            flex: 1;
+        }
+        .telegram-submit-btn {
             width: 100%;
             padding: 16px;
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: white;
             border: none;
             border-radius: 12px;
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            transition: all 0.3s;
+            margin-top: 10px;
         }
-
-        .telegram-btn-primary {
-            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-            color: white;
-        }
-
-        .telegram-btn-primary:hover {
+        .telegram-submit-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 20px rgba(79, 70, 229, 0.3);
         }
-
-        .telegram-loading {
+        .telegram-submit-btn:active {
+            transform: translateY(0);
+        }
+        .telegram-error-message {
+            color: #dc2626;
+            font-size: 12px;
+            margin-top: 5px;
             display: none;
+        }
+        .telegram-loading {
             text-align: center;
             padding: 40px 20px;
+            display: none;
         }
-
         .telegram-spinner {
-            border: 4px solid #f3f3f3;
+            border: 4px solid #f3f4f6;
             border-top: 4px solid #4f46e5;
             border-radius: 50%;
             width: 40px;
             height: 40px;
-            animation: telegram-spin 1s linear infinite;
-            margin: 0 auto 15px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
         }
-
-        @keyframes telegram-spin {
+        @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-
         .telegram-success-message {
-            display: none;
             text-align: center;
             padding: 40px 20px;
+            display: none;
             color: #059669;
         }
-
         .telegram-success-icon {
             font-size: 48px;
             margin-bottom: 20px;
-        }
-
-        .telegram-error-message {
-            color: #dc2626;
-            font-size: 14px;
-            margin-top: 5px;
-            display: none;
-        }
-
-        .telegram-section-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #374151;
-            margin: 25px 0 15px 0;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #f3f4f6;
-        }
-
-        .telegram-phone-input {
-            display: flex;
-            align-items: center;
-        }
-
-        .telegram-phone-prefix {
-            background: #e5e7eb;
-            padding: 12px 15px;
-            border: 2px solid #e5e7eb;
-            border-right: none;
-            border-radius: 12px 0 0 12px;
-            font-weight: 500;
-        }
-
-        .telegram-phone-input input {
-            border-radius: 0 12px 12px 0;
-            flex: 1;
-        }
-
-        .telegram-form-message {
-            margin-top: 15px;
-            padding: 10px;
-            border-radius: 8px;
-            text-align: center;
-            display: none;
-        }
-
-        .telegram-form-message.success {
-            background: #d1fae5;
-            color: #065f46;
-            border: 1px solid #a7f3d0;
-        }
-
-        .telegram-form-message.error {
-            background: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #fecaca;
-        }
-
-        .telegram-currency-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-
-        .telegram-currency-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .telegram-currency-label {
-            font-size: 12px;
-            color: #6b7280;
-            margin-bottom: 4px;
-        }
-
-        .telegram-error-container {
-            display: none;
-            text-align: center;
-            padding: 40px 20px;
-            color: #dc2626;
-        }
-
-        @media (max-width: 480px) {
-            .telegram-form-row {
-                grid-template-columns: 1fr;
-            }
-
-            .telegram-booking-container {
-                margin: 10px;
-            }
-
-            .telegram-form-container {
-                padding: 20px;
-            }
-
-            .telegram-currency-row {
-                grid-template-columns: 1fr;
-            }
         }
         ';
     }
@@ -278,13 +170,17 @@ class TelegramBookingForm {
             console.log("Telegram booking form initialized");
 
             // Инициализируем WebApp
-            console.log("Initializing Telegram WebApp...");
-            Telegram.WebApp.ready();
-            Telegram.WebApp.expand();
-            Telegram.WebApp.setHeaderColor("#4f46e5");
-            Telegram.WebApp.setBackgroundColor("#f8fafc");
-
-            console.log("WebApp initialized successfully");
+            let telegramWebApp = null;
+            if (typeof Telegram !== "undefined" && Telegram.WebApp) {
+                telegramWebApp = Telegram.WebApp;
+                telegramWebApp.ready();
+                telegramWebApp.expand();
+                telegramWebApp.setHeaderColor("#4f46e5");
+                telegramWebApp.setBackgroundColor("#f8fafc");
+                console.log("WebApp initialized successfully");
+            } else {
+                console.warn("Telegram WebApp not available - running in browser mode");
+            }
 
             // Устанавливаем минимальную дату (сегодня)
             const today = new Date().toISOString().split("T")[0];
@@ -292,9 +188,7 @@ class TelegramBookingForm {
             $("#telegram_check_out").attr("min", today);
 
             // Автоматический расчет количества ночей
-            $("#telegram_check_in, #telegram_check_out").on("change", function() {
-                calculateNights();
-            });
+            $("#telegram_check_in, #telegram_check_out").on("change", calculateNights);
 
             // Маски для числовых полей
             $("#telegram_total_baht, #telegram_advance_baht, #telegram_advance_rub, #telegram_additional_baht, #telegram_additional_rub").on("input", function() {
@@ -327,7 +221,6 @@ class TelegramBookingForm {
                 const checkIn = $("#telegram_check_in").val();
                 const checkOut = $("#telegram_check_out").val();
 
-                // Сброс ошибок
                 hideAllErrors();
 
                 if (!name) {
@@ -345,7 +238,6 @@ class TelegramBookingForm {
                     isValid = false;
                 }
 
-                // Проверка что дата выезда позже даты заезда
                 if (checkIn && checkOut) {
                     const start = new Date(checkIn);
                     const end = new Date(checkOut);
@@ -376,9 +268,9 @@ class TelegramBookingForm {
                 return bahtValue + "/" + rubValue;
             }
 
-            // Главная функция отправки данных
+            // Главная функция отправки данных через Telegram WebApp
             window.submitTelegramBooking = function() {
-                console.log("=== ОТПРАВКА ДАННЫХ В TELEGRAM БОТА ===");
+                console.log("=== ОТПРАВКА ДАННЫХ ЧЕРЕЗ TELEGRAM WEBAPP ===");
 
                 if (!validateForm()) {
                     return false;
@@ -421,40 +313,36 @@ class TelegramBookingForm {
 
                 console.log("Данные для отправки:", formData);
 
-                // ОТПРАВКА ДАННЫХ В TELEGRAM BOT
-                try {
-                    console.log("Отправка данных через Telegram.WebApp.sendData()...");
-
-                    // Отправляем данные в бота
-                    Telegram.WebApp.sendData(JSON.stringify(formData));
-
-                    console.log("✅ Данные успешно отправлены");
+                // Отправляем данные через Telegram WebApp
+                if (telegramWebApp) {
+                    console.log("Sending data via Telegram WebApp...");
+                    telegramWebApp.sendData(JSON.stringify(formData));
 
                     // Показываем успешное сообщение
-                    $("#telegram_loadingSection").hide();
-                    $("#telegram_successSection").show();
-
-                    // Закрываем WebApp через 1.5 секунды
                     setTimeout(() => {
-                        Telegram.WebApp.close();
-                    }, 1500);
+                        $("#telegram_loadingSection").hide();
+                        $("#telegram_successSection").show();
 
-                } catch (error) {
-                    console.error("❌ Ошибка отправки данных:", error);
+                        // Закрываем WebApp через 2 секунды
+                        setTimeout(() => {
+                            telegramWebApp.close();
+                        }, 2000);
+                    }, 1000);
 
-                    // Показываем ошибку
+                } else {
+                    // Режим браузера - показываем ошибку
+                    console.error("Telegram WebApp not available");
                     $("#telegram_loadingSection").hide();
                     $("#telegram_formSection").show();
 
-                    // Показываем сообщение об ошибке
                     const errorMessage = `
                         <div style="text-align: center; padding: 20px; color: #dc2626;">
                             <div style="font-size: 36px; margin-bottom: 10px;">❌</div>
-                            <h3>Ошибка отправки</h3>
-                            <p>Не удалось отправить данные в бота</p>
-                            <button onclick="window.submitTelegramBooking()" style="margin-top: 15px; padding: 10px 20px; background: #dc2626; color: white; border: none; border-radius: 8px; cursor: pointer;">
-                                Попробовать снова
-                            </button>
+                            <h3>Ошибка Telegram WebApp</h3>
+                            <p>Форма должна быть открыта через Telegram бота</p>
+                            <p style="font-size: 12px; margin-top: 10px; opacity: 0.7;">
+                                Данные для отправки: ${JSON.stringify(formData)}
+                            </p>
                         </div>
                     `;
                     $("#telegram_formMessage").html(errorMessage).show();
@@ -463,13 +351,12 @@ class TelegramBookingForm {
                 return false;
             };
 
-            // Обработчик для кнопки
+            // Обработчики событий
             $("#telegram_submit_btn").on("click", function(e) {
                 e.preventDefault();
                 window.submitTelegramBooking();
             });
 
-            // Обработчик для формы
             $("#telegram_booking_form").on("submit", function(e) {
                 e.preventDefault();
                 window.submitTelegramBooking();
@@ -498,134 +385,112 @@ class TelegramBookingForm {
                 <form id="telegram_booking_form">
                     <div id="telegram_formSection">
                         <div class="telegram-form-container">
-                            <div class="telegram-section-title">👤 Информация о госте</div>
+                            <div class="telegram-form-group">
+                                <label for="telegram_guest_name">👤 ФИО гостя *</label>
+                                <input type="text" id="telegram_guest_name" class="telegram-form-control" placeholder="Введите полное имя гостя" required>
+                                <div id="telegram_nameError" class="telegram-error-message"></div>
+                            </div>
 
                             <div class="telegram-form-group">
-                                <label for="telegram_guest_name">ФИО гостя *</label>
-                                <input type="text" id="telegram_guest_name" class="telegram-form-control" placeholder="Введите полное имя" required>
-                                <div class="telegram-error-message" id="telegram_nameError">Пожалуйста, введите ФИО гостя</div>
+                                <label for="telegram_phone">📞 Телефон (Таиланд)</label>
+                                <div style="display: flex; align-items: center;">
+                                    <span style="padding: 0 12px; background: #f3f4f6; border: 2px solid #e5e7eb; border-right: none; border-radius: 10px 0 0 10px; height: 48px; display: flex; align-items: center; color: #6b7280;">+66</span>
+                                    <input type="tel" id="telegram_phone" class="telegram-form-control" style="border-radius: 0 10px 10px 0; border-left: none; margin-left: 0;" placeholder="Введите номер телефона">
+                                </div>
+                            </div>
+
+                            <div class="telegram-form-group">
+                                <label for="telegram_additional_phone">📞 Дополнительный телефон</label>
+                                <input type="tel" id="telegram_additional_phone" class="telegram-form-control" placeholder="Дополнительный номер для связи">
                             </div>
 
                             <div class="telegram-form-row">
                                 <div class="telegram-form-group">
-                                    <label for="telegram_phone">Телефон</label>
-                                    <div class="telegram-phone-input">
-                                        <div class="telegram-phone-prefix">+66</div>
-                                        <input type="tel" id="telegram_phone" class="telegram-form-control" placeholder="812345678">
-                                    </div>
-                                    <div class="telegram-error-message" id="telegram_phoneError">Введите корректный номер телефона</div>
-                                </div>
-
-                                <div class="telegram-form-group">
-                                    <label for="telegram_additional_phone">Доп. телефон</label>
-                                    <input type="tel" id="telegram_additional_phone" class="telegram-form-control" placeholder="Дополнительный номер">
-                                </div>
-                            </div>
-
-                            <div class="telegram-section-title">📅 Даты проживания *</div>
-
-                            <div class="telegram-form-row">
-                                <div class="telegram-form-group">
-                                    <label for="telegram_check_in">Заезд *</label>
+                                    <label for="telegram_check_in">📅 Заезд *</label>
                                     <input type="date" id="telegram_check_in" class="telegram-form-control" required>
-                                    <div class="telegram-error-message" id="telegram_checkInError">Выберите дату заезда</div>
+                                    <div id="telegram_checkInError" class="telegram-error-message"></div>
                                 </div>
 
                                 <div class="telegram-form-group">
-                                    <label for="telegram_check_out">Выезд *</label>
+                                    <label for="telegram_check_out">📅 Выезд *</label>
                                     <input type="date" id="telegram_check_out" class="telegram-form-control" required>
-                                    <div class="telegram-error-message" id="telegram_checkOutError">Выберите дату выезда</div>
+                                    <div id="telegram_checkOutError" class="telegram-error-message"></div>
                                 </div>
                             </div>
 
                             <div class="telegram-form-group">
-                                <label for="telegram_nights_count">Количество ночей</label>
-                                <input type="number" id="telegram_nights_count" class="telegram-form-control" placeholder="Автоматический расчет" readonly>
-                            </div>
-
-                            <div class="telegram-section-title">💰 Финансовая информация</div>
-
-                            <div class="telegram-form-group">
-                                <label for="telegram_total_baht">Сумма (батты)</label>
-                                <input type="text" id="telegram_total_baht" class="telegram-form-control" placeholder="Введите сумму в баттах">
-                                <div class="telegram-error-message" id="telegram_amountError">Введите корректную сумму</div>
+                                <label for="telegram_nights_count">🌙 Количество ночей</label>
+                                <input type="number" id="telegram_nights_count" class="telegram-form-control" readonly>
                             </div>
 
                             <div class="telegram-form-group">
-                                <label>Аванс</label>
-                                <div class="telegram-currency-row">
-                                    <div class="telegram-currency-group">
-                                        <div class="telegram-currency-label">Батты</div>
-                                        <input type="text" id="telegram_advance_baht" class="telegram-form-control" placeholder="0">
-                                    </div>
-                                    <div class="telegram-currency-group">
-                                        <div class="telegram-currency-label">Рубли</div>
-                                        <input type="text" id="telegram_advance_rub" class="telegram-form-control" placeholder="0">
-                                    </div>
+                                <label for="telegram_total_baht">💰 Сумма (батты)</label>
+                                <input type="text" id="telegram_total_baht" class="telegram-form-control" placeholder="Общая сумма бронирования">
+                            </div>
+
+                            <div class="telegram-form-row">
+                                <div class="telegram-form-group">
+                                    <label for="telegram_advance_baht">💳 Аванс (батты)</label>
+                                    <input type="text" id="telegram_advance_baht" class="telegram-form-control" placeholder="0">
+                                </div>
+                                <div class="telegram-form-group">
+                                    <label for="telegram_advance_rub">💳 Аванс (рубли)</label>
+                                    <input type="text" id="telegram_advance_rub" class="telegram-form-control" placeholder="0">
+                                </div>
+                            </div>
+
+                            <div class="telegram-form-row">
+                                <div class="telegram-form-group">
+                                    <label for="telegram_additional_baht">💳 Доплата (батты)</label>
+                                    <input type="text" id="telegram_additional_baht" class="telegram-form-control" placeholder="0">
+                                </div>
+                                <div class="telegram-form-group">
+                                    <label for="telegram_additional_rub">💳 Доплата (рубли)</label>
+                                    <input type="text" id="telegram_additional_rub" class="telegram-form-control" placeholder="0">
                                 </div>
                             </div>
 
                             <div class="telegram-form-group">
-                                <label>Доплата</label>
-                                <div class="telegram-currency-row">
-                                    <div class="telegram-currency-group">
-                                        <div class="telegram-currency-label">Батты</div>
-                                        <input type="text" id="telegram_additional_baht" class="telegram-form-control" placeholder="0">
-                                    </div>
-                                    <div class="telegram-currency-group">
-                                        <div class="telegram-currency-label">Рубли</div>
-                                        <input type="text" id="telegram_additional_rub" class="telegram-form-control" placeholder="0">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="telegram-section-title">📋 Дополнительная информация</div>
-
-                            <div class="telegram-form-group">
-                                <label for="telegram_source">Источник бронирования</label>
+                                <label for="telegram_source">📊 Источник бронирования</label>
                                 <select id="telegram_source" class="telegram-form-control">
                                     <option value="">Выберите источник</option>
-                                    <option value="Airbnb">Airbnb</option>
-                                    <option value="Booking.com">Booking.com</option>
                                     <option value="Telegram">Telegram</option>
-                                    <option value="Авито">Авито</option>
-                                    <option value="Авито Вотс ап">Авито Вотс ап</option>
-                                    <option value="телеграмм">телеграмм</option>
-                                    <option value="Сайт">Сайт</option>
+                                    <option value="Instagram">Instagram</option>
+                                    <option value="Facebook">Facebook</option>
                                     <option value="Рекомендация">Рекомендация</option>
+                                    <option value="Поиск в интернете">Поиск в интернете</option>
                                     <option value="Другое">Другое</option>
                                 </select>
                             </div>
 
                             <div class="telegram-form-group">
-                                <label for="telegram_flights">Рейсы</label>
-                                <input type="text" id="telegram_flights" class="telegram-form-control" placeholder="Номера рейсов">
+                                <label for="telegram_flights">✈️ Рейсы</label>
+                                <input type="text" id="telegram_flights" class="telegram-form-control" placeholder="Номера рейсов и время прилета/вылета">
                             </div>
 
                             <div class="telegram-form-group">
-                                <label for="telegram_payment_method">Способ оплаты</label>
+                                <label for="telegram_payment_method">💸 Способ оплаты</label>
                                 <select id="telegram_payment_method" class="telegram-form-control">
                                     <option value="">Выберите способ оплаты</option>
-                                    <option value="Карта">Карта</option>
+                                    <option value="Kasikorn Bank">Kasikorn Bank</option>
+                                    <option value="Bangkok Bank">Bangkok Bank</option>
+                                    <option value="SCB">SCB</option>
+                                    <option value="Тинькофф">Тинькофф</option>
+                                    <option value="Сбербанк">Сбербанк</option>
+                                    <option value="Альфа-Банк">Альфа-Банк</option>
                                     <option value="Наличные">Наличные</option>
-                                    <option value="Перевод">Перевод</option>
-                                    <option value="Т-Банк">Т-Банк</option>
-                                    <option value="ГПБ">ГПБ</option>
-                                    <option value="Райф">Райф</option>
-                                    <option value="Cryptocurrency">Криптовалюта</option>
+                                    <option value="Другое">Другое</option>
                                 </select>
                             </div>
 
                             <div class="telegram-form-group">
-                                <label for="telegram_comment">Комментарий</label>
-                                <textarea id="telegram_comment" class="telegram-form-control" rows="3" placeholder="Дополнительная информация..."></textarea>
+                                <label for="telegram_comment">📝 Комментарий</label>
+                                <textarea id="telegram_comment" class="telegram-form-control" rows="3" placeholder="Дополнительная информация, пожелания гостя и т.д."></textarea>
                             </div>
 
-                            <button type="button" id="telegram_submit_btn" class="telegram-btn telegram-btn-primary">
-                                ✅ Сохранить бронирование
+                            <button type="submit" id="telegram_submit_btn" class="telegram-submit-btn">
+                                📨 Отправить бронирование
                             </button>
-
-                            <div class="telegram-form-message" id="telegram_formMessage"></div>
                         </div>
                     </div>
                 </form>

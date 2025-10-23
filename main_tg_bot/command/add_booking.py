@@ -17,7 +17,6 @@ from telegram.ext import (
 
 from common.config import Config
 from common.logging_config import setup_logger
-from main_tg_bot.command.view_booking import get_file_path
 
 logger = setup_logger("add_booking")
 
@@ -97,278 +96,244 @@ class AddBookingHandler:
             if not self.remote_web_app_url:
                 raise Exception("Remote web app URL not configured")
 
-            # Формируем URL для удаленной формы бронирования
-            web_app_url = f"{self.remote_web_app_url}/?object={object_id}&user_id={query.from_user.id}"
-            web_app_info = WebAppInfo(url=web_app_url)
-
-            logger.info(f"Web app URL created: {web_app_url}")
+            # Формируем URL с параметрами для веб-формы
+            web_app_url = self._build_web_app_url(object_id, query.from_user.id)
+            logger.info(f"Generated WebApp URL: {web_app_url}")
 
             keyboard = [
                 [InlineKeyboardButton(
                     "📝 Заполнить форму бронирования",
-                    web_app=web_app_info
-                )],
-                [InlineKeyboardButton("❌ Отмена", callback_data="cancel_booking")]
+                    web_app=WebAppInfo(url=web_app_url)
+                )]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
 
             await query.edit_message_text(
-                f"✅ *Выбран объект: {self.objects[object_id]}*\n\n"
-                "Нажмите кнопку ниже чтобы открыть форму бронирования:",
+                f"🏢 *Выбран объект:* {self.objects[object_id]}\n\n"
+                "📝 *Для создания бронирования нажмите кнопку ниже:*\n\n"
+                "_Форма откроется в Telegram WebApp_",
                 reply_markup=reply_markup,
                 parse_mode='Markdown'
             )
 
-            logger.info("Web app button presented to user")
+            logger.info("WebApp button presented to user")
             return FILLING_FORM
 
         except Exception as e:
-            logger.error(f"Failed to create web app URL: {e}", exc_info=True)
+            logger.error(f"Error creating WebApp URL: {str(e)}")
             await query.edit_message_text(
-                "❌ *Ошибка подключения к серверу форм*\nПопробуйте позже.",
+                "❌ *Ошибка при создании формы бронирования*\n\n"
+                "Пожалуйста, попробуйте позже или обратитесь к администратору.",
                 parse_mode='Markdown'
             )
             return ConversationHandler.END
 
+    def _build_web_app_url(self, object_id: str, user_id: int) -> str:
+        from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+
+        base_url = self.remote_web_app_url  # например: "https://ci84606-wordpress-rdeld.tw1.ru/?page_id=8"
+
+        # Разбираем URL
+        parsed = urlparse(base_url)
+        query_params = parse_qs(parsed.query, keep_blank_values=True)
+
+        # Добавляем новые параметры
+        query_params['object'] = object_id
+        query_params['user_id'] = str(user_id)
+
+        # Собираем обратно
+        new_query = urlencode(query_params, doseq=True)
+        new_url = urlunparse((
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            parsed.params,
+            new_query,
+            parsed.fragment
+        ))
+
+        return new_url
+
     async def handle_web_app_data(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработка данных из Web App с удаленного сервера"""
-        logger.info("=== WEB APP DATA RECEIVED ===")
-        logger.info(f"Update: {update}")
-        logger.info(f"Update type: {update.update_type}")
-        logger.info(
-            f"Has web_app_data: {hasattr(update, 'message') and update.message and hasattr(update.message, 'web_app_data')}")
-
+        logger.info(">>> handle_web_app_data CALLED")
+        logger.info(f"Update type: {update}")
         if update.message and update.message.web_app_data:
-            logger.info(f"WebApp data object: {update.message.web_app_data}")
-            logger.info(f"Button_text: {update.message.web_app_data.button_text}")
+            logger.info(f"Raw WebApp data: {update.message.web_app_data.data}")
+        else:
+            logger.warning("No web_app_data in message!")
+            return ConversationHandler.END
 
-        logger.info(f"User: {update.effective_user.username} (ID: {update.effective_user.id})")
+        logger.info("=== WEB APP DATA RECEIVED ===")
+        """Обработка данных из WebApp - вызывается когда форма отправляет данные через sendData()"""
+        logger.info("=== WEB APP DATA RECEIVED ===")
 
         try:
-            # Проверка прав доступа
-            if self.bot and not await self.bot.check_user_permission(update):
-                logger.warning("User permission denied in web app data handling")
-                return ConversationHandler.END
+            web_app_data = update.message.web_app_data
+            data = json.loads(web_app_data.data)
+            logger.info(f"WebApp data received: {json.dumps(data, indent=2, ensure_ascii=False)}")
 
-            # Проверяем, что данные действительно есть
-            if not update.message or not update.message.web_app_data:
-                logger.error("No web_app_data found in update")
-                await update.message.reply_text(
-                    "❌ *Данные не получены*\nПопробуйте еще раз.",
-                    parse_mode='Markdown'
-                )
-                return ConversationHandler.END
-
-            data = update.message.web_app_data.data
-            logger.info(f"Raw web app data length: {len(data)}")
-            logger.info(f"Raw web app data: {data}")
-
-            booking_data = json.loads(data)
-            logger.info(f"Parsed booking data keys: {booking_data.keys()}")
-            logger.info(f"Parsed booking data: {booking_data}")
-
-            # Добавляем информацию об объекте из context
-            if 'selected_object' in context.user_data:
-                booking_data['object_id'] = context.user_data['selected_object']
-                booking_data['object_name'] = context.user_data['object_name']
-                logger.info(f"Added object info from context: {context.user_data}")
-            else:
-                logger.warning("No selected_object found in context user_data")
-                booking_data['object_id'] = 'citygate_p311'
-                booking_data['object_name'] = 'CityGate P311'
-
-            logger.info(f"Final booking data for saving: {booking_data}")
-
-            # Сохраняем данные в CSV
-            success = self.save_to_csv(booking_data)
+            # Сохраняем бронирование в CSV
+            success = self.save_booking_to_csv(data)
 
             if success:
                 logger.info("Booking successfully saved to CSV")
                 await update.message.reply_text(
                     "✅ *Бронирование успешно сохранено!*\n\n"
-                    f"👤 *Гость:* {booking_data.get('guest_name', '')}\n"
-                    f"📅 *Даты:* {booking_data.get('check_in', '')} - {booking_data.get('check_out', '')}\n"
-                    f"💰 *Сумма:* {booking_data.get('total_baht', '')} батт\n"
-                    f"🏢 *Объект:* {booking_data.get('object_name', '')}",
+                    "Все данные записаны в систему.",
                     parse_mode='Markdown'
                 )
-                logger.info(f"Booking saved for guest: {booking_data.get('guest_name', '')}")
+
+                # Отправляем уведомление администратору
+                await self._send_admin_notification(data, context)
+
             else:
                 logger.error("Failed to save booking to CSV")
                 await update.message.reply_text(
-                    "❌ *Ошибка при сохранении бронирования!*\n"
-                    "Попробуйте еще раз или обратитесь к администратору.",
+                    "❌ *Ошибка при сохранении бронирования*\n\n"
+                    "Пожалуйста, попробуйте еще раз или обратитесь к администратору.",
                     parse_mode='Markdown'
                 )
 
-            return ConversationHandler.END
-
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON decode error: {e}")
-            logger.error(f"Raw data that failed to parse: {data}")
-            await update.message.reply_text(
-                "❌ *Ошибка формата данных*\n"
-                "Попробуйте еще раз или обратитесь к администратору.",
-                parse_mode='Markdown'
-            )
-            return ConversationHandler.END
         except Exception as e:
-            logger.error(f"Error processing web app data: {e}", exc_info=True)
+            logger.error(f"Error processing WebApp data: {str(e)}")
             await update.message.reply_text(
-                "❌ *Произошла ошибка при сохранении бронирования*\n"
-                "Попробуйте еще раз или обратитесь к администратору.",
+                "❌ *Ошибка при обработке данных*\n\n"
+                "Пожалуйста, попробуйте еще раз.",
                 parse_mode='Markdown'
             )
-            return ConversationHandler.END
 
-    def save_to_csv(self, booking_data):
-        """Сохранение данных бронирования в CSV файл"""
-        logger.info("=== SAVING TO CSV ===")
+        return ConversationHandler.END
+
+    async def _send_admin_notification(self, booking_data: dict, context: ContextTypes.DEFAULT_TYPE):
+        """Отправляет уведомление администратору о новом бронировании"""
         try:
-            # Определяем CSV файл на основе выбранного объекта
-            object_id = booking_data.get('object_id', 'citygate_p311')
-            csv_file = f"{object_id}.csv"
+            message = self._format_booking_notification(booking_data)
+            await context.bot.send_message(
+                chat_id=Config.ADMIN_CHAT_ID,
+                text=message,
+                parse_mode='HTML'
+            )
+            logger.info("Admin notification sent")
+        except Exception as e:
+            logger.error(f"Error sending admin notification: {str(e)}")
 
-            logger.info(f"Target CSV file: {csv_file}")
-            logger.info(f"Current working directory: {os.getcwd()}")
-            logger.info(f"Files in current directory: {os.listdir('.')}")
+    def _format_booking_notification(self, booking_data: dict) -> str:
+        """Форматирует уведомление о бронировании"""
+        message = "🏨 <b>НОВОЕ БРОНИРОВАНИЕ ИЗ WEB-FORM</b> 🏨\n\n"
+        message += f"<b>👤 Гость:</b> {booking_data.get('guest_name', 'Не указано')}\n"
+        message += f"<b>📞 Телефон:</b> {booking_data.get('phone', 'Не указан')}\n"
 
-            # Проверяем существует ли файл
-            file_exists = os.path.isfile(csv_file)
-            logger.info(f"File exists: {file_exists}")
+        if booking_data.get('additional_phone'):
+            message += f"<b>📞 Доп. телефон:</b> {booking_data['additional_phone']}\n"
 
-            # Проверяем права на запись
-            if file_exists:
-                try:
-                    with open(csv_file, 'a') as test_file:
-                        test_file.write('')
-                    logger.info("File is writable")
-                except Exception as e:
-                    logger.error(f"File is not writable: {e}")
-                    return False
+        message += f"<b>📅 Заезд:</b> {booking_data.get('check_in', 'Не указано')}\n"
+        message += f"<b>📅 Выезд:</b> {booking_data.get('check_out', 'Не указано')}\n"
+        message += f"<b>🌙 Ночей:</b> {booking_data.get('nights_count', 'Не указано')}\n"
 
-            with open(csv_file, 'a', newline='', encoding='utf-8') as csvfile:
+        if booking_data.get('total_baht'):
+            message += f"<b>💰 Сумма:</b> {booking_data['total_baht']} батт\n"
+
+        if booking_data.get('advance_payment') and booking_data['advance_payment'] != '0/0':
+            message += f"<b>💳 Аванс:</b> {booking_data['advance_payment']}\n"
+
+        if booking_data.get('additional_payment') and booking_data['additional_payment'] != '0/0':
+            message += f"<b>💳 Доплата:</b> {booking_data['additional_payment']}\n"
+
+        if booking_data.get('source'):
+            message += f"<b>📊 Источник:</b> {booking_data['source']}\n"
+
+        if booking_data.get('flights'):
+            message += f"<b>✈️ Рейсы:</b> {booking_data['flights']}\n"
+
+        if booking_data.get('payment_method'):
+            message += f"<b>💸 Способ оплаты:</b> {booking_data['payment_method']}\n"
+
+        if booking_data.get('comment'):
+            message += f"<b>📝 Комментарий:</b> {booking_data['comment']}\n"
+
+        message += f"\n<b>🏢 Объект:</b> {booking_data.get('object_id', 'Не указан')}\n"
+        message += f"<b>👤 Менеджер ID:</b> {booking_data.get('user_id', 'Не указан')}\n"
+        message += f"<b>📅 Дата создания:</b> {booking_data.get('booking_date', 'Не указана')}"
+
+        return message
+
+    def save_booking_to_csv(self, booking_data: dict) -> bool:
+        """Сохраняет данные бронирования в CSV файл"""
+        try:
+            logger.info("=== SAVING BOOKING TO CSV ===")
+            logger.info(f"Booking data: {json.dumps(booking_data, indent=2, ensure_ascii=False)}")
+
+            # Проверяем существование файла и создаем заголовки если нужно
+            file_exists = os.path.isfile(self.csv_file)
+
+            with open(self.csv_file, 'a', newline='', encoding='utf-8') as csvfile:
                 fieldnames = [
-                    'Гость', 'Дата бронирования', 'Заезд', 'Выезд', 'Количество ночей',
-                    'Сумма по месяцам', 'СуммаБатты', 'Аванс Батты/Рубли', 'Доплата Батты/Рубли',
-                    'Источник', 'Дополнительные доплаты', 'Расходы', 'Оплата', 'Комментарий',
-                    'телефон', 'дополнительный телефон', 'Рейсы', '_sync_id'
+                    'id', 'guest_name', 'phone', 'additional_phone', 'check_in',
+                    'check_out', 'nights_count', 'total_baht', 'advance_payment',
+                    'additional_payment', 'source', 'flights', 'payment_method',
+                    'comment', 'booking_date', 'object_id', 'user_id', 'created_at'
                 ]
 
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',')
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
-                # Если файл новый, пишем заголовки
                 if not file_exists:
-                    logger.info("Writing headers to new CSV file")
                     writer.writeheader()
-
-                # Генерируем уникальный sync_id
-                sync_id = str(uuid.uuid4())
-                logger.info(f"Generated sync_id: {sync_id}")
+                    logger.info("CSV file created with headers")
 
                 # Подготавливаем данные для записи
                 row_data = {
-                    'Гость': booking_data.get('guest_name', ''),
-                    'Дата бронирования': booking_data.get('booking_date', ''),
-                    'Заезд': booking_data.get('check_in', ''),
-                    'Выезд': booking_data.get('check_out', ''),
-                    'Количество ночей': booking_data.get('nights_count', ''),
-                    'Сумма по месяцам': booking_data.get('monthly_sum', ''),
-                    'СуммаБатты': booking_data.get('total_baht', ''),
-                    'Аванс Батты/Рубли': booking_data.get('advance_payment', ''),
-                    'Доплата Батты/Рубли': booking_data.get('additional_payment', ''),
-                    'Источник': booking_data.get('source', ''),
-                    'Дополнительные доплаты': booking_data.get('extra_charges', ''),
-                    'Расходы': booking_data.get('expenses', ''),
-                    'Оплата': booking_data.get('payment_method', ''),
-                    'Комментарий': booking_data.get('comment', ''),
-                    'телефон': booking_data.get('phone', ''),
-                    'дополнительный телефон': booking_data.get('additional_phone', ''),
-                    'Рейсы': booking_data.get('flights', ''),
-                    '_sync_id': sync_id
+                    'id': str(uuid.uuid4()),
+                    'guest_name': booking_data.get('guest_name', ''),
+                    'phone': booking_data.get('phone', ''),
+                    'additional_phone': booking_data.get('additional_phone', ''),
+                    'check_in': booking_data.get('check_in', ''),
+                    'check_out': booking_data.get('check_out', ''),
+                    'nights_count': booking_data.get('nights_count', ''),
+                    'total_baht': booking_data.get('total_baht', ''),
+                    'advance_payment': booking_data.get('advance_payment', ''),
+                    'additional_payment': booking_data.get('additional_payment', ''),
+                    'source': booking_data.get('source', ''),
+                    'flights': booking_data.get('flights', ''),
+                    'payment_method': booking_data.get('payment_method', ''),
+                    'comment': booking_data.get('comment', ''),
+                    'booking_date': booking_data.get('booking_date', ''),
+                    'object_id': booking_data.get('object_id', ''),
+                    'user_id': booking_data.get('user_id', ''),
+                    'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 }
 
-                logger.info(f"Row data to write: {row_data}")
-
                 writer.writerow(row_data)
-                logger.info("Data successfully written to CSV")
+                logger.info(f"Booking successfully saved to CSV: {self.csv_file}")
+                logger.info(f"Row data: {row_data}")
 
-            # Проверяем что данные записались
-            if os.path.exists(csv_file):
-                file_size = os.path.getsize(csv_file)
-                logger.info(f"CSV file size after write: {file_size} bytes")
-
-                # Читаем последние строки для проверки
-                try:
-                    with open(csv_file, 'r', encoding='utf-8') as f:
-                        lines = f.readlines()
-                        logger.info(f"Total lines in CSV: {len(lines)}")
-                        if lines:
-                            logger.info(f"Last line in CSV: {lines[-1]}")
-                except Exception as e:
-                    logger.error(f"Error reading CSV for verification: {e}")
-
-            logger.info(f"Successfully saved booking to {csv_file}")
-            return True
+                return True
 
         except Exception as e:
-            logger.error(f"Error saving to CSV: {e}", exc_info=True)
+            logger.error(f"Error saving booking to CSV: {str(e)}")
             return False
 
-    async def cancel_booking(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Отмена бронирования через callback"""
-        query = update.callback_query
-        await query.answer()
-
-        logger.info(f"Booking cancelled by user: {query.from_user.username}")
-
-        await query.edit_message_text(
-            "❌ *Бронирование отменено*",
-            parse_mode='Markdown'
-        )
-
-        return ConversationHandler.END
-
     async def cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Отмена бронирования через команду"""
-        logger.info(f"Booking cancelled via command by: {update.effective_user.username}")
-
+        """Отмена процесса бронирования"""
+        logger.info("Booking process cancelled by user")
         await update.message.reply_text(
-            "❌ *Бронирование отменено*",
-            parse_mode='Markdown'
-        )
-        return ConversationHandler.END
-
-    async def timeout(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Таймаут сессии"""
-        logger.info(f"Booking session timeout for user: {update.effective_user.username}")
-
-        await update.message.reply_text(
-            "⏰ *Время сессии истекло. Начните заново с /add_booking*",
+            "❌ *Процесс бронирования отменен*",
             parse_mode='Markdown'
         )
         return ConversationHandler.END
 
     def get_conversation_handler(self):
-        """Возвращает настроенный ConversationHandler"""
-        logger.info("Setting up AddBooking conversation handler")
+        """Возвращает ConversationHandler для добавления бронирований"""
         return ConversationHandler(
-            entry_points=[CommandHandler("add_booking", self.start_booking)],
+            entry_points=[CommandHandler('add_booking', self.start_booking)],
             states={
                 SELECTING_OBJECT: [
-                    CallbackQueryHandler(self.select_object, pattern="^object_"),
-                    CallbackQueryHandler(self.cancel_booking, pattern="^cancel_booking$")
+                    CallbackQueryHandler(self.select_object, pattern='^object_')
                 ],
                 FILLING_FORM: [
-                    MessageHandler(filters.StatusUpdate.WEB_APP_DATA, self.handle_web_app_data),
-                    CallbackQueryHandler(self.cancel_booking, pattern="^cancel_booking$")
+                    MessageHandler(filters.StatusUpdate.WEB_APP_DATA, self.handle_web_app_data)
                 ]
             },
-            fallbacks=[
-                CommandHandler("cancel", self.cancel),
-                CommandHandler("add_booking", self.start_booking)
-            ],
-            conversation_timeout=300,  # 5 минут таймаут
+            fallbacks=[CommandHandler('cancel', self.cancel)],
             name="add_booking_conversation"
         )
 
@@ -379,5 +344,6 @@ def setup_add_booking_handler(application, bot_instance=None):
     logger.info("Setting up add booking handler")
     booking_handler = AddBookingHandler(bot_instance)
     conv_handler = booking_handler.get_conversation_handler()
+
     application.add_handler(conv_handler)
     logger.info("Add booking handler setup completed")

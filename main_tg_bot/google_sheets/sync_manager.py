@@ -7,39 +7,52 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 import hashlib
 import uuid
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from common.config import Config
 from common.logging_config import setup_logger
+
+# Импортируем booking-объекты
+from booking_objects import BOOKING_SHEETS, get_booking_sheet
 
 logger = setup_logger("sync_manager")
 
 
 class GoogleSheetsCSVSync:
-    def __init__(self, data_folder: str = 'data'):
-        self.data_folder = data_folder
+    def __init__(self):
+        self.booking_dir = 'booking'
+        self.other_dir = 'other'
+        os.makedirs(self.booking_dir, exist_ok=True)
+        os.makedirs(self.other_dir, exist_ok=True)
+
         self.scope = [
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
         ]
 
-        os.makedirs(self.data_folder, exist_ok=True)
-
-        self.sheets_config = {
-            Config.BOOKING_SPREADSHEET_ID: {
-                'HALO Title': 'halo_title.csv',
-                'Citygate Р311': 'citygate_p311.csv',
-                'Citygate B209': 'citygate_b209.csv',
-                'Palmetto Karon': 'palmetto_karon.csv',
-                'Title Residence': 'title_residence.csv',
-                'Halo JU701 двушка': 'halo_ju701_двушка.csv',
-            },
-            Config.BOOKING_TASK_SPREADSHEET_ID: {
-                'Задачи': 'tasks.csv',
-                'Отправка бронирований': 'channels.csv',
-                'Поиск в чатах': 'search_channels.csv'
-            }
+        # --- Non-booking sheets (tasks etc.) ---
+        self.other_sheets = {
+            'Задачи': 'tasks.csv',
+            'Отправка бронирований': 'channels.csv',
+            'Поиск в чатах': 'search_channels.csv'
         }
+
+        # Инвертируем маппинг для поиска
+        self.sheet_to_spreadsheet: Dict[str, str] = {}
+        self.sheet_to_folder: Dict[str, str] = {}
+        self.sheet_to_filename: Dict[str, str] = {}
+
+        # Регистрируем booking-листы
+        for sheet_name in BOOKING_SHEETS:
+            self.sheet_to_spreadsheet[sheet_name] = Config.BOOKING_SPREADSHEET_ID
+            self.sheet_to_folder[sheet_name] = self.booking_dir
+            self.sheet_to_filename[sheet_name] = BOOKING_SHEETS[sheet_name].filename
+
+        # Регистрируем other-листы
+        for sheet_name, filename in self.other_sheets.items():
+            self.sheet_to_spreadsheet[sheet_name] = Config.BOOKING_TASK_SPREADSHEET_ID
+            self.sheet_to_folder[sheet_name] = self.other_dir
+            self.sheet_to_filename[sheet_name] = filename
 
         self.clients = {}
         self._initialize_clients()
@@ -60,28 +73,21 @@ class GoogleSheetsCSVSync:
                 creds_dict, scopes=self.scope
             )
 
-            for spreadsheet_id in self.sheets_config.keys():
+            for spreadsheet_id in {Config.BOOKING_SPREADSHEET_ID, Config.BOOKING_TASK_SPREADSHEET_ID}:
                 if spreadsheet_id:
                     client = gspread.authorize(credentials)
                     self.clients[spreadsheet_id] = client
                     logger.info(f"Google Sheets client initialized for spreadsheet: {spreadsheet_id}")
-                else:
-                    logger.warning("Empty spreadsheet_id in config")
 
         except Exception as e:
             logger.error(f"Error initializing Google Sheets clients: {e}")
             raise
 
-    def _get_client_and_sheet_name(self, sheet_name: str):
-        for spreadsheet_id, sheets in self.sheets_config.items():
-            if sheet_name in sheets:
-                return self.clients.get(spreadsheet_id), spreadsheet_id
-        return None, None
-
     def _get_csv_path(self, sheet_name: str) -> str:
-        for sheets in self.sheets_config.values():
-            if sheet_name in sheets:
-                return os.path.join(self.data_folder, sheets[sheet_name])
+        if sheet_name in self.sheet_to_filename:
+            folder = self.sheet_to_folder[sheet_name]
+            filename = self.sheet_to_filename[sheet_name]
+            return os.path.join(folder, filename)
         raise ValueError(f"Unknown sheet name: {sheet_name}")
 
     def _ensure_sync_id(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -94,7 +100,6 @@ class GoogleSheetsCSVSync:
                 if pd.isna(x) or (isinstance(x, str) and x.strip() == ''):
                     return str(uuid.uuid4())
                 return str(x)
-
             df['_sync_id'] = df['_sync_id'].apply(fill_empty)
         return df
 
@@ -137,7 +142,8 @@ class GoogleSheetsCSVSync:
 
     def download_sheet(self, sheet_name: str) -> pd.DataFrame:
         try:
-            client, spreadsheet_id = self._get_client_and_sheet_name(sheet_name)
+            spreadsheet_id = self.sheet_to_spreadsheet.get(sheet_name)
+            client = self.clients.get(spreadsheet_id)
             if not client or not spreadsheet_id:
                 logger.error(f"No client found for sheet: {sheet_name}")
                 return pd.DataFrame()
@@ -178,7 +184,8 @@ class GoogleSheetsCSVSync:
                 logger.warning(f"No data to push to Google Sheet: {sheet_name}")
                 return False
 
-            client, spreadsheet_id = self._get_client_and_sheet_name(sheet_name)
+            spreadsheet_id = self.sheet_to_spreadsheet.get(sheet_name)
+            client = self.clients.get(spreadsheet_id)
             if not client or not spreadsheet_id:
                 logger.error(f"No client found for sheet: {sheet_name}")
                 return False
@@ -200,24 +207,12 @@ class GoogleSheetsCSVSync:
             return False
 
     def sync_sheet(self, sheet_name: str, direction: str = 'auto') -> bool:
-        """
-        Синхронизация одного листа.
-
-        Направления:
-          - 'auto': если CSV не существует → google_to_csv, иначе двусторонне по времени
-          - 'google_to_csv': только из Google в CSV
-          - 'csv_to_google': только из CSV в Google
-        """
         try:
             csv_file = self._get_csv_path(sheet_name)
             csv_exists = os.path.exists(csv_file)
 
             if direction == 'auto':
-                if not csv_exists:
-                    logger.info(f"Local CSV not found, using direction: google_to_csv")
-                    direction = 'google_to_csv'
-                else:
-                    direction = 'bidirectional'
+                direction = 'google_to_csv' if not csv_exists else 'bidirectional'
 
             logger.info(f"Syncing sheet '{sheet_name}' with direction: {direction}")
 
@@ -233,7 +228,6 @@ class GoogleSheetsCSVSync:
                     return False
                 success = self.update_google_sheet(sheet_name, local_data)
                 if success:
-                    # Обновим _last_sync в локальном файле после отправки
                     local_data['_last_sync'] = datetime.now().isoformat()
                     self.save_local_csv(local_data, sheet_name)
                 return success
@@ -242,7 +236,6 @@ class GoogleSheetsCSVSync:
                 google_data = self.download_sheet(sheet_name)
                 local_data = self.load_local_csv(sheet_name)
 
-                # Объединяем по _sync_id, выбирая более свежую версию строки целиком
                 combined = pd.concat([google_data, local_data], ignore_index=True)
                 if combined.empty:
                     self.save_local_csv(combined, sheet_name)
@@ -269,9 +262,9 @@ class GoogleSheetsCSVSync:
     def sync_all_sheets(self, direction: str = 'auto') -> Dict[str, bool]:
         logger.info(f"Starting sync of all sheets (direction: {direction})")
         results = {}
-        for sheets in self.sheets_config.values():
-            for sheet_name in sheets.keys():
-                results[sheet_name] = self.sync_sheet(sheet_name, direction=direction)
+        all_sheet_names = list(self.sheet_to_filename.keys())
+        for sheet_name in all_sheet_names:
+            results[sheet_name] = self.sync_sheet(sheet_name, direction=direction)
         success_count = sum(results.values())
         logger.info(f"Sync completed: {success_count}/{len(results)} sheets successful")
         return results
@@ -280,8 +273,7 @@ class GoogleSheetsCSVSync:
         logger.info(f"Syncing selected sheets {sheet_names} (direction: {direction})")
         results = {}
         for sheet_name in sheet_names:
-            sheet_exists = any(sheet_name in sheets for sheets in self.sheets_config.values())
-            if sheet_exists:
+            if sheet_name in self.sheet_to_filename:
                 results[sheet_name] = self.sync_sheet(sheet_name, direction=direction)
             else:
                 logger.error(f"Unknown sheet name: {sheet_name}")
@@ -289,21 +281,11 @@ class GoogleSheetsCSVSync:
         return results
 
     def get_available_sheets(self) -> List[str]:
-        all_sheets = []
-        for sheets in self.sheets_config.values():
-            all_sheets.extend(sheets.keys())
-        return all_sheets
+        return list(self.sheet_to_filename.keys())
 
 
 if __name__ == "__main__":
-    # Пример использования
-    # Создаем экземпляр синхронизатора
-    # Если отсюда запускать сохраняет в другую папку
-    sync_manager = GoogleSheetsCSVSync(
-        data_folder='booking_data'
-    )
-
-    # Синхронизация всех листов
+    sync_manager = GoogleSheetsCSVSync()
     print("Синхронизация всех листов...")
     results = sync_manager.sync_all_sheets()
     print(f"Результаты: {results}")
