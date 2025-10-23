@@ -3,10 +3,7 @@ import asyncio
 import multiprocessing
 import signal
 import sys
-import threading
 
-from main_tg_bot.command.add_booking import AddBookingHandler
-from main_tg_bot.command.sync_command import sync_handler
 from dotenv import load_dotenv
 from telegram.ext import (
     Application,
@@ -16,6 +13,9 @@ from telegram.ext import (
     CallbackQueryHandler
 )
 
+from common.config import Config
+from common.logging_config import setup_logger
+from main_tg_bot.command.add_booking_form import AddBookingHandler
 from main_tg_bot.command.commands import (
     COMMANDS,
     start,
@@ -25,8 +25,6 @@ from main_tg_bot.command.commands import (
     sync_handler,
     exit_bot,
 )
-from common.config import Config
-from common.logging_config import setup_logger
 from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
 from main_tg_bot.scheduler.scheduler import AsyncScheduler
 

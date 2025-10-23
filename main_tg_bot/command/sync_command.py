@@ -2,8 +2,9 @@
 
 from telegram import Update
 from telegram.ext import ContextTypes
-from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
+
 from common.logging_config import setup_logger
+from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
 
 logger = setup_logger("sync_command")
 

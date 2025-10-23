@@ -1,13 +1,14 @@
 # send_bookings.py
 from datetime import datetime
+
+from common.database import SessionLocal
 from sqlalchemy import select, or_, and_, func, case
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from common.database import SessionLocal
+
 from common.logging_config import setup_logger
+from new_halo_notification_service import send_to_specific_chat
 from sync_db_google_sheets.channel_monitor import AsyncSessionLocal
 from sync_db_google_sheets.models import Chat
-from new_halo_notification_service import send_to_specific_chat
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = setup_logger("send_bookings")
 

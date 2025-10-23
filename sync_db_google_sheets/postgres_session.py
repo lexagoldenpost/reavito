@@ -1,14 +1,14 @@
 # postgres_session.py
-import pickle
 from typing import Optional, Dict, Any
+
+from common.database import AsyncSessionLocal
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from telethon.crypto import AuthKey
 from telethon.sessions import StringSession
 from telethon.tl.types import updates
-from models import TelethonSession as TelethonSessionModel
-from common.database import AsyncSessionLocal
+
 from common.logging_config import setup_logger
+from models import TelethonSession as TelethonSessionModel
 
 # Настройка логгера
 logger = setup_logger("postgres_session")

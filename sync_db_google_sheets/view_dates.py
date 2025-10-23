@@ -1,11 +1,13 @@
 # view_dates.py
 from datetime import date, timedelta
-from sqlalchemy import select, and_, or_
-from telegram import Update
-from typing import List, Tuple, Dict
+from typing import List, Tuple
+
 from common.database import SessionLocal
-from sync_db_google_sheets.models import Booking
+from sqlalchemy import select
+from telegram import Update
+
 from common.logging_config import setup_logger
+from sync_db_google_sheets.models import Booking
 
 logger = setup_logger("view_dates")
 

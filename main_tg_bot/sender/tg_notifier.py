@@ -1,9 +1,10 @@
 # tg_notifier.py (финальная, рабочая версия)
 
+import asyncio
 import os
 from typing import Optional, Union, List
+
 import aiohttp
-import asyncio
 from aiohttp import FormData
 
 from common.config import Config

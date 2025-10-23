@@ -3,13 +3,12 @@ import threading
 from datetime import datetime
 
 import gspread
-import numpy as np
 import pandas as pd
+from common.database import SessionLocal
 from oauth2client.service_account import ServiceAccountCredentials
 from sqlalchemy import select
 
 from common.config import Config
-from common.database import SessionLocal
 from common.logging_config import setup_logger
 from models import ChannelKeyword  # Модель для хранения каналов и ключевых слов
 

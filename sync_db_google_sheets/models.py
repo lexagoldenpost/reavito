@@ -1,8 +1,7 @@
 # models.py
-from sqlalchemy import Column, String, Integer, Date, Text, Time, DateTime, \
-  Boolean, LargeBinary, func
-
 from common.database import Base
+from sqlalchemy import Column, String, Integer, Date, Text, Time, DateTime, \
+    Boolean, LargeBinary, func
 
 
 class Booking(Base):

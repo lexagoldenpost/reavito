@@ -6,17 +6,16 @@ from typing import Dict, Any, Union
 import gspread
 import numpy as np
 import pandas as pd
+from common.database import SessionLocal
 from oauth2client.service_account import ServiceAccountCredentials
 from sqlalchemy import select
 
-from channel_monitor import ChannelMonitor
 from chat_sync import process_chats_sheet
 from common.config import Config
-from common.database import SessionLocal
 from common.logging_config import setup_logger
+from google_sheets_to_channels_keywords import process_channels_keywords_sheet
 from models import Booking
 from sync_task import process_notifications_sheet
-from google_sheets_to_channels_keywords import process_channels_keywords_sheet
 
 logger = setup_logger("sync_google_booking")
 

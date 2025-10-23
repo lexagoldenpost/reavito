@@ -1,14 +1,15 @@
+import os
 import smtplib
+import ssl
+import time
+from datetime import datetime
+from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.image import MIMEImage
-import time
 
 import mss
 import pyautogui
-from datetime import datetime
-import ssl
-import os
+
 
 def take_screenshot():
     """Создает скриншот и возвращает путь к файлу"""

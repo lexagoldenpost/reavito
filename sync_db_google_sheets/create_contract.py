@@ -1,21 +1,22 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-  CommandHandler,
-  ConversationHandler,
-  MessageHandler,
-  filters,
-  ContextTypes,
-  CallbackQueryHandler
-)
-import docx
-from datetime import datetime
 import os
 import re
-from num2words import num2words
-from common.logging_config import setup_logger
-from docx2pdf import convert
+from datetime import datetime
+
+import docx
 import pythoncom
-import comtypes.client
+from docx2pdf import convert
+from num2words import num2words
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    CommandHandler,
+    ConversationHandler,
+    MessageHandler,
+    filters,
+    ContextTypes,
+    CallbackQueryHandler
+)
+
+from common.logging_config import setup_logger
 
 logger = setup_logger("create_contract")
 

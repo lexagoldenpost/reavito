@@ -1,8 +1,8 @@
-import psycopg2
-from telethon.sync import TelegramClient
-from apscheduler.schedulers.blocking import BlockingScheduler
 from datetime import datetime
-import time
+
+import psycopg2
+from apscheduler.schedulers.blocking import BlockingScheduler
+from telethon.sync import TelegramClient
 
 # Данные из https://my.telegram.org
 api_id = ''  # Замените на ваш API ID

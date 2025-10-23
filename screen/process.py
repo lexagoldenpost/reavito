@@ -1,7 +1,7 @@
-import psutil
 import time
 from datetime import datetime
-import os
+
+import psutil
 
 
 def terminate_process(process_name):

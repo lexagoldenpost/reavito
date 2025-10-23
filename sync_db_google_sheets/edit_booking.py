@@ -1,15 +1,17 @@
 from datetime import date, datetime
+
+from common.database import SessionLocal
 from sqlalchemy import select, and_
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
-  CommandHandler,
-  CallbackContext,
-  CallbackQueryHandler,
-  MessageHandler,
-  filters,
-  ConversationHandler,
+    CommandHandler,
+    CallbackContext,
+    CallbackQueryHandler,
+    MessageHandler,
+    filters,
+    ConversationHandler,
 )
-from common.database import SessionLocal
+
 from common.logging_config import setup_logger
 from sync_db_google_sheets.models import Booking
 from sync_google_booking import update_single_record_in_google_sheet

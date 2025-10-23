@@ -1,15 +1,19 @@
 # main_tg_bot/command/view_booking.py (или как у вас)
-from datetime import date
-import pandas as pd
 import os
+from datetime import date
+from pathlib import Path
+
+import pandas as pd
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from common.logging_config import setup_logger
+
 from common.config import Config
+from common.logging_config import setup_logger
+from main_tg_bot.booking_objects import PROJECT_ROOT
 
 logger = setup_logger("view_booking")
 
-# Новая папка с данными
-BOOKING_DATA_DIR = Config.BOOKING_DATA_DIR
+# Определяем путь к папке booking относительно корня проекта
+BOOKING_DATA_DIR = PROJECT_ROOT / Config.BOOKING_DATA_DIR
 
 # Префиксы для callback
 VB_CALLBACK_PREFIX = "vb_"
@@ -18,11 +22,11 @@ VB_SHEET_SELECT = f"{VB_CALLBACK_PREFIX}sheet"
 
 def get_all_booking_files() -> list:
     """Возвращает список всех .csv файлов в папке booking/"""
-    if not os.path.exists(BOOKING_DATA_DIR):
+    if not BOOKING_DATA_DIR.exists():
         return []
     files = [
-        f for f in os.listdir(BOOKING_DATA_DIR)
-        if f.endswith('.csv') and os.path.isfile(os.path.join(BOOKING_DATA_DIR, f))
+        f.name for f in BOOKING_DATA_DIR.iterdir()
+        if f.is_file() and f.suffix == '.csv'
     ]
     return sorted(files)
 
@@ -112,7 +116,7 @@ async def show_file_selection(update, context):
 
 
 def get_file_path(file_name: str) -> str:
-    return os.path.join(BOOKING_DATA_DIR, file_name)
+    return str(BOOKING_DATA_DIR / file_name)
 
 
 def load_bookings_from_csv(file_name: str):

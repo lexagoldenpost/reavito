@@ -1,11 +1,12 @@
 import json
-import logging
-from typing import List, Optional, Dict
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
+from typing import List, Optional, Dict
+
 from common.database import SessionLocal
-from common.logging_config import setup_logger
+from sqlalchemy.orm import Session
+
 from avito_message_in.models import Message
+from common.logging_config import setup_logger
 from intent_bot.main import IntentBot  # Предполагаем, что IntentBot уже реализован
 
 # Настройка логгера

@@ -3,6 +3,7 @@ import asyncio
 import os
 import sys
 from datetime import datetime
+
 from common.logging_config import setup_logger
 
 logger = setup_logger("simple_scheduler")
@@ -11,8 +12,9 @@ class AsyncScheduler:
     def __init__(self):
         # Просто список задач: имя, путь к скрипту, интервал в секундах
         self.jobs = [
-            {"name": "notifications", "script": "sync_db_google_sheets/check_notifications.py", "interval": 30 * 60},
-            {"name": "sync", "script": "main_tg_bot/google_sheets/sync.py", "interval": 60 * 60},
+            {"name": "notifications_service", "script": "main_tg_bot/notification_service.py", "interval": 30 * 60}
+           # {"name": "notifications", "script": "sync_db_google_sheets/check_notifications.py", "interval": 30 * 60},
+          #  {"name": "sync", "script": "main_tg_bot/google_sheets/sync.py", "interval": 60 * 60},
             # Добавляйте сюда новые задачи
         ]
 

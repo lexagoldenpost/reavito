@@ -1,7 +1,8 @@
 import requests
 from common.database import SessionLocal
-from common.logging_config import setup_logger
+
 from common.config import Config
+from common.logging_config import setup_logger
 
 logger = setup_logger("read_tgbot_to_avito_msg")
 # Пока не используем

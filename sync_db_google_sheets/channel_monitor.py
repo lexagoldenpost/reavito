@@ -1,20 +1,22 @@
 # channel_monitor.py
 import asyncio
-import sys
 import io
-from typing import Dict, Set, List, Optional, Tuple
+import sys
 from pathlib import Path
+from typing import Dict, Set, List, Optional, Tuple
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from telethon import TelegramClient, events
 from telethon.tl.functions.messages import ExportChatInviteRequest
+from telethon.tl.types import ChatBannedRights
 from telethon.tl.types import Message, PeerChat, User, Channel, PeerChannel
+
 from common.config import Config
 from common.logging_config import setup_logger
 from models import ChannelKeyword
 from postgres_session import PostgresSession
-from telethon.tl.types import ChatBannedRights
 
 # Fix stdout/stderr encoding issues
 if not isinstance(sys.stdout, io.TextIOWrapper):

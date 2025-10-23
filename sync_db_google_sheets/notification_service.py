@@ -1,11 +1,11 @@
-from datetime import datetime, timedelta, time as dt_time
+from datetime import datetime, time as dt_time
 from typing import Optional
 
 import aiohttp  # Заменяем requests на асинхронный aiohttp
+from common.database import SessionLocal
 from sqlalchemy import select, and_
 
 from common.config import Config
-from common.database import SessionLocal
 from common.logging_config import setup_logger
 from sync_db_google_sheets.models import Booking, Notification
 

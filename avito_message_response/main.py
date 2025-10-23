@@ -1,12 +1,13 @@
+import time
+from dataclasses import dataclass
+from typing import Dict, Optional
+
 import requests
 from requests.exceptions import RequestException
-from typing import Dict, Any, Optional
-from dataclasses import dataclass
-from common.logging_config import setup_logger
+
 from common.avito_auth import get_avito_token, refresh_avito_token
 from common.config import Config
-import json
-import time
+from common.logging_config import setup_logger
 
 logger = setup_logger("avito_message_response")
 

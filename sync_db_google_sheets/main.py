@@ -1,35 +1,33 @@
 # booking_bot.py
-import io
-import sys
 
 from dotenv import load_dotenv
 from telegram.ext import (
-  Application,
-  CommandHandler,
-  MessageHandler,
-  filters,
-  CallbackQueryHandler
+    Application,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    CallbackQueryHandler
 )
 
 from add_booking import AddBookingHandler
 from chat_sync import process_chats_sheet
 from commands import (
-  COMMANDS,
-  start,
-  help_command,
-  view_booking_handler,
-  view_dates_handler,
-  sync_handler,
-  exit_bot,
-  edit_booking_conv_handler,
-  send_bookings_handler
+    COMMANDS,
+    start,
+    help_command,
+    view_booking_handler,
+    view_dates_handler,
+    sync_handler,
+    exit_bot,
+    edit_booking_conv_handler,
+    send_bookings_handler
 )
 from common.config import Config
 from common.logging_config import setup_logger
 from create_contract import get_contract_conversation_handler
+from google_sheets_to_channels_keywords import process_channels_keywords_sheet
 from sync_google_booking import process_google_sheets_to_db
 from sync_task import process_notifications_sheet
-from google_sheets_to_channels_keywords import process_channels_keywords_sheet
 
 logger = setup_logger("main")
 

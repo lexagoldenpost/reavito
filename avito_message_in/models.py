@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Index, Boolean
 from common.database import Base
+from sqlalchemy import Column, Integer, String, Index, Boolean
+
 
 class Message(Base):
     """

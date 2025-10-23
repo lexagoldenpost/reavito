@@ -1,20 +1,25 @@
-from datetime import datetime, date, timedelta
-from typing import Optional, List, Dict, Any
-from pathlib import Path
+# main_tg_bot/notification_service.py
+
 import csv
+from datetime import datetime, date, timedelta
+from pathlib import Path
+from typing import Optional, List, Dict, Any
+
 import aiohttp
 
-from main_tg_bot.sender.tg_notifier import send_message
 from common.config import Config
 from common.logging_config import setup_logger
+# Используем booking_objects для точного соответствия объект ↔ файл
+from main_tg_bot.booking_objects import BOOKING_SHEETS, get_booking_sheet, PROJECT_ROOT
+from main_tg_bot.sender.tg_notifier import send_message
 
 logger = setup_logger("notification_service")
 TELEGRAM_CHAT_IDS = Config.TELEGRAM_CHAT_NOTIFICATION_ID
 
-
-# --- Загрузка задач ---
+# --- Загрузка задач из other/tasks.csv ---
 def load_tasks_from_csv(csv_file: str = "tasks.csv") -> List[Dict[str, Any]]:
-    csv_path = Path(__file__).parent.parent / "booking_data" / csv_file
+    project_root = PROJECT_ROOT
+    csv_path = project_root / Config.TASK_DATA_DIR / csv_file
     tasks = []
     try:
         with open(csv_path, 'r', encoding='utf-8') as f:
@@ -28,14 +33,19 @@ def load_tasks_from_csv(csv_file: str = "tasks.csv") -> List[Dict[str, Any]]:
                 f"смещение={task.get('Тригер срок в днях (минус срок до, без срок после)')}"
             )
     except Exception as e:
-        logger.error(f"❌ Ошибка загрузки задач из {csv_file}: {e}")
+        logger.error(f"❌ Ошибка загрузки задач из {csv_path}: {e}")
     return tasks
 
 
-# --- Загрузка бронирований по объекту ---
+# --- Загрузка бронирований по объекту с использованием booking_objects ---
 def load_object_data_from_csv(object_name: str) -> List[Dict[str, Any]]:
-    filename = object_name.lower().replace(' ', '_') + ".csv"
-    csv_path = Path(__file__).parent.parent / "booking_data" / filename
+    # Ищем объект по точному имени листа (например, 'Halo JU701 двушка')
+    sheet_obj = get_booking_sheet(object_name)
+    if not sheet_obj:
+        logger.warning(f"⚠️ Неизвестный объект: '{object_name}'. Доступные: {list(BOOKING_SHEETS.keys())}")
+        return []
+
+    csv_path = Path(sheet_obj.filepath)
     if not csv_path.exists():
         logger.warning(f"⚠️ Файл не найден: {csv_path}")
         return []
@@ -44,14 +54,14 @@ def load_object_data_from_csv(object_name: str) -> List[Dict[str, Any]]:
         with open(csv_path, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             data = list(reader)
-        logger.info(f"✅ Загружено {len(data)} записей для объекта '{object_name}'")
+        logger.info(f"✅ Загружено {len(data)} записей для объекта '{object_name}' из {csv_path}")
         return data
     except Exception as e:
         logger.error(f"❌ Ошибка загрузки данных объекта {object_name}: {e}")
         return []
 
 
-# --- Парсинг даты ---
+# --- Остальные функции без изменений (логика дат, триггеров и т.д.) ---
 def parse_date(date_str: str) -> Optional[date]:
     if not date_str or date_str.strip() == '':
         return None
@@ -64,14 +74,12 @@ def parse_date(date_str: str) -> Optional[date]:
     return None
 
 
-# --- Обогащение бронирования распарсенными датами ---
 def enrich_booking_with_dates(booking: Dict[str, Any]) -> Dict[str, Any]:
     booking['_check_in'] = parse_date(booking.get('Заезд', ''))
     booking['_check_out'] = parse_date(booking.get('Выезд', ''))
     return booking
 
 
-# --- Получение даты события ---
 def get_event_date(booking: Dict[str, Any], trigger_column: str) -> Optional[date]:
     if trigger_column == 'Заезд':
         return booking.get('_check_in')
@@ -80,7 +88,6 @@ def get_event_date(booking: Dict[str, Any], trigger_column: str) -> Optional[dat
     return None
 
 
-# --- Проверка срабатывания триггера (с подробным логированием) ---
 def should_trigger_notification(
     notification: Dict[str, Any], booking: Dict[str, Any], today: date
 ) -> bool:
@@ -88,25 +95,21 @@ def should_trigger_notification(
     obj = booking.get('sheet_name', 'N/A')
     notif_name = notification.get('Оповещение', 'N/A')
 
-    # 1. Совпадение объекта
     trigger_obj = notification.get('Триггер по объекту')
     if booking.get('sheet_name') != trigger_obj:
         logger.debug(f"[SKIP] ❌ Объект не совпадает: бронь='{obj}', триггер='{trigger_obj}' → гость={guest}")
         return False
 
-    # 2. Валидный столбец
     trigger_col = notification.get('Триггер по столбцу')
     if trigger_col not in ('Заезд', 'Выезд'):
         logger.debug(f"[SKIP] ❌ Неверный столбец триггера: '{trigger_col}' → {notif_name}")
         return False
 
-    # 3. Дата события
     event_date = get_event_date(booking, trigger_col)
     if not event_date:
         logger.debug(f"[SKIP] ❌ Нет даты события ({trigger_col}) для брони → гость={guest}")
         return False
 
-    # 4. Смещение
     raw_offset = notification.get('Тригер срок в днях (минус срок до, без срок после)', '0')
     try:
         offset_days = int(raw_offset)
@@ -114,7 +117,6 @@ def should_trigger_notification(
         logger.debug(f"[SKIP] ❌ Неверное значение смещения: '{raw_offset}' → {notif_name}")
         return False
 
-    # 5. Расчёт даты триггера
     trigger_date = event_date - timedelta(days=offset_days)
     matches = (trigger_date == today)
 
@@ -127,7 +129,6 @@ def should_trigger_notification(
     return matches
 
 
-# --- Форматирование сообщения ---
 def format_message_with_booking_data(
     message: str,
     notification_type: str,
@@ -139,7 +140,6 @@ def format_message_with_booking_data(
 
     formatted = message
 
-    # Подстановка полей бронирования
     for field, value in booking.items():
         placeholder = f"{{{field}}}"
         if placeholder in formatted:
@@ -155,7 +155,6 @@ def format_message_with_booking_data(
             else:
                 formatted = formatted.replace(placeholder, str(value) if value else '')
 
-    # Подстановка текущего тайского года
     if '{thai_year}' in formatted:
         thai_year = current_date.year + 543
         formatted = formatted.replace('{thai_year}', str(thai_year))
@@ -163,7 +162,6 @@ def format_message_with_booking_data(
     return formatted
 
 
-# --- Формирование информационного блока ---
 def format_trigger_info(booking: Dict[str, Any], notification: Dict[str, Any], current_date: date) -> str:
     try:
         offset_days = int(notification.get('Тригер срок в днях (минус срок до, без срок после)', 0))
@@ -192,7 +190,6 @@ def format_trigger_info(booking: Dict[str, Any], notification: Dict[str, Any], c
     )
 
 
-# --- Отправка уведомления ---
 async def send_notification(http_session, booking: Dict[str, Any], notification: Dict[str, Any], current_date: date):
     logger.info(f"📤 Отправка уведомления: {notification['Оповещение']} для {booking.get('Гость', 'N/A')}")
 
@@ -216,7 +213,6 @@ async def send_notification(http_session, booking: Dict[str, Any], notification:
     logger.info(f"✅ Уведомление успешно отправлено для гостя: {booking.get('Гость', 'N/A')}")
 
 
-# --- Основная функция ---
 async def check_notification_triggers():
     logger.info("🚀 Запуск проверки триггеров уведомлений")
     today = datetime.now().date()
@@ -227,7 +223,6 @@ async def check_notification_triggers():
         logger.info("📭 Нет задач для обработки")
         return
 
-    # Собираем объекты
     objects = {
         n.get('Триггер по объекту')
         for n in notifications
@@ -235,7 +230,6 @@ async def check_notification_triggers():
     }
     logger.info(f"🏢 Объекты для обработки: {sorted(objects)}")
 
-    # Загружаем все бронирования
     all_bookings = []
     for obj in objects:
         raw_bookings = load_object_data_from_csv(obj)
@@ -254,7 +248,6 @@ async def check_notification_triggers():
 
     logger.info(f"🔍 Начинаю проверку {len(all_bookings)} бронирований на {len(notifications)} триггеров")
 
-    # Проверка триггеров
     async with aiohttp.ClientSession() as session:
         for booking in all_bookings:
             for notification in notifications:
@@ -264,7 +257,6 @@ async def check_notification_triggers():
     logger.info("🏁 Проверка триггеров завершена")
 
 
-# --- Для ручного запуска ---
 if __name__ == "__main__":
     try:
         import asyncio

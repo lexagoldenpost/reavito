@@ -1,26 +1,29 @@
 # main_tg_bot/command/view_dates.py
 
 from datetime import date, timedelta
-import pandas as pd
-import os
-from telegram import Update
+from pathlib import Path
 from typing import List, Tuple
-from common.logging_config import setup_logger
+
+import pandas as pd
+from telegram import Update
+
 from common.config import Config
+from common.logging_config import setup_logger
+from main_tg_bot.booking_objects import PROJECT_ROOT
 
 logger = setup_logger("view_dates")
 
-# Новая папка с данными бронирований
-BOOKING_DATA_DIR = Config.BOOKING_DATA_DIR
+# Путь к папке booking/ относительно корня проекта
+BOOKING_DATA_DIR = PROJECT_ROOT / Config.BOOKING_DATA_DIR
 
 
 def get_all_booking_files() -> list:
     """Возвращает список всех .csv файлов в папке booking/"""
-    if not os.path.exists(BOOKING_DATA_DIR):
+    if not BOOKING_DATA_DIR.exists():
         return []
     files = [
-        f for f in os.listdir(BOOKING_DATA_DIR)
-        if f.endswith('.csv') and os.path.isfile(os.path.join(BOOKING_DATA_DIR, f))
+        f.name for f in BOOKING_DATA_DIR.iterdir()
+        if f.is_file() and f.suffix == '.csv'
     ]
     return sorted(files)
 
@@ -33,14 +36,14 @@ def format_file_name(file_name: str) -> str:
 
 def get_file_path(file_name: str) -> str:
     """Получить полный путь к файлу"""
-    return os.path.join(BOOKING_DATA_DIR, file_name)
+    return str(BOOKING_DATA_DIR / file_name)
 
 
 def load_bookings_from_csv(file_name: str):
     """Загрузка данных из CSV файла"""
     try:
         file_path = get_file_path(file_name)
-        if not os.path.exists(file_path):
+        if not Path(file_path).exists():
             logger.error(f"File not found: {file_path}")
             return None
 

@@ -2,11 +2,13 @@ import json
 import os
 from pathlib import Path
 from typing import Dict, List, Optional
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import make_pipeline
-from common.logging_config import setup_logger
+
 from common.config import Config
+from common.logging_config import setup_logger
 
 # Настройка логгера
 logger = setup_logger("intent_bot")

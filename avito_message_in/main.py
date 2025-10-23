@@ -1,11 +1,13 @@
+import asyncio
+from typing import Optional
+
+import uvicorn
+from common.database import SessionLocal
 from fastapi import FastAPI, HTTPException, status, Header, Request
 from pydantic import BaseModel
-from common.logging_config import setup_logger
-from common.database import SessionLocal
+
 from avito_message_in.models import Message
-import asyncio
-import uvicorn
-from typing import Optional
+from common.logging_config import setup_logger
 
 # Инициализация FastAPI приложения
 app = FastAPI()

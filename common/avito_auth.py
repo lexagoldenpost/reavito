@@ -1,10 +1,10 @@
-import json
-import requests
-import time
 from datetime import datetime, timedelta
+from typing import Dict
+
+import requests
+
 from common.config import Config
 from common.logging_config import setup_logger
-from typing import Dict, Optional
 
 # Настройка логгера
 logger = setup_logger("avito_auth")

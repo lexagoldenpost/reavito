@@ -3,10 +3,9 @@ from telegram.ext import CommandHandler
 
 from common.logging_config import setup_logger
 from main_tg_bot.command.sync_command import sync_handler
-
-#from create_contract import get_contract_conversation_handler
-#from edit_booking import edit_booking_conv_handler
-#from send_bookings import send_bookings_handler  # Добавляем новый импорт
+# from create_contract import get_contract_conversation_handler
+# from edit_booking import edit_booking_conv_handler
+# from send_bookings import send_bookings_handler  # Добавляем новый импорт
 from main_tg_bot.command.view_booking import view_booking_handler
 from main_tg_bot.command.view_dates import view_dates_handler
 

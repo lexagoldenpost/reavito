@@ -4,7 +4,7 @@ from typing import Optional, Union, List
 
 from telethon import TelegramClient, errors
 from telethon.tl.types import InputMediaUploadedPhoto, \
-  InputMediaUploadedDocument
+    InputMediaUploadedDocument
 
 from common.config import Config
 from common.logging_config import setup_logger

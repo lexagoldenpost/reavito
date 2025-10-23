@@ -1,7 +1,9 @@
-from sqlalchemy import Column, Integer, String, Boolean, TIMESTAMP
-from sqlalchemy import Column, Integer, String, Index, Boolean
-from common.database import Base
 import datetime
+
+from common.database import Base
+from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import TIMESTAMP
+
 
 class Message_Scenario(Base):
     __tablename__ = 'messages'

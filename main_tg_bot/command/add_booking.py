@@ -1,11 +1,9 @@
-# add_booking.py
-import json
-import csv
-import os
 import uuid
 from datetime import datetime
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+import pandas as pd
+from booking_objects import BOOKING_SHEETS, get_booking_sheet
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     CommandHandler,
     CallbackQueryHandler,
@@ -15,335 +13,801 @@ from telegram.ext import (
     ContextTypes,
 )
 
-from common.config import Config
 from common.logging_config import setup_logger
 
-logger = setup_logger("add_booking")
+logger = setup_logger("add_booking_local")
 
-# Состояния для ConversationHandler
-SELECTING_OBJECT, FILLING_FORM = range(2)
+# Состояния диалога
+(
+    SELECT_SHEET,
+    GUEST_NAME,
+    BOOKING_DATE,
+    CHECK_IN,
+    CHECK_OUT,
+    NIGHTS,
+    MONTHLY_SUM,
+    TOTAL_SUM,
+    ADVANCE,
+    ADDITIONAL_PAYMENT,
+    SOURCE,
+    EXTRA_CHARGES,
+    EXPENSES,
+    PAYMENT_METHOD,
+    COMMENT,
+    PHONE,
+    EXTRA_PHONE,
+    FLIGHTS,
+    CONFIRM,
+) = range(19)
 
 
-class AddBookingHandler:
-    def __init__(self, bot_instance=None):
-        self.csv_file = "citygate_p311.csv"
-        self.objects = {
-            "citygate_p311": "CityGate P311"
-        }
-        self.bot = bot_instance
-        # URL удаленного веб-сервера с формой бронирования
-        self.remote_web_app_url = Config.REMOTE_WEB_APP_URL + Config.REMOTE_WEB_APP_CREATE_BOOKING_URL
+class AddBookingLocalHandler:
+    def __init__(self, bot):
+        self.bot = bot
+        self.active_sessions = set()
 
-    async def start_booking(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Начало процесса бронирования"""
-        logger.info("=== START BOOKING PROCESS ===")
-        logger.info(f"User: {update.effective_user.username} (ID: {update.effective_user.id})")
-
-        # Проверка прав доступа через экземпляр бота, если он передан
-        if self.bot and not await self.bot.check_user_permission(update):
-            logger.warning("User permission denied")
-            return ConversationHandler.END
-
-        keyboard = [
-            [InlineKeyboardButton("🏢 CityGate P311", callback_data="object_citygate_p311")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        await update.message.reply_text(
-            "🏨 *Выберите объект для бронирования:*",
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
+    def get_conversation_handler(self):
+        """Создает и возвращает ConversationHandler"""
+        return ConversationHandler(
+            entry_points=[CommandHandler("add_booking", self.start_add_booking)],
+            states={
+                SELECT_SHEET: [CallbackQueryHandler(self.select_sheet)],
+                GUEST_NAME: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.guest_name)
+                ],
+                BOOKING_DATE: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.booking_date)
+                ],
+                CHECK_IN: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.check_in)
+                ],
+                CHECK_OUT: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.check_out)
+                ],
+                NIGHTS: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.nights),
+                    CallbackQueryHandler(self.skip_nights, pattern="^skip_nights$"),
+                ],
+                MONTHLY_SUM: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.monthly_sum),
+                    CallbackQueryHandler(
+                        self.skip_monthly_sum, pattern="^skip_monthly_sum$"
+                    ),
+                ],
+                TOTAL_SUM: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.total_sum)
+                ],
+                ADVANCE: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.advance)
+                ],
+                ADDITIONAL_PAYMENT: [
+                    MessageHandler(
+                        filters.TEXT & ~filters.COMMAND, self.additional_payment
+                    ),
+                    CallbackQueryHandler(
+                        self.skip_additional_payment,
+                        pattern="^skip_additional_payment$",
+                    ),
+                ],
+                SOURCE: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.source)
+                ],
+                EXTRA_CHARGES: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.extra_charges),
+                    CallbackQueryHandler(
+                        self.skip_extra_charges, pattern="^skip_extra_charges$"
+                    ),
+                ],
+                EXPENSES: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.expenses),
+                    CallbackQueryHandler(self.skip_expenses, pattern="^skip_expenses$"),
+                ],
+                PAYMENT_METHOD: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.payment_method)
+                ],
+                COMMENT: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.comment),
+                    CallbackQueryHandler(self.skip_comment, pattern="^skip_comment$"),
+                ],
+                PHONE: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.phone)
+                ],
+                EXTRA_PHONE: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.extra_phone),
+                    CallbackQueryHandler(
+                        self.skip_extra_phone, pattern="^skip_extra_phone$"
+                    ),
+                ],
+                FLIGHTS: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.flights),
+                    CallbackQueryHandler(self.skip_flights, pattern="^skip_flights$"),
+                ],
+                CONFIRM: [CallbackQueryHandler(self.confirm_booking)],
+            },
+            fallbacks=[CommandHandler("cancel", self.handle_cancel)],
+            conversation_timeout=300,  # 5 минут таймаут для неактивных сессий
         )
 
-        logger.info("Object selection presented to user")
-        return SELECTING_OBJECT
+    async def cleanup_session(self, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+        """Очищает данные сессии"""
+        if user_id in self.active_sessions:
+            self.active_sessions.remove(user_id)
+        if context.user_data:
+            context.user_data.clear()
+        logger.info(f"Cleaned up session for user {user_id}")
 
-    async def select_object(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработка выбора объекта"""
+    async def handle_timeout(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Обработчик таймаута сессии"""
+        user = update.effective_user
+        await self.cleanup_session(user.id, context)
+        await context.bot.send_message(
+            chat_id=user.id,
+            text="⏳ Сессия бронирования закрыта из-за неактивности\n"
+                 "Для нового бронирования используйте /add_booking"
+        )
+
+    async def start_add_booking(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Начало процесса бронирования с проверкой активных сессий"""
+        try:
+            user = update.effective_user
+            logger.info(f"User {user.username} started add_booking")
+
+            # Get the message object whether it's from a command or callback
+            message = update.message or update.callback_query.message
+
+            # Если у пользователя уже есть активная сессия
+            if user.id in self.active_sessions:
+                # Предлагаем продолжить или сбросить
+                keyboard = [
+                    [InlineKeyboardButton("🔄 Сбросить и начать новое", callback_data="force_new")],
+                    [InlineKeyboardButton("❌ Отменить", callback_data="exit_command")],
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+
+                await message.reply_text(
+                    "⚠️ У вас уже есть активная сессия бронирования.\n"
+                    "Хотите сбросить её и начать новое бронирование?",
+                    reply_markup=reply_markup
+                )
+                return SELECT_SHEET
+
+            # Новая сессия
+            self.active_sessions.add(user.id)
+            context.user_data.clear()
+            context.user_data["booking_date"] = datetime.now().strftime("%d.%m.%Y")
+
+            # Создаем кнопки для выбора объекта из booking_objects
+            keyboard = [
+                [InlineKeyboardButton(sheet_name, callback_data=sheet_name)]
+                for sheet_name in BOOKING_SHEETS.keys()
+            ]
+            # Добавляем кнопку выхода
+            keyboard.append([InlineKeyboardButton("🚪 Выход", callback_data="exit_command")])
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await message.reply_text(
+                "📋 Выберите объект для бронирования:",
+                reply_markup=reply_markup
+            )
+            return SELECT_SHEET
+
+        except Exception as e:
+            logger.error(f"Error in start_add_booking: {e}", exc_info=True)
+            message = update.message or update.callback_query.message
+            await message.reply_text("⚠️ Произошла ошибка. Попробуйте позже.")
+            return ConversationHandler.END
+
+    async def select_sheet(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка выбора таблицы с обработкой команд сброса"""
+        try:
+            query = update.callback_query
+            await query.answer()
+
+            user = update.effective_user
+
+            # Обработка команд управления сессией
+            if query.data == "exit_command":
+                return await self.handle_exit(update, context)
+            elif query.data == "force_new":
+                await self.cleanup_session(user.id, context)
+                await query.edit_message_text("♻️ Предыдущая сессия сброшена. Начинаем новое бронирование.")
+                return await self.start_add_booking(update, context)
+
+            # Проверяем, что выбранный объект существует
+            selected_sheet = query.data
+            booking_sheet = get_booking_sheet(selected_sheet)
+            if not booking_sheet:
+                await query.edit_message_text("❌ Ошибка: выбранный объект не найден")
+                return ConversationHandler.END
+
+            context.user_data["sheet"] = selected_sheet
+            context.user_data["booking_sheet"] = booking_sheet
+
+            await query.edit_message_text(
+                text=f"📌 Выбран объект: {selected_sheet}\n\n✏️ Введите имя гостя:"
+            )
+            return GUEST_NAME
+
+        except Exception as e:
+            logger.error(f"Error in select_sheet: {e}", exc_info=True)
+            await self.cleanup_session(update.effective_user.id, context)
+            await query.edit_message_text("⚠️ Ошибка выбора объекта")
+            return ConversationHandler.END
+
+    async def handle_exit(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Универсальный обработчик выхода"""
         query = update.callback_query
         await query.answer()
 
-        logger.info(f"=== OBJECT SELECTION ===")
-        logger.info(f"User: {query.from_user.username} (ID: {query.from_user.id})")
-        logger.info(f"Callback data: {query.data}")
+        user = update.effective_user
+        await self.cleanup_session(user.id, context)
 
-        # Проверка прав доступа
-        if self.bot and not await self.bot.check_user_permission(update):
-            logger.warning("User permission denied in object selection")
-            return ConversationHandler.END
+        await query.edit_message_text(
+            "🚪 Вы вышли из процесса бронирования.\n"
+            "Для нового бронирования используйте /add_booking"
+        )
+        return ConversationHandler.END
 
-        # Извлекаем object_id из callback_data, убирая префикс "object_"
-        callback_data = query.data
-        object_id = callback_data.replace("object_", "")
-
-        logger.info(f"Selected object: {object_id}")
-
-        if object_id not in self.objects:
-            logger.error(f"Object not found: {object_id}")
-            await query.edit_message_text(
-                "❌ *Ошибка: объект не найден*",
-                parse_mode='Markdown'
-            )
-            return ConversationHandler.END
-
-        context.user_data['selected_object'] = object_id
-        context.user_data['object_name'] = self.objects.get(object_id, "Unknown Object")
-
-        logger.info(f"Context user_data updated: {context.user_data}")
-
-        # Используем URL удаленного веб-сервера
+    async def guest_name(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка ввода имени гостя"""
         try:
-            if not self.remote_web_app_url:
-                raise Exception("Remote web app URL not configured")
+            guest_name = update.message.text.strip()
+            if not guest_name:
+                await update.message.reply_text("❌ Имя не может быть пустым. Попробуйте снова:")
+                return GUEST_NAME
 
-            # Формируем URL с параметрами для веб-формы
-            web_app_url = self._build_web_app_url(object_id, query.from_user.id)
-            logger.info(f"Generated WebApp URL: {web_app_url}")
+            context.user_data["guest"] = guest_name
+            # Автоматически используем текущую дату и переходим к дате заезда
+            await update.message.reply_text("🏨 Введите дату заезда (ДД.ММ.ГГГГ):")
+            return CHECK_IN
+
+        except Exception as e:
+            logger.error(f"Error in guest_name: {e}", exc_info=True)
+            await update.message.reply_text("⚠️ Ошибка обработки имени")
+            return ConversationHandler.END
+
+    async def booking_date(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка даты бронирования"""
+        try:
+            date_str = update.message.text.strip()
+            if not date_str:
+                date_str = datetime.now().strftime("%d.%m.%Y")
+
+            date = datetime.strptime(date_str, "%d.%m.%Y").date()
+            formatted_date = date.strftime("%d.%m.%Y")
+            context.user_data["booking_date"] = formatted_date
+
+            await update.message.reply_text("🏨 Введите дату заезда (ДД.ММ.ГГГГ):")
+            return CHECK_IN
+
+        except ValueError:
+            await update.message.reply_text("❌ Неверный формат даты. Используйте ДД.ММ.ГГГГ:")
+            return BOOKING_DATE
+        except Exception as e:
+            logger.error(f"Error in booking_date: {e}", exc_info=True)
+            await update.message.reply_text("⚠️ Ошибка обработки даты")
+            return ConversationHandler.END
+
+    async def check_in(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка даты заезда"""
+        try:
+            date_str = update.message.text.strip()
+            date = datetime.strptime(date_str, "%d.%m.%Y").date()
+            formatted_date = date.strftime("%d.%m.%Y")
+            context.user_data["check_in"] = formatted_date
+
+            await update.message.reply_text("🚪 Введите дату выезда (ДД.ММ.ГГГГ):")
+            return CHECK_OUT
+
+        except ValueError:
+            await update.message.reply_text("❌ Неверный формат даты. Используйте ДД.ММ.ГГГГ:")
+            return CHECK_IN
+        except Exception as e:
+            logger.error(f"Error in check_in: {e}", exc_info=True)
+            await update.message.reply_text("⚠️ Ошибка обработки даты заезда")
+            return ConversationHandler.END
+
+    async def check_out(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка даты выезда с автоматическим расчетом количества ночей"""
+        try:
+            date_str = update.message.text.strip()
+            date = datetime.strptime(date_str, "%d.%m.%Y").date()
+            formatted_date = date.strftime("%d.%m.%Y")
+            context.user_data["check_out"] = formatted_date
+
+            # Автоматический расчет количества ночей
+            check_in_str = context.user_data.get("check_in")
+            if check_in_str:
+                check_in_date = datetime.strptime(check_in_str, "%d.%m.%Y").date()
+                nights = (date - check_in_date).days
+                context.user_data["nights"] = str(nights)
+                await update.message.reply_text(f"🌙 Рассчитанное количество ночей: {nights}")
+
+            # Пропускаем шаг ввода количества ночей и переходим к следующему
+            reply_markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏭ Пропустить", callback_data="skip_monthly_sum")]
+            ])
+
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="💰 Введите сумму по месяцам (например: 'Окт 15000 Ноя 20000'):",
+                reply_markup=reply_markup,
+            )
+            return MONTHLY_SUM
+
+        except ValueError:
+            await update.message.reply_text("❌ Неверный формат даты. Используйте ДД.ММ.ГГГГ:")
+            return CHECK_OUT
+        except Exception as e:
+            logger.error(f"Error in check_out: {e}", exc_info=True)
+            await update.message.reply_text("⚠️ Ошибка обработки даты выезда")
+            return ConversationHandler.END
+
+    async def nights(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка количества ночей"""
+        try:
+            nights = update.message.text.strip()
+            if not nights.isdigit():
+                await update.message.reply_text("❌ Введите число ночей:")
+                return NIGHTS
+
+            context.user_data["nights"] = nights
+
+            reply_markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏭ Пропустить", callback_data="skip_monthly_sum")]
+            ])
+
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="💰 Введите сумму по месяцам (например: 'Окт 15000 Ноя 20000'):",
+                reply_markup=reply_markup,
+            )
+            return MONTHLY_SUM
+
+        except Exception as e:
+            logger.error(f"Error in nights: {e}", exc_info=True)
+            await update.message.reply_text("⚠️ Ошибка обработки количества ночей")
+            return ConversationHandler.END
+
+    async def skip_nights(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Пропуск ввода количества ночей"""
+        query = update.callback_query
+        await query.answer()
+        await query.edit_message_text("🌙 Пропущено: количество ночей")
+
+        reply_markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("⏭ Пропустить", callback_data="skip_monthly_sum")]
+        ])
+
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="💰 Введите сумму по месяцам (например: 'Окт 15000 Ноя 20000'):",
+            reply_markup=reply_markup,
+        )
+        return MONTHLY_SUM
+
+    async def monthly_sum(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка суммы по месяцам"""
+        try:
+            monthly_sum = update.message.text.strip()
+            context.user_data["monthly_sum"] = monthly_sum
+
+            await update.message.reply_text("💵 Введите общую сумму бронирования:")
+            return TOTAL_SUM
+
+        except Exception as e:
+            logger.error(f"Error in monthly_sum: {e}", exc_info=True)
+            await update.message.reply_text("⚠️ Ошибка обработки суммы по месяцам")
+            return ConversationHandler.END
+
+    async def skip_monthly_sum(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Пропуск ввода суммы по месяцам"""
+        query = update.callback_query
+        await query.answer()
+        await query.edit_message_text("💰 Пропущено: сумма по месяцам")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id, text="💵 Введите общую сумму бронирования:"
+        )
+        return TOTAL_SUM
+
+    async def total_sum(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка общей суммы"""
+        try:
+            total_sum = update.message.text.strip()
+            context.user_data["total_sum"] = total_sum
+
+            await update.message.reply_text("💳 Введите сумму аванса (в баттах/рублях):")
+            return ADVANCE
+
+        except Exception as e:
+            logger.error(f"Error in total_sum: {e}", exc_info=True)
+            await update.message.reply_text("⚠️ Ошибка обработки общей суммы")
+            return ConversationHandler.END
+
+    async def advance(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка аванса"""
+        try:
+            advance = update.message.text.strip()
+            context.user_data["advance"] = advance
+
+            reply_markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏭ Пропустить", callback_data="skip_additional_payment")]
+            ])
+
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="💴 Введите сумму доплаты (если есть):",
+                reply_markup=reply_markup,
+            )
+            return ADDITIONAL_PAYMENT
+
+        except Exception as e:
+            logger.error(f"Error in advance: {e}", exc_info=True)
+            await update.message.reply_text("⚠️ Ошибка обработки аванса")
+            return ConversationHandler.END
+
+    async def additional_payment(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка доплаты"""
+        try:
+            additional_payment = update.message.text.strip()
+            context.user_data["additional_payment"] = additional_payment
+
+            await update.message.reply_text("📌 Введите источник бронирования (Авито, Booking и т.д.):")
+            return SOURCE
+
+        except Exception as e:
+            logger.error(f"Error in additional_payment: {e}", exc_info=True)
+            await update.message.reply_text("⚠️ Ошибка обработки доплаты")
+            return ConversationHandler.END
+
+    async def skip_additional_payment(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Пропуск ввода доплаты"""
+        query = update.callback_query
+        await query.answer()
+        await query.edit_message_text("💴 Пропущено: доплата")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="📌 Введите источник бронирования (Авито, Booking и т.д.):",
+        )
+        return SOURCE
+
+    async def source(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка источника бронирования"""
+        try:
+            source = update.message.text.strip()
+            context.user_data["source"] = source
+
+            reply_markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏭ Пропустить", callback_data="skip_extra_charges")]
+            ])
+
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="💸 Введите дополнительные платежи (если есть):",
+                reply_markup=reply_markup,
+            )
+            return EXTRA_CHARGES
+
+        except Exception as e:
+            logger.error(f"Error in source: {e}", exc_info=True)
+            await update.message.reply_text("⚠️ Ошибка обработки источника")
+            return ConversationHandler.END
+
+    async def extra_charges(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка дополнительных платежей"""
+        try:
+            extra_charges = update.message.text.strip()
+            context.user_data["extra_charges"] = extra_charges
+
+            reply_markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏭ Пропустить", callback_data="skip_expenses")]
+            ])
+
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="🧹 Введите расходы (уборка и т.д.):",
+                reply_markup=reply_markup,
+            )
+            return EXPENSES
+
+        except Exception as e:
+            logger.error(f"Error in extra_charges: {e}", exc_info=True)
+            await update.message.reply_text("⚠️ Ошибка обработки доп. платежей")
+            return ConversationHandler.END
+
+    async def skip_extra_charges(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Пропуск ввода дополнительных платежей"""
+        query = update.callback_query
+        await query.answer()
+        await query.edit_message_text("💸 Пропущено: дополнительные платежи")
+
+        reply_markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("⏭ Пропустить", callback_data="skip_expenses")]
+        ])
+
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="🧹 Введите расходы (уборка и т.д.):",
+            reply_markup=reply_markup,
+        )
+        return EXPENSES
+
+    async def expenses(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка расходов"""
+        try:
+            expenses = update.message.text.strip()
+            context.user_data["expenses"] = expenses
+
+            await update.message.reply_text("💳 Введите способ оплаты:")
+            return PAYMENT_METHOD
+
+        except Exception as e:
+            logger.error(f"Error in expenses: {e}", exc_info=True)
+            await update.message.reply_text("⚠️ Ошибка обработки расходов")
+            return ConversationHandler.END
+
+    async def skip_expenses(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Пропуск ввода расходов"""
+        query = update.callback_query
+        await query.answer()
+        await query.edit_message_text("🧹 Пропущено: расходы")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id, text="💳 Введите способ оплаты:"
+        )
+        return PAYMENT_METHOD
+
+    async def payment_method(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка способа оплаты"""
+        try:
+            payment_method = update.message.text.strip()
+            context.user_data["payment_method"] = payment_method
+
+            reply_markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏭ Пропустить", callback_data="skip_comment")]
+            ])
+
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="📝 Введите комментарий (если есть):",
+                reply_markup=reply_markup,
+            )
+            return COMMENT
+
+        except Exception as e:
+            logger.error(f"Error in payment_method: {e}", exc_info=True)
+            await update.message.reply_text("⚠️ Ошибка обработки способа оплаты")
+            return ConversationHandler.END
+
+    async def comment(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка комментария"""
+        try:
+            comment = update.message.text.strip()
+            context.user_data["comment"] = comment
+
+            await update.message.reply_text("📱 Введите контактный телефон:")
+            return PHONE
+
+        except Exception as e:
+            logger.error(f"Error in comment: {e}", exc_info=True)
+            await update.message.reply_text("⚠️ Ошибка обработки комментария")
+            return ConversationHandler.END
+
+    async def skip_comment(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Пропуск ввода комментария"""
+        query = update.callback_query
+        await query.answer()
+        await query.edit_message_text("📝 Пропущено: комментарий")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id, text="📱 Введите контактный телефон:"
+        )
+        return PHONE
+
+    async def phone(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка телефона"""
+        try:
+            phone = update.message.text.strip()
+            context.user_data["phone"] = phone
+
+            reply_markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏭ Пропустить", callback_data="skip_extra_phone")]
+            ])
+
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="📱 Введите дополнительный телефон (если есть):",
+                reply_markup=reply_markup,
+            )
+            return EXTRA_PHONE
+
+        except Exception as e:
+            logger.error(f"Error in phone: {e}", exc_info=True)
+            await update.message.reply_text("⚠️ Ошибка обработки телефона")
+            return ConversationHandler.END
+
+    async def extra_phone(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка дополнительного телефона"""
+        try:
+            extra_phone = update.message.text.strip()
+            context.user_data["extra_phone"] = extra_phone
+
+            reply_markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏭ Пропустить", callback_data="skip_flights")]
+            ])
+
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="✈️ Введите информацию о рейсах (если есть):",
+                reply_markup=reply_markup,
+            )
+            return FLIGHTS
+
+        except Exception as e:
+            logger.error(f"Error in extra_phone: {e}", exc_info=True)
+            await update.message.reply_text("⚠️ Ошибка обработки доп. телефона")
+            return ConversationHandler.END
+
+    async def skip_extra_phone(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Пропуск ввода дополнительного телефона"""
+        query = update.callback_query
+        await query.answer()
+        await query.edit_message_text("📱 Пропущено: дополнительный телефон")
+
+        reply_markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("⏭ Пропустить", callback_data="skip_flights")]
+        ])
+
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="✈️ Введите информацию о рейсах (если есть):",
+            reply_markup=reply_markup,
+        )
+        return FLIGHTS
+
+    async def flights(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка информации о рейсах"""
+        try:
+            if update.callback_query and update.callback_query.data == "skip_flights":
+                query = update.callback_query
+                await query.answer()
+                context.user_data["flights"] = ""
+                await query.edit_message_text("✈️ Пропущено: информация о рейсах")
+            else:
+                flights = update.message.text.strip()
+                context.user_data["flights"] = flights
+
+            summary = self._generate_summary(context.user_data)
 
             keyboard = [
-                [InlineKeyboardButton(
-                    "📝 Заполнить форму бронирования",
-                    web_app=WebAppInfo(url=web_app_url)
-                )]
+                [InlineKeyboardButton("✅ Подтвердить", callback_data="confirm")],
+                [InlineKeyboardButton("❌ Отменить", callback_data="cancel")],
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
 
-            await query.edit_message_text(
-                f"🏢 *Выбран объект:* {self.objects[object_id]}\n\n"
-                "📝 *Для создания бронирования нажмите кнопку ниже:*\n\n"
-                "_Форма откроется в Telegram WebApp_",
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=f"📋 Проверьте данные бронирования:\n\n{summary}\n\nПодтверждаете?",
                 reply_markup=reply_markup,
-                parse_mode='Markdown'
             )
-
-            logger.info("WebApp button presented to user")
-            return FILLING_FORM
+            return CONFIRM
 
         except Exception as e:
-            logger.error(f"Error creating WebApp URL: {str(e)}")
-            await query.edit_message_text(
-                "❌ *Ошибка при создании формы бронирования*\n\n"
-                "Пожалуйста, попробуйте позже или обратитесь к администратору.",
-                parse_mode='Markdown'
-            )
+            logger.error(f"Error in flights: {e}", exc_info=True)
+            await update.message.reply_text("⚠️ Ошибка обработки информации о рейсах")
             return ConversationHandler.END
 
-    def _build_web_app_url(self, object_id: str, user_id: int) -> str:
-        from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+    async def skip_flights(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Пропустить ввод информации о рейсах"""
+        return await self.flights(update, context)
 
-        base_url = self.remote_web_app_url  # например: "https://ci84606-wordpress-rdeld.tw1.ru/?page_id=8"
+    async def confirm_booking(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Подтверждение бронирования с сохранением в CSV файл"""
+        query = update.callback_query
+        await query.answer()
+        user_id = update.effective_user.id
 
-        # Разбираем URL
-        parsed = urlparse(base_url)
-        query_params = parse_qs(parsed.query, keep_blank_values=True)
-
-        # Добавляем новые параметры
-        query_params['object'] = object_id
-        query_params['user_id'] = str(user_id)
-
-        # Собираем обратно
-        new_query = urlencode(query_params, doseq=True)
-        new_url = urlunparse((
-            parsed.scheme,
-            parsed.netloc,
-            parsed.path,
-            parsed.params,
-            new_query,
-            parsed.fragment
-        ))
-
-        return new_url
-
-    async def handle_web_app_data(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        logger.info(">>> handle_web_app_data CALLED")
-        logger.info(f"Update type: {update}")
-        if update.message and update.message.web_app_data:
-            logger.info(f"Raw WebApp data: {update.message.web_app_data.data}")
-        else:
-            logger.warning("No web_app_data in message!")
-            return ConversationHandler.END
-
-        logger.info("=== WEB APP DATA RECEIVED ===")
-        """Обработка данных из WebApp - вызывается когда форма отправляет данные через sendData()"""
-        logger.info("=== WEB APP DATA RECEIVED ===")
+        if query.data == "cancel" or query.data == "exit_command":
+            return await self.handle_exit(update, context)
 
         try:
-            web_app_data = update.message.web_app_data
-            data = json.loads(web_app_data.data)
-            logger.info(f"WebApp data received: {json.dumps(data, indent=2, ensure_ascii=False)}")
+            booking_sheet = context.user_data.get("booking_sheet")
+            if not booking_sheet:
+                await query.edit_message_text("❌ Ошибка: не указан объект для сохранения")
+                return ConversationHandler.END
 
-            # Сохраняем бронирование в CSV
-            success = self.save_booking_to_csv(data)
+            # Сохраняем бронирование в CSV файл
+            success = await self._save_booking_to_csv(booking_sheet, context.user_data)
 
             if success:
-                logger.info("Booking successfully saved to CSV")
-                await update.message.reply_text(
-                    "✅ *Бронирование успешно сохранено!*\n\n"
-                    "Все данные записаны в систему.",
-                    parse_mode='Markdown'
+                await self.cleanup_session(user_id, context)
+                await query.edit_message_text(
+                    f"✅ Бронирование успешно создано для объекта '{booking_sheet.sheet_name}'!\n"
+                    "Для нового бронирования используйте /add_booking"
                 )
-
-                # Отправляем уведомление администратору
-                await self._send_admin_notification(data, context)
-
             else:
-                logger.error("Failed to save booking to CSV")
-                await update.message.reply_text(
-                    "❌ *Ошибка при сохранении бронирования*\n\n"
-                    "Пожалуйста, попробуйте еще раз или обратитесь к администратору.",
-                    parse_mode='Markdown'
+                await query.edit_message_text(
+                    f"⚠️ Ошибка при сохранении бронирования для объекта '{booking_sheet.sheet_name}'\n"
+                    "Попробуйте еще раз или обратитесь к администратору"
                 )
 
+            return ConversationHandler.END
+
         except Exception as e:
-            logger.error(f"Error processing WebApp data: {str(e)}")
-            await update.message.reply_text(
-                "❌ *Ошибка при обработке данных*\n\n"
-                "Пожалуйста, попробуйте еще раз.",
-                parse_mode='Markdown'
-            )
+            logger.error(f"Error confirming booking: {e}", exc_info=True)
+            await self.cleanup_session(user_id, context)
+            await query.edit_message_text("⚠️ Ошибка при создании бронирования")
+            return ConversationHandler.END
 
-        return ConversationHandler.END
-
-    async def _send_admin_notification(self, booking_data: dict, context: ContextTypes.DEFAULT_TYPE):
-        """Отправляет уведомление администратору о новом бронировании"""
+    async def _save_booking_to_csv(self, booking_sheet, user_data):
+        """Сохраняет бронирование в CSV файл"""
         try:
-            message = self._format_booking_notification(booking_data)
-            await context.bot.send_message(
-                chat_id=Config.ADMIN_CHAT_ID,
-                text=message,
-                parse_mode='HTML'
-            )
-            logger.info("Admin notification sent")
-        except Exception as e:
-            logger.error(f"Error sending admin notification: {str(e)}")
+            # Загружаем существующие данные
+            df = booking_sheet.load()
 
-    def _format_booking_notification(self, booking_data: dict) -> str:
-        """Форматирует уведомление о бронировании"""
-        message = "🏨 <b>НОВОЕ БРОНИРОВАНИЕ ИЗ WEB-FORM</b> 🏨\n\n"
-        message += f"<b>👤 Гость:</b> {booking_data.get('guest_name', 'Не указано')}\n"
-        message += f"<b>📞 Телефон:</b> {booking_data.get('phone', 'Не указан')}\n"
+            # Создаем новую запись
+            new_booking = {
+                'Гость': user_data.get('guest', ''),
+                'Дата бронирования': user_data.get('booking_date', ''),
+                'Заезд': user_data.get('check_in', ''),
+                'Выезд': user_data.get('check_out', ''),
+                'Количество ночей': user_data.get('nights', ''),
+                'СуммаБатты': user_data.get('total_sum', ''),
+                'Аванс Батты/Рубли': user_data.get('advance', ''),
+                'Доплата Батты/Рубли': user_data.get('additional_payment', ''),
+                'Источник': user_data.get('source', ''),
+                'Дополнительные доплаты': user_data.get('extra_charges', ''),
+                'Расходы': user_data.get('expenses', ''),
+                'Оплата': user_data.get('payment_method', ''),
+                'Комментарий': user_data.get('comment', ''),
+                'телефон': user_data.get('phone', ''),
+                'дополнительный телефон': user_data.get('extra_phone', ''),
+                'Рейсы': user_data.get('flights', ''),
+                '_sync_id': str(uuid.uuid4())  # Генерируем уникальный ID для синхронизации
+            }
 
-        if booking_data.get('additional_phone'):
-            message += f"<b>📞 Доп. телефон:</b> {booking_data['additional_phone']}\n"
+            # Добавляем новую запись в DataFrame
+            new_df = pd.DataFrame([new_booking])
+            df = pd.concat([df, new_df], ignore_index=True)
 
-        message += f"<b>📅 Заезд:</b> {booking_data.get('check_in', 'Не указано')}\n"
-        message += f"<b>📅 Выезд:</b> {booking_data.get('check_out', 'Не указано')}\n"
-        message += f"<b>🌙 Ночей:</b> {booking_data.get('nights_count', 'Не указано')}\n"
+            # Сохраняем обратно в CSV
+            booking_sheet.save(df)
 
-        if booking_data.get('total_baht'):
-            message += f"<b>💰 Сумма:</b> {booking_data['total_baht']} батт\n"
-
-        if booking_data.get('advance_payment') and booking_data['advance_payment'] != '0/0':
-            message += f"<b>💳 Аванс:</b> {booking_data['advance_payment']}\n"
-
-        if booking_data.get('additional_payment') and booking_data['additional_payment'] != '0/0':
-            message += f"<b>💳 Доплата:</b> {booking_data['additional_payment']}\n"
-
-        if booking_data.get('source'):
-            message += f"<b>📊 Источник:</b> {booking_data['source']}\n"
-
-        if booking_data.get('flights'):
-            message += f"<b>✈️ Рейсы:</b> {booking_data['flights']}\n"
-
-        if booking_data.get('payment_method'):
-            message += f"<b>💸 Способ оплаты:</b> {booking_data['payment_method']}\n"
-
-        if booking_data.get('comment'):
-            message += f"<b>📝 Комментарий:</b> {booking_data['comment']}\n"
-
-        message += f"\n<b>🏢 Объект:</b> {booking_data.get('object_id', 'Не указан')}\n"
-        message += f"<b>👤 Менеджер ID:</b> {booking_data.get('user_id', 'Не указан')}\n"
-        message += f"<b>📅 Дата создания:</b> {booking_data.get('booking_date', 'Не указана')}"
-
-        return message
-
-    def save_booking_to_csv(self, booking_data: dict) -> bool:
-        """Сохраняет данные бронирования в CSV файл"""
-        try:
-            logger.info("=== SAVING BOOKING TO CSV ===")
-            logger.info(f"Booking data: {json.dumps(booking_data, indent=2, ensure_ascii=False)}")
-
-            # Проверяем существование файла и создаем заголовки если нужно
-            file_exists = os.path.isfile(self.csv_file)
-
-            with open(self.csv_file, 'a', newline='', encoding='utf-8') as csvfile:
-                fieldnames = [
-                    'id', 'guest_name', 'phone', 'additional_phone', 'check_in',
-                    'check_out', 'nights_count', 'total_baht', 'advance_payment',
-                    'additional_payment', 'source', 'flights', 'payment_method',
-                    'comment', 'booking_date', 'object_id', 'user_id', 'created_at'
-                ]
-
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-
-                if not file_exists:
-                    writer.writeheader()
-                    logger.info("CSV file created with headers")
-
-                # Подготавливаем данные для записи
-                row_data = {
-                    'id': str(uuid.uuid4()),
-                    'guest_name': booking_data.get('guest_name', ''),
-                    'phone': booking_data.get('phone', ''),
-                    'additional_phone': booking_data.get('additional_phone', ''),
-                    'check_in': booking_data.get('check_in', ''),
-                    'check_out': booking_data.get('check_out', ''),
-                    'nights_count': booking_data.get('nights_count', ''),
-                    'total_baht': booking_data.get('total_baht', ''),
-                    'advance_payment': booking_data.get('advance_payment', ''),
-                    'additional_payment': booking_data.get('additional_payment', ''),
-                    'source': booking_data.get('source', ''),
-                    'flights': booking_data.get('flights', ''),
-                    'payment_method': booking_data.get('payment_method', ''),
-                    'comment': booking_data.get('comment', ''),
-                    'booking_date': booking_data.get('booking_date', ''),
-                    'object_id': booking_data.get('object_id', ''),
-                    'user_id': booking_data.get('user_id', ''),
-                    'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                }
-
-                writer.writerow(row_data)
-                logger.info(f"Booking successfully saved to CSV: {self.csv_file}")
-                logger.info(f"Row data: {row_data}")
-
-                return True
+            logger.info(f"Successfully saved booking to {booking_sheet.filename}")
+            return True
 
         except Exception as e:
-            logger.error(f"Error saving booking to CSV: {str(e)}")
+            logger.error(f"Error saving booking to CSV: {e}", exc_info=True)
             return False
 
-    async def cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Отмена процесса бронирования"""
-        logger.info("Booking process cancelled by user")
+    async def handle_cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Обработка команды отмены с очисткой сессии"""
+        user = update.effective_user
+        await self.cleanup_session(user.id, context)
+
         await update.message.reply_text(
-            "❌ *Процесс бронирования отменен*",
-            parse_mode='Markdown'
+            "❌ Текущее бронирование отменено.\n"
+            "Для нового бронирования используйте /add_booking"
         )
         return ConversationHandler.END
 
-    def get_conversation_handler(self):
-        """Возвращает ConversationHandler для добавления бронирований"""
-        return ConversationHandler(
-            entry_points=[CommandHandler('add_booking', self.start_booking)],
-            states={
-                SELECTING_OBJECT: [
-                    CallbackQueryHandler(self.select_object, pattern='^object_')
-                ],
-                FILLING_FORM: [
-                    MessageHandler(filters.StatusUpdate.WEB_APP_DATA, self.handle_web_app_data)
-                ]
-            },
-            fallbacks=[CommandHandler('cancel', self.cancel)],
-            name="add_booking_conversation"
+    def _generate_summary(self, data):
+        """Генерация сводки данных"""
+        return (
+            f"Объект: {data.get('sheet', 'N/A')}\n"
+            f"Гость: {data.get('guest', 'N/A')}\n"
+            f"Дата бронирования: {data.get('booking_date', 'N/A')}\n"
+            f"Дата заезда: {data.get('check_in', 'N/A')}\n"
+            f"Дата выезда: {data.get('check_out', 'N/A')}\n"
+            f"Количество ночей: {data.get('nights', 'N/A')}\n"
+            f"Сумма по месяцам: {data.get('monthly_sum', 'N/A')}\n"
+            f"Общая сумма: {data.get('total_sum', 'N/A')}\n"
+            f"Аванс: {data.get('advance', 'N/A')}\n"
+            f"Доплата: {data.get('additional_payment', 'N/A')}\n"
+            f"Источник бронирования: {data.get('source', 'N/A')}\n"
+            f"Доп. платежи: {data.get('extra_charges', 'N/A')}\n"
+            f"Расходы: {data.get('expenses', 'N/A')}\n"
+            f"Способ оплаты: {data.get('payment_method', 'N/A')}\n"
+            f"Комментарий: {data.get('comment', 'N/A')}\n"
+            f"Телефон: {data.get('phone', 'N/A')}\n"
+            f"Доп. телефон: {data.get('extra_phone', 'N/A')}\n"
+            f"Информация о рейсах: {data.get('flights', 'N/A')}"
         )
-
-
-# Функция для регистрации обработчика в основном боте
-def setup_add_booking_handler(application, bot_instance=None):
-    """Регистрация обработчика добавления бронирований"""
-    logger.info("Setting up add booking handler")
-    booking_handler = AddBookingHandler(bot_instance)
-    conv_handler = booking_handler.get_conversation_handler()
-
-    application.add_handler(conv_handler)
-    logger.info("Add booking handler setup completed")

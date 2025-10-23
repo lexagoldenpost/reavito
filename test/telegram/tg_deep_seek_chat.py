@@ -1,13 +1,8 @@
 import logging
-import os
-from os import system
 
-from dotenv import load_dotenv
-from telethon import TelegramClient, events
-from telethon.tl.functions.messages import GetHistoryRequest
 logging.basicConfig(level=logging.DEBUG, filename="py_log.log",filemode="w")
 
-from telethon import TelegramClient, events
+from telethon import TelegramClient
 
 # Ваши данные от my.telegram.org
 API_ID = ''

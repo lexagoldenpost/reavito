@@ -1,6 +1,7 @@
 import logging
-from logging.handlers import RotatingFileHandler
 import os
+from logging.handlers import RotatingFileHandler
+
 from common.config import Config
 
 
