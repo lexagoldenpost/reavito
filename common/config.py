@@ -49,8 +49,8 @@ class Config:
     BOOKING_TASK_SPREADSHEET_ID = os.getenv("BOOKING_TASK_SPREADSHEET_ID")
 
     # Список наших аппартаментов - исправленная версия
-    BOOKING_FILE_CSV_ID = os.getenv("BOOKING_FILE_CSV_ID", "citygate_p311.csv,halo_title.csv,citygate_b209.csv,halo_ju701.csv,palmetto_karon.csv,title_residence.csv").split(",")
-
+    BOOKING_DATA_DIR="booking_files"
+    TASK_DATA_DIR="task_files"
     WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 
     # Настройки логирования

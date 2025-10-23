@@ -20,11 +20,12 @@ async def sync_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text("🔁 Запуск синхронизации данных...")
 
-        # Создаём экземпляр синхронизатора
-        sync_manager = GoogleSheetsCSVSync(data_folder='booking_data')
+        # Создаём экземпляр синхронизатора (без data_folder!)
+        sync_manager = GoogleSheetsCSVSync()
 
         # Выполняем синхронизацию
-        results = sync_manager.sync_all_sheets(direction='google_to_csv')
+        # Используем direction='auto' — он сам решит: google_to_csv или bidirectional
+        results = sync_manager.sync_all_sheets(direction='auto')
 
         # Формируем отчёт
         success_count = sum(results.values())

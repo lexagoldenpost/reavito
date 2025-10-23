@@ -217,20 +217,26 @@ class BookingBot:
 
 
 def sync_google_sheets():
-    # Создаем экземпляр синхронизатора
-    sync_manager = GoogleSheetsCSVSync(
-        data_folder='booking_data'
-    )
+    """Выполняет синхронизацию всех листов Google Sheets с локальными CSV."""
+    try:
+        # Создаём экземпляр синхронизатора (без data_folder — пути теперь фиксированы)
+        sync_manager = GoogleSheetsCSVSync()
 
-    # Синхронизация всех листов
-    print("Синхронизация всех листов...")
-    results = sync_manager.sync_all_sheets()
-    print(f"Результаты: {results}")
+        # Синхронизация всех листов
+        logger.info("Starting full Google Sheets sync...")
+        results = sync_manager.sync_all_sheets()
+        success_count = sum(results.values())
+        total_count = len(results)
+        logger.info(f"Sync completed: {success_count}/{total_count} sheets successful")
+        print(f"✅ Синхронизация завершена: {success_count}/{total_count} листов")
 
-    # Получение списка доступных листов
-    available_sheets = sync_manager.get_available_sheets()
-    print(f"\nДоступные листы: {available_sheets}")
-
+        # Опционально: выводим список доступных листов
+        available_sheets = sync_manager.get_available_sheets()
+        logger.debug(f"Available sheets: {available_sheets}")
+    except Exception as e:
+        logger.error(f"Ошибка при синхронизации Google Sheets: {e}", exc_info=True)
+        print(f"❌ Ошибка синхронизации: {e}")
+        raise
 
 if __name__ == "__main__":
     try:
@@ -241,7 +247,7 @@ if __name__ == "__main__":
     try:
         logger.info("Sync booking start...")
         logger.info("Starting bot initialization...")
-        # sync_google_sheets()
+        sync_google_sheets()
         bot = BookingBot()
         bot.run()
     except KeyboardInterrupt:

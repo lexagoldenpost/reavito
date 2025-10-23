@@ -13,17 +13,17 @@ from common.config import Config
 from common.logging_config import setup_logger
 
 # Импортируем booking-объекты
-from booking_objects import BOOKING_SHEETS, get_booking_sheet
+from main_tg_bot.booking_objects import BOOKING_SHEETS, get_booking_sheet
 
 logger = setup_logger("sync_manager")
 
 
 class GoogleSheetsCSVSync:
     def __init__(self):
-        self.booking_dir = 'booking'
-        self.other_dir = 'other'
+        self.booking_dir = Config.BOOKING_DATA_DIR
+        self.task_dir = Config.TASK_DATA_DIR
         os.makedirs(self.booking_dir, exist_ok=True)
-        os.makedirs(self.other_dir, exist_ok=True)
+        os.makedirs(self.task_dir, exist_ok=True)
 
         self.scope = [
             "https://www.googleapis.com/auth/spreadsheets",
@@ -51,7 +51,7 @@ class GoogleSheetsCSVSync:
         # Регистрируем other-листы
         for sheet_name, filename in self.other_sheets.items():
             self.sheet_to_spreadsheet[sheet_name] = Config.BOOKING_TASK_SPREADSHEET_ID
-            self.sheet_to_folder[sheet_name] = self.other_dir
+            self.sheet_to_folder[sheet_name] = self.task_dir
             self.sheet_to_filename[sheet_name] = filename
 
         self.clients = {}
