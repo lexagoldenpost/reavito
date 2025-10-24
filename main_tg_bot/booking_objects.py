@@ -16,7 +16,7 @@ BOOKING_DIR.mkdir(exist_ok=True)
 # Только booking-файлы
 SHEET_TO_FILENAME = {
     'HALO Title': 'halo_title.csv',
-    'Citygate Р311': 'citygate_p311.csv',
+    'Citygate P311': 'citygate_p311.csv',
     'Citygate B209': 'citygate_b209.csv',
     'Palmetto Karon': 'palmetto_karon.csv',
     'Title Residence': 'title_residence.csv',
