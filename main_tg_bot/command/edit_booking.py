@@ -20,7 +20,7 @@ from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync  # ← д
 logger = setup_logger("edit_booking")
 
 # Состояния для ConversationHandler
-SELECT_SHEET, SELECT_BOOKING, EDIT_FIELD, EDIT_VALUE = range(4)
+SELECT_SHEET, SELECT_BOOKING, EDIT_FIELD, EDIT_VALUE, CONFIRM_DELETE = range(5)
 
 
 class EditBookingHandler:
@@ -29,7 +29,6 @@ class EditBookingHandler:
         self.sync_manager = GoogleSheetsCSVSync()  # ← инициализация синхронизатора
 
     def get_conversation_handler(self):
-        """Создает и возвращает ConversationHandler"""
         return ConversationHandler(
             entry_points=[CommandHandler('edit_booking', self.edit_booking_start)],
             states={
@@ -40,20 +39,25 @@ class EditBookingHandler:
                 ],
                 EDIT_FIELD: [
                     CallbackQueryHandler(self.select_field_to_edit, pattern="^edit_"),
-                    CallbackQueryHandler(self.save_booking, pattern="^save_booking"),
-                    CallbackQueryHandler(self.cancel_edit, pattern="^cancel_edit"),
-                    CallbackQueryHandler(self.select_sheet, pattern="^back_to_bookings")
+                    CallbackQueryHandler(self.confirm_delete_booking, pattern="^delete_booking$"),
+                    CallbackQueryHandler(self.save_booking, pattern="^save_booking$"),
+                    CallbackQueryHandler(self.cancel_edit, pattern="^cancel_edit$"),
+                    CallbackQueryHandler(self.select_sheet, pattern="^back_to_bookings$")
                 ],
                 EDIT_VALUE: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, self.edit_field_value)
+                ],
+                CONFIRM_DELETE: [
+                    CallbackQueryHandler(self.delete_booking, pattern="^confirm_delete$"),
+                    CallbackQueryHandler(self.cancel_delete, pattern="^cancel_delete$")
                 ]
             },
             fallbacks=[CommandHandler('cancel', self.cancel_edit)],
             allow_reentry=True
         )
 
+
     def format_booking_data(self, booking_data):
-        """Форматирование данных бронирования в читаемый вид"""
         try:
             nights = 0
             if booking_data.get('Заезд') and booking_data.get('Выезд'):
@@ -204,7 +208,7 @@ class EditBookingHandler:
             reply_markup = InlineKeyboardMarkup(keyboard)
 
             await query.edit_message_text(
-                f"{message}\n\n✏️ Выберите поле для редактирования:",
+                f"{message}\n\n✏️ Выберите действие:",
                 reply_markup=reply_markup
             )
             return EDIT_FIELD
@@ -241,12 +245,103 @@ class EditBookingHandler:
                     callback_data=f"edit_{field_key}"
                 )])
 
+        # 🔻 Добавляем кнопку удаления
         keyboard.extend([
+            [InlineKeyboardButton("🗑️ Удалить бронирование", callback_data="delete_booking")],
             [InlineKeyboardButton("✅ Сохранить изменения", callback_data="save_booking")],
             [InlineKeyboardButton("❌ Отменить", callback_data="cancel_edit")],
             [InlineKeyboardButton("↩️ Назад к списку", callback_data="back_to_bookings")]
         ])
         return keyboard
+
+    async def confirm_delete_booking(self, update: Update, context: CallbackContext) -> int:
+        """Запрос подтверждения удаления"""
+        query = update.callback_query
+        await query.answer()
+
+        booking_data = context.user_data['edit_booking']['current_booking']
+        guest = booking_data.get('Гость', 'Без имени')
+        check_in = booking_data.get('Заезд', 'N/A')
+
+        keyboard = [
+            [InlineKeyboardButton("✅ Да, удалить", callback_data="confirm_delete")],
+            [InlineKeyboardButton("❌ Нет, отмена", callback_data="cancel_delete")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await query.edit_message_text(
+            f"⚠️ Вы уверены, что хотите удалить бронирование?\n\n"
+            f"🏠 {guest} ({check_in})\n\n"
+            f"Это действие нельзя отменить.",
+            reply_markup=reply_markup
+        )
+        return CONFIRM_DELETE
+
+    async def delete_booking(self, update: Update, context: CallbackContext) -> int:
+        """Фактическое удаление бронирования"""
+        try:
+            query = update.callback_query
+            await query.answer()
+
+            user_data = context.user_data['edit_booking']
+            row_index = user_data['current_booking']['row_index']
+            sheet_name = user_data['sheet_name']
+            booking_sheet = user_data['booking_sheet']
+            df = user_data['dataframe']
+
+            # Удаляем строку из DataFrame
+            df = df.drop(index=row_index).reset_index(drop=True)
+
+            # Сохраняем в CSV
+            booking_sheet.save(df)
+
+            # 📥 Сообщение: удалено локально
+            await query.edit_message_text(
+                f"✅ Бронирование удалено из локального файла:\n📁 {booking_sheet.filename}"
+            )
+
+            # 🔁 Синхронизация
+            sync_success = self.sync_manager.sync_sheet(sheet_name, direction='csv_to_google')
+
+            # 📤 Сообщение: результат синхронизации
+            if sync_success:
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    text="✅ Удаление успешно синхронизировано с Google Таблицей!"
+                )
+            else:
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    text="⚠️ Бронирование удалено локально, но синхронизация не удалась.\n"
+                         "Повторите синхронизацию позже."
+                )
+
+            # Очистка
+            if 'edit_booking' in context.user_data:
+                del context.user_data['edit_booking']
+
+            return ConversationHandler.END
+
+        except Exception as e:
+            logger.error(f"Error in delete_booking: {e}", exc_info=True)
+            await query.edit_message_text("❌ Ошибка при удалении бронирования.")
+            return ConversationHandler.END
+
+    async def cancel_delete(self, update: Update, context: CallbackContext) -> int:
+        """Отмена удаления — возврат к редактированию"""
+        query = update.callback_query
+        await query.answer()
+
+        booking_data = context.user_data['edit_booking']['current_booking']
+        message = self.format_booking_data(booking_data)
+        keyboard = self._create_edit_keyboard(booking_data)
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await query.edit_message_text(
+            f"{message}\n\n✏️ Выберите действие:",
+            reply_markup=reply_markup
+        )
+        return EDIT_FIELD
 
     async def select_field_to_edit(self, update: Update, context: CallbackContext) -> int:
         try:
@@ -490,7 +585,7 @@ class EditBookingHandler:
             query = update.callback_query
             if query:
                 await query.answer()
-                await query.edit_message_text("❌ Редактирование отменено. Изменения не сохранены.")
+                await query.edit_message_text("❌ Редактирование отменено.")
             else:
                 await update.message.reply_text("❌ Редактирование отменено.")
 
