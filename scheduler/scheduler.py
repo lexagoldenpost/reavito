@@ -32,6 +32,7 @@ class AsyncScheduler:
             # Добавляйте сюда новые задачи любого типа
         ]
 
+
     async def run_script(self, script_path: Path):
         """Запускает скрипт в новом процессе (асинхронно)"""
         if not script_path.exists():
