@@ -40,7 +40,9 @@ class GoogleSheetsCSVSync:
         self.other_sheets = {
             'Задачи': 'tasks.csv',
             'Отправка бронирований': 'channels.csv',
-            'Поиск в чатах': 'search_channels.csv'
+            'Поиск в чатах': 'search_channels.csv',
+            'Сумма помесячно Citygate P311': 'citygate_p311_price.csv',
+            'Сумма помесячно HALO Title': 'halo_title_price.csv'
         }
 
         # Маппинги
@@ -113,6 +115,17 @@ class GoogleSheetsCSVSync:
             if pd.notna(val) and str(val).strip() != '':
                 parts.append(f"{c}:{str(val).strip()}")
         return hashlib.md5('|'.join(parts).encode('utf-8')).hexdigest()
+
+    def _is_row_empty(self, row: pd.Series) -> bool:
+        """Возвращает True, если строка пустая (все значимые поля — пустые)."""
+        exclude = {'_sync_id', '_hash', '_sheet_name', '_last_sync'}
+        for col in row.index:
+            if col in exclude:
+                continue
+            val = row[col]
+            if pd.notna(val) and str(val).strip() != '':
+                return False
+        return True
 
     def load_local_csv(self, sheet_name: str) -> pd.DataFrame:
         csv_file = self._get_csv_path(sheet_name)
@@ -242,14 +255,32 @@ class GoogleSheetsCSVSync:
                     self.save_local_csv(combined, sheet_name)
                     return True
 
+                # Преобразуем _last_sync в datetime для сортировки
                 combined['_last_sync_ts'] = pd.to_datetime(combined['_last_sync'], errors='coerce')
                 combined = combined.sort_values('_last_sync_ts', na_position='first')
-                merged = combined.drop_duplicates(subset=['_sync_id'], keep='last')
-                merged = merged.drop(columns=['_last_sync_ts'])
 
-                self.save_local_csv(merged, sheet_name)
-                self.update_google_sheet(sheet_name, merged)
-                logger.info(f"Completed bidirectional sync for '{sheet_name}'")
+                # Разделяем на пустые и непустые строки
+                empty_mask = combined.apply(self._is_row_empty, axis=1)
+                non_empty = combined[~empty_mask].copy()
+                empty_rows = combined[empty_mask].copy()
+
+                # Удаляем дубликаты ТОЛЬКО среди непустых строк — по хешу содержимого
+                if not non_empty.empty:
+                    non_empty = non_empty.drop_duplicates(subset=['_hash'], keep='last')
+
+                # Пустые строки оставляем ВСЕ (никакой дедупликации)
+                final_df = pd.concat([non_empty, empty_rows], ignore_index=True)
+
+                # Убедимся, что у всех строк есть _sync_id
+                final_df = self._ensure_sync_id(final_df)
+
+                # Удаляем временные колонки
+                final_df = final_df.drop(columns=['_last_sync_ts'], errors='ignore')
+
+                self.save_local_csv(final_df, sheet_name)
+                self.update_google_sheet(sheet_name, final_df)
+                logger.info(f"Completed bidirectional sync for '{sheet_name}': "
+                            f"{len(non_empty)} non-empty (deduped), {len(empty_rows)} empty rows kept")
 
             else:
                 raise ValueError(f"Unknown direction: {direction}")

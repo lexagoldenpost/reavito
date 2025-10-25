@@ -8,7 +8,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from common.config import Config
 from common.logging_config import setup_logger
-from main_tg_bot.booking_objects import PROJECT_ROOT
+from main_tg_bot.booking_objects import PROJECT_ROOT, get_all_booking_files
 
 logger = setup_logger("view_booking")
 
@@ -19,16 +19,6 @@ BOOKING_DATA_DIR = PROJECT_ROOT / Config.BOOKING_DATA_DIR
 VB_CALLBACK_PREFIX = "vb_"
 VB_SHEET_SELECT = f"{VB_CALLBACK_PREFIX}sheet"
 
-
-def get_all_booking_files() -> list:
-    """Возвращает список всех .csv файлов в папке booking/"""
-    if not BOOKING_DATA_DIR.exists():
-        return []
-    files = [
-        f.name for f in BOOKING_DATA_DIR.iterdir()
-        if f.is_file() and f.suffix == '.csv'
-    ]
-    return sorted(files)
 
 
 def format_file_name(file_name: str) -> str:
@@ -60,16 +50,18 @@ async def view_booking_handler(update, context):
 
 async def handle_message(update, context):
     try:
-        if 'step' not in context.user_data or context.user_data['step'] == 1:
+        step = context.user_data.get('step', 1)
+        if step == 1:
             await show_file_selection(update, context)
             context.user_data['step'] = 2
-        elif context.user_data['step'] == 2:
+        elif step == 2:
             selected_file = update.message.text.strip()
+            # Сразу сбросим шаг, чтобы избежать повторного срабатывания
+            context.user_data.pop('step', None)
             await show_bookings(update, context, selected_file)
-            del context.user_data['step']
     except Exception as e:
         logger.error(f"Error in handle_message: {e}", exc_info=True)
-
+        context.user_data.pop('step', None)  # на всякий случай
 
 async def handle_callback(update, context):
     try:

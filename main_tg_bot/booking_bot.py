@@ -250,7 +250,8 @@ if __name__ == "__main__":
     try:
         logger.info("Sync booking start...")
         logger.info("Starting bot initialization...")
-        #sync_google_sheets()
+        #Запускать только если все данные в гугл таблице актальнее чем локально. Напрмиер при первичной загрузке иначе из локала перетрет
+        sync_google_sheets()
         bot = BookingBot()
         bot.run()
     except KeyboardInterrupt:

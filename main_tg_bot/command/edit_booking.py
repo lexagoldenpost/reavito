@@ -1,7 +1,7 @@
 # edit_booking.py
 
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 import pandas as pd
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -14,19 +14,22 @@ from telegram.ext import (
 )
 
 from common.logging_config import setup_logger
-from main_tg_bot.booking_objects import BOOKING_SHEETS, get_booking_sheet
-from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync  # ← добавлен импорт
+from main_tg_bot.booking_objects import BOOKING_SHEETS, get_booking_sheet, get_all_booking_files, SHEET_TO_FILENAME
+from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
 
 logger = setup_logger("edit_booking")
 
 # Состояния для ConversationHandler
 SELECT_SHEET, SELECT_BOOKING, EDIT_FIELD, EDIT_VALUE, CONFIRM_DELETE = range(5)
 
+# Обратное отображение: filename → sheet_name
+FILENAME_TO_SHEET = {v: k for k, v in SHEET_TO_FILENAME.items()}
+
 
 class EditBookingHandler:
     def __init__(self, bot):
         self.bot = bot
-        self.sync_manager = GoogleSheetsCSVSync()  # ← инициализация синхронизатора
+        self.sync_manager = GoogleSheetsCSVSync()
 
     def get_conversation_handler(self):
         return ConversationHandler(
@@ -55,7 +58,6 @@ class EditBookingHandler:
             fallbacks=[CommandHandler('cancel', self.cancel_edit)],
             allow_reentry=True
         )
-
 
     def format_booking_data(self, booking_data):
         try:
@@ -96,13 +98,22 @@ class EditBookingHandler:
 
     async def edit_booking_start(self, update: Update, context: CallbackContext) -> int:
         try:
-            if not BOOKING_SHEETS:
+            # Получаем список разрешённых файлов через централизованный метод
+            allowed_files = get_all_booking_files()
+            # Преобразуем в sheet_name
+            allowed_sheets = []
+            for filename in allowed_files:
+                sheet_name = FILENAME_TO_SHEET.get(filename)
+                if sheet_name and sheet_name in BOOKING_SHEETS:
+                    allowed_sheets.append(sheet_name)
+
+            if not allowed_sheets:
                 await update.message.reply_text("❌ Нет доступных объектов для редактирования.")
                 return ConversationHandler.END
 
             keyboard = [
                 [InlineKeyboardButton(sheet_name, callback_data=f"sheet_{sheet_name}")]
-                for sheet_name in BOOKING_SHEETS.keys()
+                for sheet_name in sorted(allowed_sheets)
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -138,14 +149,34 @@ class EditBookingHandler:
                 await query.edit_message_text("❌ Нет бронирований для этого объекта.")
                 return ConversationHandler.END
 
+            # 🔴 Фильтрация: только бронирования с выездом >= сегодня
+            today = date.today()
+            filtered_rows = []
+            for idx, row in df.iterrows():
+                try:
+                    check_out_str = row.get('Выезд', '').strip()
+                    if not check_out_str:
+                        continue  # пропускаем, если нет даты выезда
+                    check_out = datetime.strptime(check_out_str, "%d.%m.%Y").date()
+                    if check_out >= today:
+                        filtered_rows.append(row)
+                except (ValueError, TypeError):
+                    continue  # некорректная дата — пропускаем
+
+            if not filtered_rows:
+                await query.edit_message_text("📭 Нет активных бронирований для этого объекта.")
+                return ConversationHandler.END
+
+            filtered_df = pd.DataFrame(filtered_rows).reset_index(drop=True)
+
             context.user_data['edit_booking'] = {
                 'sheet_name': sheet_name,
                 'booking_sheet': booking_sheet,
-                'dataframe': df
+                'dataframe': filtered_df
             }
 
             keyboard = []
-            for idx, row in df.iterrows():
+            for idx, row in filtered_df.iterrows():
                 guest = row.get('Гость', 'Без имени')
                 check_in = row.get('Заезд', 'N/A')
                 check_out = row.get('Выезд', 'N/A')
@@ -169,6 +200,8 @@ class EditBookingHandler:
             logger.error(f"Error in select_sheet: {e}")
             await update.callback_query.edit_message_text("❌ Ошибка при загрузке бронирований.")
             return ConversationHandler.END
+
+    # ... остальной код класса остаётся БЕЗ ИЗМЕНЕНИЙ ...
 
     async def select_booking(self, update: Update, context: CallbackContext) -> int:
         try:

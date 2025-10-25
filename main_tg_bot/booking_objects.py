@@ -17,10 +17,10 @@ BOOKING_DIR.mkdir(exist_ok=True)
 SHEET_TO_FILENAME = {
     'HALO Title': 'halo_title.csv',
     'Citygate P311': 'citygate_p311.csv',
-    'Citygate B209': 'citygate_b209.csv',
-    'Palmetto Karon': 'palmetto_karon.csv',
-    'Title Residence': 'title_residence.csv',
-    'Halo JU701 двушка': 'halo_ju701_двушка.csv',
+#    'Citygate B209': 'citygate_b209.csv',
+#    'Palmetto Karon': 'palmetto_karon.csv',
+#    'Title Residence': 'title_residence.csv',
+#    'Halo JU701 двушка': 'halo_ju701_двушка.csv',
 }
 
 class BookingSheet:
@@ -51,3 +51,23 @@ BOOKING_SHEETS: Dict[str, BookingSheet] = {
 
 def get_booking_sheet(sheet_name: str) -> Optional[BookingSheet]:
     return BOOKING_SHEETS.get(sheet_name)
+
+
+def get_all_booking_files(filtered_by: Optional[str] = None) -> list[str]:
+    """
+    Возвращает список всех .csv файлов из папки booking/.
+    Если указан filtered_by — возвращает только те файлы, чьё имя содержит эту подстроку (регистронезависимо).
+    """
+    if not BOOKING_DIR.exists():
+        return []
+
+    filenames = [
+        f.name for f in BOOKING_DIR.iterdir()
+        if f.is_file() and f.suffix.lower() == '.csv'
+    ]
+
+    if filtered_by:
+        filtered_by = filtered_by.lower()
+        filenames = [f for f in filenames if filtered_by in f.lower()]
+
+    return sorted(filenames)
