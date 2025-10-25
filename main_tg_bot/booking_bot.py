@@ -250,7 +250,7 @@ if __name__ == "__main__":
     try:
         logger.info("Sync booking start...")
         logger.info("Starting bot initialization...")
-        #sync_google_sheets()
+        sync_google_sheets()
         bot = BookingBot()
         bot.run()
     except KeyboardInterrupt:
