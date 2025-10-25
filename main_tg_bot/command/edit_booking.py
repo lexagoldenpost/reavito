@@ -169,6 +169,19 @@ class EditBookingHandler:
 
             filtered_df = pd.DataFrame(filtered_rows).reset_index(drop=True)
 
+            # 🔽 Сортировка по дате заезда (Заезд)
+            def parse_check_in(row):
+                try:
+                    check_in_str = row.get('Заезд', '').strip()
+                    if not check_in_str:
+                        return date.max  # пустая дата → в конец
+                    return datetime.strptime(check_in_str, "%d.%m.%Y").date()
+                except (ValueError, AttributeError):
+                    return date.max  # некорректная дата → в конец
+
+            filtered_df['sort_date'] = filtered_df.apply(parse_check_in, axis=1)
+            filtered_df = filtered_df.sort_values('sort_date').drop(columns=['sort_date']).reset_index(drop=True)
+
             context.user_data['edit_booking'] = {
                 'sheet_name': sheet_name,
                 'booking_sheet': booking_sheet,
@@ -200,8 +213,6 @@ class EditBookingHandler:
             logger.error(f"Error in select_sheet: {e}")
             await update.callback_query.edit_message_text("❌ Ошибка при загрузке бронирований.")
             return ConversationHandler.END
-
-    # ... остальной код класса остаётся БЕЗ ИЗМЕНЕНИЙ ...
 
     async def select_booking(self, update: Update, context: CallbackContext) -> int:
         try:

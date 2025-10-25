@@ -9,23 +9,12 @@ from telegram import Update
 
 from common.config import Config
 from common.logging_config import setup_logger
-from main_tg_bot.booking_objects import PROJECT_ROOT
+from main_tg_bot.booking_objects import PROJECT_ROOT, get_all_booking_files
 
 logger = setup_logger("view_dates")
 
 # Путь к папке booking/ относительно корня проекта
 BOOKING_DATA_DIR = PROJECT_ROOT / Config.BOOKING_DATA_DIR
-
-
-def get_all_booking_files() -> list:
-    """Возвращает список всех .csv файлов в папке booking/"""
-    if not BOOKING_DATA_DIR.exists():
-        return []
-    files = [
-        f.name for f in BOOKING_DATA_DIR.iterdir()
-        if f.is_file() and f.suffix == '.csv'
-    ]
-    return sorted(files)
 
 
 def format_file_name(file_name: str) -> str:
@@ -70,7 +59,7 @@ async def view_dates_handler(update: Update, context):
     csv_files = get_all_booking_files()
 
     if not csv_files:
-        await update.message.reply_text("📭 Нет доступных файлов бронирований в папке `booking/`")
+        await update.message.reply_text("📭 Нет доступных файлов бронирований в папке `booking_files/`")
         return
 
     for file_name in csv_files:
@@ -117,17 +106,6 @@ def find_free_periods(
     start_date: date = None,
     end_date: date = None
 ) -> List[Tuple[date, date]]:
-    """
-    Находит свободные периоды между занятыми датами.
-
-    Args:
-        booked_periods: Список кортежей (check_in, check_out)
-        start_date: Дата начала поиска (по умолчанию сегодня)
-        end_date: Дата окончания поиска (по умолчанию +1 год от сегодня)
-
-    Returns:
-        Список кортежей с начальной и конечной датами свободных периодов
-    """
     if start_date is None:
         start_date = date.today()
     if end_date is None:
@@ -136,41 +114,23 @@ def find_free_periods(
     if not booked_periods:
         return [(start_date, end_date)]
 
-    # Сортируем по дате заезда
     sorted_periods = sorted(booked_periods, key=lambda x: x[0])
-
     free_periods = []
-    previous_end = start_date
+    current = start_date
 
-    for current_start, current_end in sorted_periods:
-        # Пропускаем периоды, которые заканчиваются до начала диапазона
-        if current_end < start_date:
-            if current_end > previous_end:
-                previous_end = current_end
+    for check_in, check_out in sorted_periods:
+        if check_out <= current:
             continue
-
-        # Обрезаем начало, если оно раньше start_date
-        actual_start = max(current_start, start_date)
-
-        # Если есть промежуток между previous_end и actual_start
-        if previous_end < actual_start:
-            free_end = actual_start - timedelta(days=1)
-            if free_end >= previous_end:
-                free_periods.append((previous_end, free_end))
-
-        # Обновляем previous_end
-        if current_end > previous_end:
-            previous_end = current_end
-
-        # Если вышли за пределы end_date — завершаем
-        if previous_end >= end_date:
+        if current < check_in:
+            period_end = min(check_in, end_date)
+            if current < period_end:
+                free_periods.append((current, period_end))
+        if check_out > current:
+            current = check_out
+        if current >= end_date:
             break
 
-    # Проверяем финальный промежуток
-    if previous_end < end_date:
-        free_periods.append((previous_end, end_date))
-
-    # Фильтруем корректные периоды (начало <= конец)
-    free_periods = [(s, e) for s, e in free_periods if s <= e]
+    if current < end_date:
+        free_periods.append((current, end_date))
 
     return free_periods
