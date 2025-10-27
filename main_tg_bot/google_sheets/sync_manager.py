@@ -506,12 +506,12 @@ class GoogleSheetsCSVSync:
         Returns:
             str: Удаленный путь на FTP сервере
         """
-        # Booking sheets идут в booking директорию
+        # Используем REMOTE_FILE_PATH из конфигурации как корень
+        remote_root = Config.REMOTE_FILE_PATH.strip('/')
         if sheet_name in BOOKING_SHEETS:
-            return "/"+Config.BOOKING_DATA_DIR
-        # Остальные sheets идут в tasks директорию
+            return f"/{remote_root}/{Config.BOOKING_DATA_DIR}"
         else:
-            return "/"+Config.TASK_DATA_DIR
+            return f"/{remote_root}/{Config.TASK_DATA_DIR}"
 
     def _get_remote_path_for_file(self, file_path: Path) -> str:
         """
@@ -523,14 +523,13 @@ class GoogleSheetsCSVSync:
         Returns:
             str: Удаленный путь на FTP сервере
         """
-        # Если файл в booking директории
+        remote_root = Config.REMOTE_FILE_PATH.strip('/')
         if self.booking_dir in file_path.parents:
-            return "/"+Config.BOOKING_DATA_DIR
-        # Если файл в task директории
+            return f"/{remote_root}/{Config.BOOKING_DATA_DIR}"
         elif self.task_dir in file_path.parents:
-            return "/"+Config.TASK_DATA_DIR
+            return f"/{remote_root}/{Config.TASK_DATA_DIR}"
         else:
-            return "/other"
+            return f"/{remote_root}/other"
 
     def _upload_sheet_to_ftp(self, sheet_name: str) -> bool:
         """Отправляет один синхронизированный файл на FTP"""

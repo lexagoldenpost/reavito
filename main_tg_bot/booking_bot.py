@@ -29,6 +29,12 @@ from main_tg_bot.command.edit_booking import EditBookingHandler
 from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
 from scheduler.scheduler import AsyncScheduler
 
+from main_tg_bot.command.calculation_menu import (
+    calculation_command,
+    show_calculation_menu,
+    close_calculation_menu_handler
+)
+
 logger = setup_logger("booking_bot")
 
 # Добавляем префиксы для callback-данных
@@ -43,7 +49,6 @@ class BookingBot:
                                   Config.ALLOWED_TELEGRAM_USERNAMES]
         self.application = None
         self.scheduler_process = None
-        # Удаленный веб-сервер уже запущен, не нужно запускать локальный
         self.remote_web_app_url = Config.REMOTE_WEB_APP_URL
         logger.info("BookingBot initialized")
         logger.info(f"Token: {self.token[:10]}...")
@@ -106,11 +111,15 @@ class BookingBot:
         """Настройка всех обработчиков с проверкой прав доступа"""
         self.application = Application.builder().token(self.token).build()
 
+        # Сохраняем URL веб-приложения в bot_data для доступа из обработчиков
+        self.application.bot_data['web_app_url'] = self.remote_web_app_url
+
         # 1. Обработчики команд с проверкой доступа
         self._add_secure_command_handler("start", start)
         self._add_secure_command_handler("help", help_command)
         self._add_secure_command_handler("view_booking", view_booking_handler)
         self._add_secure_command_handler("view_available_dates", view_dates_handler)
+        self._add_secure_command_handler("calculation", calculation_command)  # Добавлено
         self._add_secure_command_handler("sync_booking", sync_handler)
         self._add_secure_command_handler("exit", exit_bot)
 
@@ -122,13 +131,16 @@ class BookingBot:
         edit_handler = EditBookingHandler(self)
         self.application.add_handler(edit_handler.get_conversation_handler())
 
-        # 3. CallbackHandler для view_booking с фильтром по префиксу
+        # 4. CallbackHandler для view_booking с фильтром по префиксу
         self._add_secure_callback_handler(
             view_booking_handler,
             pattern=f"^{VB_CALLBACK_PREFIX}.*"
         )
 
-        # 4. Обработчик неизвестных команд
+        # 5. Обработчики для меню расчета (только закрытие меню)
+        self._add_secure_callback_handler(close_calculation_menu_handler, pattern="^close_calculation_menu$")
+
+        # 6. Обработчик неизвестных команд
         self.application.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self.unknown_command)
         )

@@ -3,11 +3,9 @@ from telegram.ext import CommandHandler
 
 from common.logging_config import setup_logger
 from main_tg_bot.command.sync_command import sync_handler
-# from create_contract import get_contract_conversation_handler
-# from edit_booking import edit_booking_conv_handler
-# from send_bookings import send_bookings_handler  # Добавляем новый импорт
 from main_tg_bot.command.view_booking import view_booking_handler
 from main_tg_bot.command.view_dates import view_dates_handler
+from main_tg_bot.command.calculation_menu import calculation_command
 
 logger = setup_logger("commands")
 
@@ -17,8 +15,9 @@ COMMANDS = [
     ("view_booking", "Просмотр бронирования"),
     ("edit_booking", "Редактирование бронирования"),
     ("view_available_dates", "Просмотр свободных дат"),
+    ("calculation", "Меню расчета"),  # Добавлена новая команда
     ("create_contract", "Создание договора"),
-    ("send_bookings", "Рассылка бронирований"),  # Добавляем новую команду
+    ("send_bookings", "Рассылка бронирований"),
     ("help", "Помощь по командам"),
     ("cancel", "Сброс сессии бронирования"),
     ("sync_booking", "Синхронизировать Гугл таблицы с локальными данными"),
@@ -46,8 +45,7 @@ def setup_command_handlers(application, bot):
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("view_booking", view_booking_handler))
     application.add_handler(CommandHandler("view_available_dates", view_dates_handler))
-    #application.add_handler(get_contract_conversation_handler())  # Добавляем обработчик договора
-    #application.add_handler(CommandHandler("send_bookings", send_bookings_handler))
+    application.add_handler(CommandHandler("calculation", calculation_command))  # Добавлен обработчик расчета
     application.add_handler(CommandHandler("sync_booking", sync_handler))
     application.add_handler(CommandHandler("exit", exit_bot))
 

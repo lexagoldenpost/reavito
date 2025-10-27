@@ -1,3 +1,78 @@
+<?php
+function readBookedDates($filePath) {
+    $booked = [];
+    if (!file_exists($filePath)) return $booked;
+    if (($handle = fopen($filePath, "r")) !== false) {
+        fgetcsv($handle); // пропускаем заголовок
+        while (($row = fgetcsv($handle, 1000, ",")) !== false) {
+            if (count($row) >= 4) {
+                $checkInStr = trim($row[2]); // Заезд
+                $checkOutStr = trim($row[3]); // Выезд
+                $checkIn = DateTime::createFromFormat('d.m.Y', $checkInStr);
+                $checkOut = DateTime::createFromFormat('d.m.Y', $checkOutStr);
+                if ($checkIn && $checkOut) {
+                    // Выезд — день отъезда, не входит в проживание
+                    // Заняты ночи: [заезд, выезд)
+                    $booked[] = [
+                        'start' => $checkIn->format('d.m.Y'),
+                        'end'   => $checkOut->format('d.m.Y')
+                    ];
+                }
+            }
+        }
+        fclose($handle);
+    }
+    return $booked;
+}
+
+function readPriceData($filePath) {
+    $priceData = [];
+    if (!file_exists($filePath)) return $priceData;
+    $monthMap = [
+        "январь" => 1, "февраль" => 2, "март" => 3, "апрель" => 4,
+        "май" => 5, "июнь" => 6, "июль" => 7, "август" => 8,
+        "сентябрь" => 9, "октябрь" => 10, "ноябрь" => 11, "декабрь" => 12
+    ];
+    if (($handle = fopen($filePath, "r")) !== false) {
+        fgetcsv($handle);
+        while (($row = fgetcsv($handle, 1000, ",")) !== false) {
+            if (count($row) >= 4) {
+                $monthName = mb_strtolower(trim($row[0]), 'UTF-8');
+                $startDay = intval(trim($row[1]));
+                $endDay = intval(trim($row[2]));
+                $price = intval(trim($row[3]));
+                if (isset($monthMap[$monthName]) && $startDay > 0 && $endDay >= $startDay && $price > 0) {
+                    $priceData[] = [
+                        "startMonth" => $monthMap[$monthName],
+                        "endMonth" => $monthMap[$monthName],
+                        "startDay" => $startDay,
+                        "endDay" => $endDay,
+                        "price" => $price
+                    ];
+                }
+            }
+        }
+        fclose($handle);
+    }
+    return $priceData;
+}
+
+$bookingFilesPath = __DIR__ . '/booking_files/*.csv';
+$files = glob($bookingFilesPath);
+
+$bookedData = [];
+$priceData = [];
+
+if (!empty($files)) {
+    foreach ($files as $file) {
+        $filename = pathinfo($file, PATHINFO_FILENAME);
+        $bookedData[$filename] = readBookedDates($file);
+        $priceFile = __DIR__ . "/task_files/{$filename}_price.csv";
+        $priceData[$filename] = readPriceData($priceFile);
+    }
+}
+?>
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -7,30 +82,38 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
     <style>
-        .container {
-            max-width: 800px;
-        }
+        .container { max-width: 800px; }
         .card {
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             border: none;
             border-radius: 10px;
         }
         .flatpickr-day.booked {
-            background-color: #dc3545;
-            color: white;
-            border-color: #dc3545;
+            background-color: #dc3545 !important;
+            color: white !important;
+            border-color: #dc3545 !important;
         }
         .flatpickr-day.booked:hover {
-            background-color: #bb2d3b;
-            border-color: #b02a37;
+            background-color: #bb2d3b !important;
         }
         .result-card {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
         }
-        .form-label {
-            font-weight: 500;
+        .form-label { font-weight: 500; }
+        .legend {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            font-size: 14px;
         }
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 2px;
+        }
+        .legend-occupied { background-color: #dc3545; }
     </style>
 </head>
 <body class="bg-light">
@@ -46,19 +129,26 @@
                                 <label for="objectSelect" class="form-label">Объект недвижимости</label>
                                 <select class="form-select" id="objectSelect" required>
                                     <option value="">Выберите объект...</option>
-                                    <?php
-                                    $bookingFiles = glob('/home/booking_files/*.csv');
-                                    foreach ($bookingFiles as $file) {
-                                        $filename = pathinfo($file, PATHINFO_FILENAME);
-                                        $displayName = ucfirst(preg_replace('/([a-z])([A-Z])/', '$1 $2', $filename));
-                                        echo "<option value=\"$filename\">$displayName</option>";
-                                    }
-                                    ?>
+                                    <?php if (empty($files)): ?>
+                                        <option value="">Файлы не найдены</option>
+                                    <?php else: ?>
+                                        <?php foreach ($files as $file): ?>
+                                            <?php
+                                            $filename = pathinfo($file, PATHINFO_FILENAME);
+                                            $displayName = ucwords(str_replace('_', ' ', $filename));
+                                            ?>
+                                            <option value="<?= htmlspecialchars($filename) ?>"><?= htmlspecialchars($displayName) ?></option>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
                                 </select>
                             </div>
 
                             <div class="col-md-6 mb-3">
                                 <label for="dateRange" class="form-label">Период бронирования</label>
+                                <div class="legend">
+                                    <div class="legend-color legend-occupied"></div>
+                                    <span>🔴 — занято (ночь забронирована)</span>
+                                </div>
                                 <input type="text" class="form-control" id="dateRange" placeholder="Выберите даты..." readonly required>
                             </div>
                         </div>
@@ -86,114 +176,32 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
 
     <script>
-        let bookedDates = [];
-        let priceData = {};
+        const allBookedData = <?= json_encode($bookedData, JSON_UNESCAPED_UNICODE) ?>;
+        const allPriceData = <?= json_encode($priceData, JSON_UNESCAPED_UNICODE) ?>;
 
-        // Инициализация календаря
-        const datePicker = flatpickr("#dateRange", {
-            mode: "range",
-            locale: "ru",
-            minDate: "today",
-            dateFormat: "d.m.Y",
-            disable: [],
-            onChange: function(selectedDates) {
-                updateCalendarStyles();
-            },
-            onMonthChange: function() {
-                updateCalendarStyles();
-            },
-            onYearChange: function() {
-                updateCalendarStyles();
-            }
-        });
+        let bookedRanges = [];
+        let pricePeriods = [];
+        let datePicker;
 
-        // Обработчик изменения объекта
-        document.getElementById('objectSelect').addEventListener('change', function() {
-            const objectName = this.value;
-            if (objectName) {
-                loadBookedDates(objectName);
-                loadPriceData(objectName);
-            } else {
-                bookedDates = [];
-                priceData = {};
-                datePicker.set('disable', []);
-                updateCalendarStyles();
-            }
-        });
-
-        // Загрузка занятых дат
-        function loadBookedDates(objectName) {
-            fetch('get_booked_dates.php?object=' + encodeURIComponent(objectName))
-                .then(response => response.json())
-                .then(data => {
-                    bookedDates = data;
-                    updateDatePickerDisable();
-                    updateCalendarStyles();
-                })
-                .catch(error => {
-                    console.error('Error loading booked dates:', error);
-                    bookedDates = [];
-                });
+        function parseDate(str) {
+            const [d, m, y] = str.split('.').map(Number);
+            return new Date(y, m - 1, d);
         }
 
-        // Загрузка данных о ценах
-        function loadPriceData(objectName) {
-            fetch('get_price_data.php?object=' + encodeURIComponent(objectName))
-                .then(response => response.json())
-                .then(data => {
-                    priceData = data;
-                })
-                .catch(error => {
-                    console.error('Error loading price data:', error);
-                    priceData = {};
-                });
-        }
-
-        // Обновление заблокированных дат в календаре
-        function updateDatePickerDisable() {
-            const disableDates = [];
-            bookedDates.forEach(period => {
-                let current = new Date(period.start);
-                const end = new Date(period.end);
-
-                while (current <= end) {
-                    disableDates.push(new Date(current));
-                    current.setDate(current.getDate() + 1);
-                }
+        function formatDate(date) {
+            return date.toLocaleDateString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
             });
-
-            datePicker.set('disable', disableDates);
         }
 
-        // Обновление стилей календаря для отображения занятых дат
-        function updateCalendarStyles() {
-            setTimeout(() => {
-                document.querySelectorAll('.flatpickr-day').forEach(day => {
-                    const dateStr = day.getAttribute('aria-label');
-                    if (dateStr) {
-                        const date = parseDateFromString(dateStr);
-                        const isBooked = bookedDates.some(period =>
-                            date >= new Date(period.start) && date <= new Date(period.end)
-                        );
-
-                        if (isBooked) {
-                            day.classList.add('booked');
-                        } else {
-                            day.classList.remove('booked');
-                        }
-                    }
-                });
-            }, 10);
-        }
-
-        // Парсинг даты из строки
         function parseDateFromString(dateStr) {
             const months = {
                 'января': 0, 'февраля': 1, 'марта': 2, 'апреля': 3,
                 'мая': 4, 'июня': 5, 'июля': 6, 'августа': 7,
                 'сентября': 8, 'октября': 9, 'ноября': 10, 'декабря': 11
             };
-
             const parts = dateStr.split(' ');
             if (parts.length === 3) {
                 const day = parseInt(parts[0]);
@@ -204,164 +212,102 @@
             return null;
         }
 
-        // Обработчик формы
-        document.getElementById('bookingForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-
-            const selectedDates = datePicker.selectedDates;
-            if (selectedDates.length !== 2) {
-                alert('Пожалуйста, выберите период бронирования');
-                return;
+        function isDateBooked(dateToCheck) {
+            for (const range of bookedRanges) {
+                const start = parseDate(range.start);
+                const end = parseDate(range.end);
+                // Занята ночь, если: start <= date < end
+                if (dateToCheck >= start && dateToCheck < end) {
+                    return true;
+                }
             }
+            return false;
+        }
 
-            const startDate = selectedDates[0];
-            const endDate = selectedDates[1];
+        function updateCalendarStyles() {
+            setTimeout(() => {
+                const days = document.querySelectorAll('.flatpickr-day');
+                days.forEach(day => {
+                    const dateStr = day.getAttribute('aria-label');
+                    if (!dateStr) return;
+                    const date = parseDateFromString(dateStr);
+                    const booked = date && isDateBooked(date);
+                    day.classList.toggle('booked', booked);
+                });
+            }, 50);
+        }
 
-            // Расчет стоимости
-            const totalCost = calculateTotalCost(startDate, endDate);
-            const nights = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+        function updateDatePickerDisable() {
+            const disableList = [];
+            for (const range of bookedRanges) {
+                let current = parseDate(range.start);
+                const end = parseDate(range.end);
+                while (current < end) { // < end, а не <=
+                    disableList.push(new Date(current));
+                    current.setDate(current.getDate() + 1);
+                }
+            }
+            datePicker.set('disable', disableList);
+        }
 
-            // Отображение результата
-            document.getElementById('totalAmount').textContent = totalCost.toLocaleString('ru-RU') + ' бат';
-            document.getElementById('periodInfo').textContent =
-                `Период: ${formatDate(startDate)} - ${formatDate(endDate)}`;
-            document.getElementById('nightsInfo').textContent =
-                `Количество ночей: ${nights}`;
-
-            document.getElementById('resultSection').style.display = 'block';
-        });
-
-        // Расчет общей стоимости
         function calculateTotalCost(startDate, endDate) {
             let total = 0;
             let current = new Date(startDate);
-
             while (current < endDate) {
                 const month = current.getMonth() + 1;
                 const day = current.getDate();
-
-                // Поиск подходящего ценового периода
-                let dailyPrice = 0;
-                for (const period of Object.values(priceData)) {
-                    if (month >= period.startMonth && month <= period.endMonth) {
-                        if ((month === period.startMonth && day >= period.startDay) ||
-                            (month === period.endMonth && day <= period.endDay) ||
-                            (month > period.startMonth && month < period.endMonth)) {
-                            dailyPrice = period.price;
-                            break;
-                        }
+                let price = 0;
+                for (const p of pricePeriods) {
+                    if (p.startMonth === month && day >= p.startDay && day <= p.endDay) {
+                        price = p.price;
+                        break;
                     }
                 }
-
-                total += dailyPrice;
+                total += price;
                 current.setDate(current.getDate() + 1);
             }
-
             return total;
         }
 
-        // Форматирование даты
-        function formatDate(date) {
-            return date.toLocaleDateString('ru-RU', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
+        document.getElementById('objectSelect').addEventListener('change', function () {
+            const obj = this.value;
+            bookedRanges = allBookedData[obj] || [];
+            pricePeriods = allPriceData[obj] || [];
+            updateDatePickerDisable();
+            updateCalendarStyles();
+        });
+
+        document.getElementById('bookingForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const dates = datePicker.selectedDates;
+            if (dates.length !== 2) {
+                alert('Выберите период бронирования');
+                return;
+            }
+            const startDate = dates[0];
+            const endDate = dates[1];
+            const nights = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+            const totalCost = calculateTotalCost(startDate, endDate);
+
+            document.getElementById('totalAmount').textContent = totalCost.toLocaleString('ru-RU') + ' бат';
+            document.getElementById('periodInfo').textContent =
+                `Период: ${formatDate(startDate)} – ${formatDate(endDate)}`;
+            document.getElementById('nightsInfo').textContent = `Количество ночей: ${nights}`;
+            document.getElementById('resultSection').style.display = 'block';
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            datePicker = flatpickr("#dateRange", {
+                mode: "range",
+                locale: "ru",
+                minDate: "today",
+                dateFormat: "d.m.Y",
+                disable: [],
+                onChange: updateCalendarStyles,
+                onMonthChange: updateCalendarStyles,
+                onYearChange: updateCalendarStyles
             });
-        }
+        });
     </script>
 </body>
 </html>
-
-<?php
-// Сохранение вспомогательных PHP файлов
-file_put_contents('get_booked_dates.php', '<?php
-header("Content-Type: application/json");
-
-if (!isset($_GET["object"])) {
-    echo json_encode([]);
-    exit;
-}
-
-$objectName = $_GET["object"];
-$bookingFile = "/home/booking_files/" . $objectName . ".csv";
-
-if (!file_exists($bookingFile)) {
-    echo json_encode([]);
-    exit;
-}
-
-$bookedDates = [];
-$handle = fopen($bookingFile, "r");
-if ($handle !== FALSE) {
-    $headers = fgetcsv($handle, 1000, ",");
-
-    while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
-        if (count($data) >= 4) {
-            $checkIn = DateTime::createFromFormat("d.m.Y", trim($data[2]));
-            $checkOut = DateTime::createFromFormat("d.m.Y", trim($data[3]));
-
-            if ($checkIn && $checkOut) {
-                $bookedDates[] = [
-                    "start" => $checkIn->format("Y-m-d"),
-                    "end" => $checkOut->format("Y-m-d")
-                ];
-            }
-        }
-    }
-    fclose($handle);
-}
-
-echo json_encode($bookedDates);
-?>');
-
-file_put_contents('get_price_data.php', '<?php
-header("Content-Type: application/json");
-
-if (!isset($_GET["object"])) {
-    echo json_encode([]);
-    exit;
-}
-
-$objectName = $_GET["object"];
-$priceFile = "/home/task_files/" . $objectName . "_price.csv";  // ОБНОВЛЕННЫЙ ПУТЬ
-
-if (!file_exists($priceFile)) {
-    echo json_encode([]);
-    exit;
-}
-
-$priceData = [];
-$handle = fopen($priceFile, "r");
-if ($handle !== FALSE) {
-    $headers = fgetcsv($handle, 1000, ",");
-
-    while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
-        if (count($data) >= 5) {
-            $monthNames = [
-                "январь" => 1, "февраль" => 2, "март" => 3, "апрель" => 4,
-                "май" => 5, "июнь" => 6, "июль" => 7, "август" => 8,
-                "сентябрь" => 9, "октябрь" => 10, "ноябрь" => 11, "декабрь" => 12
-            ];
-
-            $monthName = strtolower(trim($data[0]));
-            $startDay = intval(trim($data[1]));
-            $endDay = intval(trim($data[2]));
-            $price = intval(trim($data[3]));
-
-            if (isset($monthNames[$monthName])) {
-                $priceData[] = [
-                    "startMonth" => $monthNames[$monthName],
-                    "endMonth" => $monthNames[$monthName],
-                    "startDay" => $startDay,
-                    "endDay" => $endDay,
-                    "price" => $price
-                ];
-            }
-        }
-    }
-    fclose($handle);
-}
-
-echo json_encode($priceData);
-?>');
-?>

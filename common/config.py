@@ -66,6 +66,9 @@ class Config:
     LOG_RETENTION = 3  # Хранение 3 архивов
 
     # Урл сайта где формы
+    REMOTE_FILE_PATH="booking_bot/public_html"
     REMOTE_WEB_APP_URL= "https://ci84606-wordpress-rdeld.tw1.ru"
     REMOTE_WEB_APP_CREATE_BOOKING_URL = "/?page_id=8"
-    REMOTE_WEB_APP_BOOKING_Calculat_URL = "/booking_calculator.php"
+    # Файл
+    REMOTE_WEB_APP_BOOKING_CALCULATE_URL = "/booking_calculator.php"
+    REMOTE_WEB_APP_BOOKING_CHESS_URL = "/booking_chess.php"
