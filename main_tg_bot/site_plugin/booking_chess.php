@@ -152,8 +152,33 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
         .chessboard-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem; text-align: center; }
         .chessboard-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
         .chessboard-table th, .chessboard-table td { text-align: center; padding: 4px; border: 1px solid #e0e0e0; vertical-align: middle; }
-        .chessboard-table th.room-name { background: #f1f3f5; position: sticky; left: 0; z-index: 10; width: 200px; }
-        .chessboard-table th.date-header { background: #f8f9fa; font-size: 0.7rem; }
+
+        /* Фиксированный первый столбец */
+        .chessboard-table th.room-name {
+            background: #f1f3f5;
+            position: sticky;
+            left: 0;
+            z-index: 20;
+            width: 200px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+        .chessboard-table td.room-name {
+            background: white;
+            position: sticky;
+            left: 0;
+            z-index: 15;
+            width: 200px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            font-weight: 600;
+        }
+
+        .chessboard-table th.date-header {
+            background: #f8f9fa;
+            font-size: 0.7rem;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
         .chessboard-table th.date-header.today { background: #ffeaa7; font-weight: bold; }
         .chessboard-table th.date-header.weekend { background: #fdcb6e; }
         .cell-available { background-color: #d5f4e6; }
@@ -166,6 +191,20 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
         .legend { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-top: 1rem; }
         .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.85rem; }
         .legend-color { width: 14px; height: 14px; border: 1px solid #999; }
+
+        /* Убедимся, что таблица прокручивается правильно */
+        .table-responsive {
+            position: relative;
+            overflow: auto;
+            max-height: 80vh;
+        }
+
+        /* Двойная фиксация для заголовков */
+        .chessboard-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
     </style>
 </head>
 <body>
