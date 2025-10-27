@@ -27,7 +27,7 @@ async def show_calculation_menu(update: Update, context: ContextTypes.DEFAULT_TY
 
         # URL для форм
         calculation_url = f"{web_app_url}{Config.REMOTE_WEB_APP_BOOKING_CALCULATE_URL}"
-        chess_url = f"{web_app_url}/chess"
+        chess_url = f"{web_app_url}{Config.REMOTE_WEB_APP_BOOKING_CHESS_URL}"
 
         # Кнопки, которые сразу открывают Web App
         keyboard = [

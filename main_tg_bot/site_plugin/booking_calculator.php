@@ -82,46 +82,249 @@ if (!empty($files)) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
     <style>
-        .container { max-width: 800px; }
+        .container { max-width: 900px; }
         .card {
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             border: none;
-            border-radius: 10px;
+            border-radius: 15px;
+            transition: all 0.3s ease;
         }
+        .card.collapsed {
+            max-height: 80px;
+            overflow: hidden;
+        }
+
+        /* Стили для flatpickr календаря - подсветка занятых дат */
         .flatpickr-day.booked {
-            background-color: #dc3545 !important;
+            background-color: #ffb347 !important;
             color: white !important;
-            border-color: #dc3545 !important;
+            border-color: #ffb347 !important;
         }
         .flatpickr-day.booked:hover {
-            background-color: #bb2d3b !important;
+            background-color: #ff9a1f !important;
         }
+        .flatpickr-day.booked.nextMonthDay,
+        .flatpickr-day.booked.prevMonthDay {
+            background-color: #ffb347 !important;
+            color: white !important;
+            border-color: #ffb347 !important;
+        }
+
         .result-card {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
         }
         .form-label { font-weight: 500; }
-        .legend {
+
+        /* Стили для скидки в общей стоимости */
+        .total-with-discount {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 15px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .discount-controls {
             display: flex;
             align-items: center;
-            gap: 8px;
-            margin-bottom: 10px;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .discount-badge {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 25px;
+            font-weight: 600;
             font-size: 14px;
         }
-        .legend-color {
-            width: 16px;
-            height: 16px;
-            border-radius: 2px;
+
+        .final-price {
+            text-align: center;
         }
-        .legend-occupied { background-color: #dc3545; }
+
+        .original-price {
+            font-size: 16px;
+            opacity: 0.8;
+            text-decoration: line-through;
+            margin-bottom: 5px;
+        }
+
+        .final-amount {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin: 10px 0;
+        }
+
+        /* Стили для календаря с ценами */
+        .price-calendar-section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-top: 25px;
+            color: #333;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .calendar-month {
+            margin-bottom: 30px;
+        }
+
+        .calendar-month-title {
+            text-align: center;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 18px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f8f9fa;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+        }
+
+        .calendar-day {
+            padding: 8px 3px;
+            text-align: center;
+            border-radius: 6px;
+            background: #f8f9fa;
+            position: relative;
+            min-height: 60px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            font-size: 13px;
+        }
+
+        .calendar-day.selected {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .calendar-day.booked {
+            background: #ffb347 !important;
+            color: white !important;
+        }
+
+        .calendar-day-price {
+            font-size: 10px;
+            font-weight: 600;
+            color: #28a745;
+            margin-top: 3px;
+        }
+
+        .calendar-day.selected .calendar-day-price {
+            color: #fff;
+        }
+
+        .calendar-day.booked .calendar-day-price {
+            color: #fff !important;
+            text-decoration: line-through;
+        }
+
+        .calendar-day-header {
+            text-align: center;
+            font-weight: 600;
+            color: #6c757d;
+            font-size: 11px;
+            padding: 6px 3px;
+            background: #e9ecef;
+            border-radius: 4px;
+        }
+
+        .booking-summary-compact {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .summary-item {
+            text-align: center;
+        }
+
+        .summary-item h6 {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .summary-item p {
+            font-size: 14px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .expand-form-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-left: 10px;
+        }
+
+        .expand-form-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .total-main {
+            font-size: 1.8rem;
+            font-weight: 600;
+            text-align: center;
+            margin: 10px 0;
+            opacity: 0.9;
+        }
+
+        .input-group-discount {
+            max-width: 120px;
+        }
+
+        .input-group-discount .form-control {
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .auto-discount-badge {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .price-comparison {
+            text-align: center;
+            margin: 15px 0;
+        }
     </style>
 </head>
 <body class="bg-light">
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-12">
-                <div class="card p-4 mb-4">
-                    <h2 class="text-center mb-4">Калькулятор стоимости бронирования</h2>
+                <div id="bookingFormCard" class="card p-4 mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h2 class="text-center mb-0" style="flex: 1;">Калькулятор стоимости бронирования</h2>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleBookingForm()" id="toggleFormBtn">
+                            ▲
+                        </button>
+                    </div>
 
                     <form id="bookingForm">
                         <div class="row">
@@ -145,10 +348,6 @@ if (!empty($files)) {
 
                             <div class="col-md-6 mb-3">
                                 <label for="dateRange" class="form-label">Период бронирования</label>
-                                <div class="legend">
-                                    <div class="legend-color legend-occupied"></div>
-                                    <span>🔴 — занято (ночь забронирована)</span>
-                                </div>
                                 <input type="text" class="form-control" id="dateRange" placeholder="Выберите даты..." readonly required>
                             </div>
                         </div>
@@ -161,10 +360,52 @@ if (!empty($files)) {
 
                 <div id="resultSection" class="card result-card p-4" style="display: none;">
                     <h3 class="text-center mb-3">Результат расчета</h3>
-                    <div class="text-center">
-                        <h4 id="totalAmount" class="display-4 fw-bold mb-3">0 ₽</h4>
-                        <p id="periodInfo" class="mb-2"></p>
-                        <p id="nightsInfo" class="mb-0"></p>
+
+                    <!-- Компактная информация о бронировании -->
+                    <div class="booking-summary-compact">
+                        <div class="summary-item">
+                            <h6>Объект</h6>
+                            <p id="resultObjectName">-</p>
+                        </div>
+                        <div class="summary-item" style="cursor: pointer;" onclick="toggleBookingForm()">
+                            <h6>Период бронирования</h6>
+                            <p id="resultPeriodInfo">
+                                -
+                                <span class="expand-form-btn">✏️</span>
+                            </p>
+                        </div>
+                        <div class="summary-item">
+                            <h6>Количество ночей</h6>
+                            <p id="resultNightsInfo">0</p>
+                        </div>
+                    </div>
+
+                    <!-- Сравнение цен -->
+                    <div class="price-comparison">
+                        <div class="original-price" id="originalPrice">0 ₽ без скидки</div>
+                        <div class="final-amount" id="finalAmount">0 ₽</div>
+                    </div>
+
+                    <!-- Секция скидки внутри общей стоимости -->
+                    <div class="total-with-discount">
+                        <div class="discount-controls">
+                            <label class="form-label mb-0">Скидка:</label>
+                            <div class="input-group input-group-discount">
+                                <input type="number" class="form-control" id="discountInput"
+                                       min="0" max="100" value="0" step="1">
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <div class="discount-badge">
+                                Скидка: <span id="discountValue">0</span>%
+                                <span id="autoDiscountBadge" class="auto-discount-badge" style="display: none;">Авто</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Календарь с ценами -->
+                    <div id="priceCalendar" class="price-calendar-section" style="display: none;">
+                        <h5 class="text-center mb-4">📅 Стоимость по дням</h5>
+                        <div id="calendarContainer"></div>
                     </div>
                 </div>
             </div>
@@ -182,6 +423,31 @@ if (!empty($files)) {
         let bookedRanges = [];
         let pricePeriods = [];
         let datePicker;
+        let currentBreakdown = [];
+        let selectedStartDate = null;
+        let selectedEndDate = null;
+        let currentObjectName = '';
+        let isFormCollapsed = false;
+        let originalTotalCost = 0;
+
+        function toggleBookingForm() {
+            const formCard = document.getElementById('bookingFormCard');
+            const toggleBtn = document.getElementById('toggleFormBtn');
+
+            if (isFormCollapsed) {
+                formCard.classList.remove('collapsed');
+                toggleBtn.innerHTML = '▲';
+                toggleBtn.classList.remove('btn-secondary');
+                toggleBtn.classList.add('btn-outline-secondary');
+            } else {
+                formCard.classList.add('collapsed');
+                toggleBtn.innerHTML = '▼';
+                toggleBtn.classList.remove('btn-outline-secondary');
+                toggleBtn.classList.add('btn-secondary');
+            }
+
+            isFormCollapsed = !isFormCollapsed;
+        }
 
         function parseDate(str) {
             const [d, m, y] = str.split('.').map(Number);
@@ -216,12 +482,23 @@ if (!empty($files)) {
             for (const range of bookedRanges) {
                 const start = parseDate(range.start);
                 const end = parseDate(range.end);
-                // Занята ночь, если: start <= date < end
                 if (dateToCheck >= start && dateToCheck < end) {
                     return true;
                 }
             }
             return false;
+        }
+
+        function getPriceForDate(date) {
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+
+            for (const p of pricePeriods) {
+                if (p.startMonth === month && day >= p.startDay && day <= p.endDay) {
+                    return p.price;
+                }
+            }
+            return 0;
         }
 
         function updateCalendarStyles() {
@@ -231,8 +508,30 @@ if (!empty($files)) {
                     const dateStr = day.getAttribute('aria-label');
                     if (!dateStr) return;
                     const date = parseDateFromString(dateStr);
-                    const booked = date && isDateBooked(date);
+                    if (!date) return;
+
+                    const booked = isDateBooked(date);
+                    const price = getPriceForDate(date);
+
+                    // Подсвечиваем занятые даты даже в соседних месяцах
                     day.classList.toggle('booked', booked);
+
+                    // Добавляем цены для всех дат (даже в соседних месяцах)
+                    let priceElement = day.querySelector('.calendar-price');
+                    if (price > 0) {
+                        if (!priceElement) {
+                            priceElement = document.createElement('div');
+                            priceElement.className = 'calendar-price';
+                            day.appendChild(priceElement);
+                        }
+                        priceElement.textContent = price + ' ₽';
+                        priceElement.style.color = booked ? '#fff' : '#28a745';
+                        if (booked) {
+                            priceElement.style.textDecoration = 'line-through';
+                        }
+                    } else if (priceElement) {
+                        priceElement.remove();
+                    }
                 });
             }, 50);
         }
@@ -242,7 +541,7 @@ if (!empty($files)) {
             for (const range of bookedRanges) {
                 let current = parseDate(range.start);
                 const end = parseDate(range.end);
-                while (current < end) { // < end, а не <=
+                while (current < end) {
                     disableList.push(new Date(current));
                     current.setDate(current.getDate() + 1);
                 }
@@ -253,29 +552,166 @@ if (!empty($files)) {
         function calculateTotalCost(startDate, endDate) {
             let total = 0;
             let current = new Date(startDate);
+            currentBreakdown = [];
+
             while (current < endDate) {
-                const month = current.getMonth() + 1;
-                const day = current.getDate();
-                let price = 0;
-                for (const p of pricePeriods) {
-                    if (p.startMonth === month && day >= p.startDay && day <= p.endDay) {
-                        price = p.price;
-                        break;
-                    }
-                }
+                const price = getPriceForDate(current);
                 total += price;
+                currentBreakdown.push({
+                    date: new Date(current),
+                    price: price,
+                    booked: isDateBooked(current)
+                });
                 current.setDate(current.getDate() + 1);
             }
             return total;
+        }
+
+        function updateDiscount() {
+            const discount = parseInt(document.getElementById('discountInput').value) || 0;
+
+            document.getElementById('discountValue').textContent = discount;
+
+            if (discount > 0 && discount <= 100) {
+                const discountAmount = originalTotalCost * discount / 100;
+                const finalAmount = originalTotalCost - discountAmount;
+
+                document.getElementById('originalPrice').textContent = originalTotalCost.toLocaleString('ru-RU') + ' ₽ без скидки';
+                document.getElementById('finalAmount').textContent = finalAmount.toLocaleString('ru-RU') + ' ₽';
+            } else {
+                document.getElementById('originalPrice').textContent = '';
+                document.getElementById('finalAmount').textContent = originalTotalCost.toLocaleString('ru-RU') + ' ₽';
+            }
+        }
+
+        function applyAutoDiscount(nights) {
+            const autoDiscountBadge = document.getElementById('autoDiscountBadge');
+            if (nights >= 30) {
+                document.getElementById('discountInput').value = 10;
+                autoDiscountBadge.style.display = 'inline';
+            } else {
+                document.getElementById('discountInput').value = 0;
+                autoDiscountBadge.style.display = 'none';
+            }
+            updateDiscount();
+        }
+
+        function generatePriceCalendar() {
+            const container = document.getElementById('calendarContainer');
+            container.innerHTML = '';
+
+            if (!selectedStartDate || !selectedEndDate) return;
+
+            // Создаем календарь только для месяцев в выбранном периоде
+            const startMonth = new Date(selectedStartDate.getFullYear(), selectedStartDate.getMonth(), 1);
+            const endMonth = new Date(selectedEndDate.getFullYear(), selectedEndDate.getMonth(), 1);
+
+            let currentMonth = new Date(startMonth);
+
+            while (currentMonth <= endMonth) {
+                const year = currentMonth.getFullYear();
+                const month = currentMonth.getMonth();
+                const monthName = currentMonth.toLocaleDateString('ru-RU', {
+                    month: 'long',
+                    year: 'numeric'
+                });
+
+                const monthElement = document.createElement('div');
+                monthElement.className = 'calendar-month';
+
+                const titleElement = document.createElement('div');
+                titleElement.className = 'calendar-month-title';
+                titleElement.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+                monthElement.appendChild(titleElement);
+
+                // Заголовки дней недели
+                const gridElement = document.createElement('div');
+                gridElement.className = 'calendar-grid';
+
+                const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+                weekdays.forEach(day => {
+                    const dayHeader = document.createElement('div');
+                    dayHeader.className = 'calendar-day-header';
+                    dayHeader.textContent = day;
+                    gridElement.appendChild(dayHeader);
+                });
+
+                // Заполняем пустые ячейки до первого дня месяца
+                const firstDayOfMonth = new Date(year, month, 1);
+                const firstWeekday = firstDayOfMonth.getDay();
+                const offset = firstWeekday === 0 ? 6 : firstWeekday - 1;
+
+                for (let j = 0; j < offset; j++) {
+                    const emptyDay = document.createElement('div');
+                    emptyDay.className = 'calendar-day';
+                    gridElement.appendChild(emptyDay);
+                }
+
+                // Добавляем дни месяца
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const currentDate = new Date(year, month, day);
+                    // Включаем дату выезда в подсветку (она же последняя дата периода)
+                    const isSelected = currentDate >= selectedStartDate && currentDate <= selectedEndDate;
+                    const isBooked = isDateBooked(currentDate);
+                    const price = getPriceForDate(currentDate);
+
+                    const dayElement = document.createElement('div');
+                    dayElement.className = 'calendar-day';
+
+                    if (isSelected) {
+                        dayElement.classList.add('selected');
+                    }
+                    if (isBooked) {
+                        dayElement.classList.add('booked');
+                    }
+
+                    if (price > 0) {
+                        dayElement.innerHTML = `
+                            <div>${day}</div>
+                            <div class="calendar-day-price">${price} ₽</div>
+                        `;
+                    } else {
+                        dayElement.innerHTML = `
+                            <div>${day}</div>
+                            <div class="calendar-day-price"></div>
+                        `;
+                    }
+
+                    gridElement.appendChild(dayElement);
+                }
+
+                // Заполняем оставшиеся ячейки до конца недели
+                const totalCells = offset + daysInMonth;
+                const remainingCells = 7 - (totalCells % 7);
+                if (remainingCells < 7) {
+                    for (let j = 0; j < remainingCells; j++) {
+                        const emptyDay = document.createElement('div');
+                        emptyDay.className = 'calendar-day';
+                        gridElement.appendChild(emptyDay);
+                    }
+                }
+
+                monthElement.appendChild(gridElement);
+                container.appendChild(monthElement);
+
+                // Переходим к следующему месяцу
+                currentMonth.setMonth(currentMonth.getMonth() + 1);
+            }
+
+            document.getElementById('priceCalendar').style.display = 'block';
         }
 
         document.getElementById('objectSelect').addEventListener('change', function () {
             const obj = this.value;
             bookedRanges = allBookedData[obj] || [];
             pricePeriods = allPriceData[obj] || [];
+            currentObjectName = this.options[this.selectedIndex].text;
             updateDatePickerDisable();
             updateCalendarStyles();
         });
+
+        document.getElementById('discountInput').addEventListener('input', updateDiscount);
 
         document.getElementById('bookingForm').addEventListener('submit', function (e) {
             e.preventDefault();
@@ -284,16 +720,39 @@ if (!empty($files)) {
                 alert('Выберите период бронирования');
                 return;
             }
-            const startDate = dates[0];
-            const endDate = dates[1];
-            const nights = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-            const totalCost = calculateTotalCost(startDate, endDate);
 
-            document.getElementById('totalAmount').textContent = totalCost.toLocaleString('ru-RU') + ' бат';
-            document.getElementById('periodInfo').textContent =
-                `Период: ${formatDate(startDate)} – ${formatDate(endDate)}`;
-            document.getElementById('nightsInfo').textContent = `Количество ночей: ${nights}`;
+            selectedStartDate = dates[0];
+            selectedEndDate = dates[1];
+            const nights = Math.ceil((selectedEndDate - selectedStartDate) / (1000 * 60 * 60 * 24));
+            originalTotalCost = calculateTotalCost(selectedStartDate, selectedEndDate);
+
+            // Обновляем компактную информацию
+            document.getElementById('resultObjectName').textContent = currentObjectName;
+            document.getElementById('resultPeriodInfo').innerHTML =
+                `${formatDate(selectedStartDate)} – ${formatDate(selectedEndDate)}
+                 <span class="expand-form-btn">✏️</span>`;
+            document.getElementById('resultNightsInfo').textContent = nights;
+
+            // Применяем авто-скидку если нужно
+            applyAutoDiscount(nights);
+
+            // Обновляем отображение цен
+            updateDiscount();
+
+            // Генерируем календарь с ценами
+            generatePriceCalendar();
+
+            // Показываем результат и сворачиваем форму
             document.getElementById('resultSection').style.display = 'block';
+            if (!isFormCollapsed) {
+                toggleBookingForm();
+            }
+
+            // Плавная прокрутка к результатам
+            document.getElementById('resultSection').scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
         });
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -305,7 +764,8 @@ if (!empty($files)) {
                 disable: [],
                 onChange: updateCalendarStyles,
                 onMonthChange: updateCalendarStyles,
-                onYearChange: updateCalendarStyles
+                onYearChange: updateCalendarStyles,
+                onOpen: updateCalendarStyles // Обновляем стили при открытии календаря
             });
         });
     </script>
