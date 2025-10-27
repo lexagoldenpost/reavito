@@ -15,6 +15,7 @@ from common.config import Config
 from common.logging_config import setup_logger
 # Импортируем booking-объекты
 from main_tg_bot.booking_objects import BOOKING_SHEETS, PROJECT_ROOT
+from main_tg_bot.google_sheets.ftp_client import FTPClient
 
 logger = setup_logger("sync_manager")
 
@@ -244,6 +245,8 @@ class GoogleSheetsCSVSync:
                 if success:
                     local_data['_last_sync'] = datetime.now().isoformat()
                     self.save_local_csv(local_data, sheet_name)
+                    # ➕ Отправка на FTP после успешного сохранения
+                    self._upload_sheet_to_ftp(sheet_name)
                 return success
 
             elif direction == 'bidirectional':
@@ -279,6 +282,8 @@ class GoogleSheetsCSVSync:
 
                 self.save_local_csv(final_df, sheet_name)
                 self.update_google_sheet(sheet_name, final_df)
+                # ➕ Отправка на FTP после завершения двусторонней синхронизации
+                self._upload_sheet_to_ftp(sheet_name)
                 logger.info(f"Completed bidirectional sync for '{sheet_name}': "
                             f"{len(non_empty)} non-empty (deduped), {len(empty_rows)} empty rows kept")
 
@@ -313,6 +318,247 @@ class GoogleSheetsCSVSync:
 
     def get_available_sheets(self) -> List[str]:
         return list(self.sheet_to_filepath.keys())
+
+    def upload_synced_files_via_ftp(self, ftp_host: str, ftp_user: str, ftp_password: str,
+                                    port: int = 21, use_ftps: bool = False) -> bool:
+        """
+        Отправляет все синхронизированные CSV файлы на FTP сервер
+        Автоматически определяет remote_path для каждого файла
+
+        Args:
+            ftp_host: FTP хост
+            ftp_user: FTP пользователь
+            ftp_password: FTP пароль
+            port: FTP порт
+            use_ftps: Использовать FTPS
+
+        Returns:
+            bool: True если все файлы успешно отправлены
+        """
+        ftp_client = FTPClient()
+
+        try:
+            # Подключаемся к FTP серверу
+            if not ftp_client.connect(ftp_host, ftp_user, ftp_password, port, use_ftps):
+                return False
+
+            all_success = True
+
+            # Отправляем каждый файл в свою директорию
+            for sheet_name, file_path in self.sheet_to_filepath.items():
+                if not file_path.exists():
+                    logger.warning(f"Файл {file_path} не существует, пропускаем")
+                    all_success = False
+                    continue
+
+                # Автоматически определяем remote_path
+                remote_path = self._get_remote_path_for_sheet(sheet_name)
+
+                # Отправляем файл
+                success = ftp_client.upload_file(file_path, remote_path=remote_path)
+                if not success:
+                    all_success = False
+
+            return all_success
+
+        except Exception as e:
+            logger.error(f"Ошибка при отправке файлов на FTP: {e}")
+            return False
+        finally:
+            ftp_client.disconnect()
+
+    def upload_selected_sheets_via_ftp(self, sheet_names: List[str], ftp_host: str,
+                                       ftp_user: str, ftp_password: str,
+                                       port: int = 21, use_ftps: bool = False) -> bool:
+        """
+        Отправляет только выбранные CSV файлы на FTP сервер
+        Автоматически определяет remote_path для каждого файла
+
+        Args:
+            sheet_names: Список названий листов для отправки
+            ftp_host: FTP хост
+            ftp_user: FTP пользователь
+            ftp_password: FTP пароль
+            port: FTP порт
+            use_ftps: Использовать FTPS
+
+        Returns:
+            bool: True если все выбранные файлы успешно отправлены
+        """
+        ftp_client = FTPClient()
+
+        try:
+            # Подключаемся к FTP серверу
+            if not ftp_client.connect(ftp_host, ftp_user, ftp_password):
+                return False
+
+            all_success = True
+
+            # Отправляем каждый выбранный файл в свою директорию
+            for sheet_name in sheet_names:
+                if sheet_name not in self.sheet_to_filepath:
+                    logger.error(f"Неизвестное название листа: {sheet_name}")
+                    all_success = False
+                    continue
+
+                file_path = self.sheet_to_filepath[sheet_name]
+                if not file_path.exists():
+                    logger.warning(f"Файл {file_path} не существует, пропускаем")
+                    all_success = False
+                    continue
+
+                # Автоматически определяем remote_path
+                remote_path = self._get_remote_path_for_sheet(sheet_name)
+
+                # Отправляем файл
+                success = ftp_client.upload_file(file_path, remote_path=remote_path)
+                if not success:
+                    all_success = False
+
+            return all_success
+
+        except Exception as e:
+            logger.error(f"Ошибка при отправке выбранных файлов на FTP: {e}")
+            return False
+        finally:
+            ftp_client.disconnect()
+
+    def sync_and_upload_all(self, ftp_host: str, ftp_user: str, ftp_password: str,
+                            sync_direction: str = 'auto', port: int = 21,
+                            use_ftps: bool = False) -> Dict[str, bool]:
+        """
+        Выполняет синхронизацию всех листов и сразу отправляет на FTP сервер
+
+        Args:
+            ftp_host: FTP хост
+            ftp_user: FTP пользователь
+            ftp_password: FTP пароль
+            sync_direction: Направление синхронизации
+            port: FTP порт
+            use_ftps: Использовать FTPS
+
+        Returns:
+            Dict[str, bool]: Результаты операций
+        """
+        results = {}
+
+        # Синхронизируем все листы
+        sync_results = self.sync_all_sheets(direction=sync_direction)
+        results['sync'] = sync_results
+
+        # Отправляем на FTP
+        upload_success = self.upload_synced_files_via_ftp(
+            ftp_host=ftp_host,
+            ftp_user=ftp_user,
+            ftp_password=ftp_password,
+            port=port,
+            use_ftps=use_ftps
+        )
+        results['upload'] = upload_success
+
+        return results
+
+    def sync_and_upload_selected(self, sheet_names: List[str], ftp_host: str,
+                                 ftp_user: str, ftp_password: str,
+                                 sync_direction: str = 'auto', port: int = 21,
+                                 use_ftps: bool = False) -> Dict[str, bool]:
+        """
+        Выполняет синхронизацию выбранных листов и сразу отправляет на FTP сервер
+
+        Args:
+            sheet_names: Список названий листов
+            ftp_host: FTP хост
+            ftp_user: FTP пользователь
+            ftp_password: FTP пароль
+            sync_direction: Направление синхронизации
+            port: FTP порт
+            use_ftps: Использовать FTPS
+
+        Returns:
+            Dict[str, bool]: Результаты операций
+        """
+        results = {}
+
+        # Синхронизируем выбранные листы
+        sync_results = self.sync_selected_sheets(sheet_names, direction=sync_direction)
+        results['sync'] = sync_results
+
+        # Отправляем на FTP
+        upload_success = self.upload_selected_sheets_via_ftp(
+            sheet_names=sheet_names,
+            ftp_host=ftp_host,
+            ftp_user=ftp_user,
+            ftp_password=ftp_password,
+            port=port,
+            use_ftps=use_ftps
+        )
+        results['upload'] = upload_success
+
+        return results
+
+    def _get_remote_path_for_sheet(self, sheet_name: str) -> str:
+        """
+        Определяет удаленный путь для листа на основе его типа
+
+        Args:
+            sheet_name: Название листа
+
+        Returns:
+            str: Удаленный путь на FTP сервере
+        """
+        # Booking sheets идут в booking директорию
+        if sheet_name in BOOKING_SHEETS:
+            return "/"+Config.BOOKING_DATA_DIR
+        # Остальные sheets идут в tasks директорию
+        else:
+            return "/"+Config.TASK_DATA_DIR
+
+    def _get_remote_path_for_file(self, file_path: Path) -> str:
+        """
+        Определяет удаленный путь для файла на основе его расположения
+
+        Args:
+            file_path: Путь к файлу
+
+        Returns:
+            str: Удаленный путь на FTP сервере
+        """
+        # Если файл в booking директории
+        if self.booking_dir in file_path.parents:
+            return "/"+Config.BOOKING_DATA_DIR
+        # Если файл в task директории
+        elif self.task_dir in file_path.parents:
+            return "/"+Config.TASK_DATA_DIR
+        else:
+            return "/other"
+
+    def _upload_sheet_to_ftp(self, sheet_name: str) -> bool:
+        """Отправляет один синхронизированный файл на FTP"""
+        if sheet_name not in self.sheet_to_filepath:
+            logger.error(f"Cannot upload unknown sheet: {sheet_name}")
+            return False
+
+        file_path = self.sheet_to_filepath[sheet_name]
+        if not file_path.exists():
+            logger.warning(f"File {file_path} does not exist, skipping FTP upload")
+            return False
+
+        remote_path = self._get_remote_path_for_sheet(sheet_name)
+        ftp_client = FTPClient()
+        try:
+            if not ftp_client.connect(
+                    Config.FTP_HOST,
+                    Config.FTP_USER,
+                    Config.FTP_PASSWORD
+            ):
+                return False
+            success = ftp_client.upload_file(file_path, remote_path=remote_path)
+            return success
+        except Exception as e:
+            logger.error(f"FTP upload failed for {sheet_name}: {e}")
+            return False
+        finally:
+            ftp_client.disconnect()
 
 
 if __name__ == "__main__":

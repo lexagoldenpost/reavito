@@ -48,6 +48,11 @@ class Config:
     BOOKING_SPREADSHEET_ID = os.getenv("BOOKING_SPREADSHEET_ID")
     BOOKING_TASK_SPREADSHEET_ID = os.getenv("BOOKING_TASK_SPREADSHEET_ID")
 
+    #FTP
+    FTP_HOST = os.getenv("FTP_HOST")
+    FTP_USER = os.getenv("FTP_USER")
+    FTP_PASSWORD = os.getenv("FTP_PASSWORD")
+
     # Список наших аппартаментов - исправленная версия
     BOOKING_DATA_DIR="booking_files"
     TASK_DATA_DIR="task_files"
@@ -63,3 +68,4 @@ class Config:
     # Урл сайта где формы
     REMOTE_WEB_APP_URL= "https://ci84606-wordpress-rdeld.tw1.ru"
     REMOTE_WEB_APP_CREATE_BOOKING_URL = "/?page_id=8"
+    REMOTE_WEB_APP_BOOKING_Calculat_URL = "/booking_calculator.php"
