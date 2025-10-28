@@ -1,5 +1,5 @@
 <?php
-// chessboard.php — утро/вечер остаются, но надписи скрыты; гость и цена — через colspan
+// chessboard.php — бронь: вечер заезда + все дни внутри + утро выезда
 
 function readBookedDatesWithGuests($filePath) {
     $booked = [];
@@ -121,7 +121,6 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
         .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.85rem; }
         .legend-color { width: 14px; height: 14px; border: 1px solid #999; }
         .table-responsive { overflow: auto; max-height: 80vh; }
-        /* Скрыть надписи "Утро/Вечер", но оставить ячейки */
         .time-label { visibility: hidden; height: 0; overflow: hidden; font-size: 0; line-height: 0; }
     </style>
 </head>
@@ -141,7 +140,6 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
         <div class="table-responsive">
             <table class="chessboard-table">
                 <thead>
-                    <!-- Верхний заголовок: даты с colspan=2 -->
                     <tr>
                         <th class="room-name">Объекты</th>
                         <?php foreach ($allDates as $dateStr): ?>
@@ -160,7 +158,6 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
                             </th>
                         <?php endforeach; ?>
                     </tr>
-                    <!-- Нижний заголовок: "Утро"/"Вечер" — скрыты -->
                     <tr>
                         <th class="room-name"></th>
                         <?php foreach ($allDates as $dateStr): ?>
@@ -174,59 +171,66 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
                         <tr>
                             <td class="room-name"><?= htmlspecialchars($obj['name']) ?></td>
                             <?php
-                            // Создаём карту занятых позиций (индексы)
-                            $occupied = [];
-                            $guestInfo = [];
+                            $dateToIndex = array_flip($allDates);
+                            $totalCells = count($allDates) * 2;
+                            $cellType = array_fill(0, $totalCells, 'free'); // 'free' или 'booked'
+                            $cellData = []; // только для начала блока
 
-                            // Преобразуем даты в индексы
-                            $dateToIndex = array_flip($allDates); // дата => индекс
-
-                            // Подготавливаем информацию о бронировании по индексам
+                            // Обрабатываем каждую бронь
                             foreach ($obj['booked'] as $booking) {
-                                $startIdx = $dateToIndex[$booking['start']] ?? null;
-                                $endIdx = $dateToIndex[$booking['end']] ?? null;
-                                if ($startIdx === null || $endIdx === null) continue;
+                                $start = $booking['start'];
+                                $end = $booking['end'];
 
-                                // Бронь занимает: от start (вечер) до end (утро не включается)
-                                // В терминах ячеек: каждая дата = [утро, вечер] → индексы: 2*i, 2*i+1
-                                // Ночи: от start (вечер = 2*startIdx+1) до end (утро = 2*endIdx)
-                                // То есть ячейки: [2*startIdx+1, 2*startIdx+2, ..., 2*endIdx - 1]
-                                $cellStart = 2 * $startIdx + 1;
-                                $cellEnd = 2 * $endIdx; // не включительно
-                                for ($c = $cellStart; $c < $cellEnd; $c++) {
-                                    $occupied[$c] = true;
+                                if (!isset($dateToIndex[$start]) || !isset($dateToIndex[$end])) continue;
+
+                                $startIdx = $dateToIndex[$start];
+                                $endIdx = $dateToIndex[$end];
+
+                                // Вечер даты заезда: ячейка 2*startIdx + 1
+                                $firstCell = 2 * $startIdx + 1;
+                                // Утро даты выезда: ячейка 2*endIdx
+                                $lastCell = 2 * $endIdx;
+
+                                // Помечаем все ячейки от firstCell до lastCell включительно как booked
+                                for ($c = $firstCell; $c <= $lastCell; $c++) {
+                                    if ($c < $totalCells) {
+                                        $cellType[$c] = 'booked';
+                                    }
                                 }
-                                // Сохраняем данные для отображения в первой ячейке брони
-                                $guestInfo[$cellStart] = [
-                                    'guest' => $booking['guest'],
-                                    'amount' => $booking['total_amount'],
-                                    'length' => $cellEnd - $cellStart
-                                ];
+
+                                // Данные гостя — только в первой ячейке блока
+                                if ($firstCell < $totalCells) {
+                                    $length = $lastCell - $firstCell + 1;
+                                    $cellData[$firstCell] = [
+                                        'guest' => $booking['guest'],
+                                        'amount' => $booking['total_amount'],
+                                        'length' => $length
+                                    ];
+                                }
                             }
 
-                            $totalCells = count($allDates) * 2;
+                            // Рендерим с colspan
                             $i = 0;
                             while ($i < $totalCells) {
-                                if (isset($guestInfo[$i])) {
-                                    // Начало бронирования — рисуем одну ячейку на весь период
-                                    $info = $guestInfo[$i];
-                                    $colspan = $info['length'];
-                                    echo '<td class="cell-booked" colspan="' . $colspan . '">';
-                                    echo htmlspecialchars($info['guest']);
-                                    if ($info['amount'] > 0) {
-                                        echo '<span class="price-tag">' . number_format($info['amount'], 0, '', ' ') . ' ฿</span>';
+                                if (isset($cellData[$i])) {
+                                    $d = $cellData[$i];
+                                    echo '<td class="cell-booked" colspan="' . $d['length'] . '">';
+                                    echo htmlspecialchars($d['guest']);
+                                    if ($d['amount'] > 0) {
+                                        echo '<span class="price-tag">' . number_format($d['amount'], 0, '', ' ') . ' ฿</span>';
                                     }
                                     echo '</td>';
-                                    $i += $colspan;
-                                } elseif (!isset($occupied[$i])) {
-                                    // Свободная ячейка — проверяем, можно ли объединить с соседней
-                                    // Правило: если обе ячейки (утро+вечер одной даты) свободны — объединяем
+                                    $i += $d['length'];
+                                } elseif ($cellType[$i] === 'booked') {
+                                    // Это продолжение брони без данных — пропускаем (не должно быть, но на всякий)
+                                    $i++;
+                                } else {
+                                    // Свободная ячейка
                                     $isMorning = ($i % 2 === 0);
-                                    $sameDatePairFree = false;
-                                    if ($isMorning && ($i + 1) < $totalCells && !isset($occupied[$i + 1])) {
-                                        // Утро и вечер одной даты свободны
-                                        $sameDatePairFree = true;
-                                        $price = getPriceForDate($allDates[$i / 2], $obj['prices']);
+                                    if ($isMorning && ($i + 1) < $totalCells && $cellType[$i + 1] === 'free') {
+                                        // Обе ячейки дня свободны — объединяем
+                                        $date = $allDates[$i / 2];
+                                        $price = getPriceForDate($date, $obj['prices']);
                                         echo '<td class="cell-free" colspan="2">';
                                         if ($price !== null) {
                                             echo '<span class="price-tag">' . number_format($price, 0, '', ' ') . ' ฿</span>';
@@ -234,7 +238,7 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
                                         echo '</td>';
                                         $i += 2;
                                     } else {
-                                        // Одиночная свободная ячейка (редко, но возможно при частичной брони)
+                                        // Одиночная свободная ячейка
                                         $dateIndex = intdiv($i, 2);
                                         $price = getPriceForDate($allDates[$dateIndex], $obj['prices']);
                                         echo '<td class="cell-free">';
@@ -244,9 +248,6 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
                                         echo '</td>';
                                         $i++;
                                     }
-                                } else {
-                                    // Занято, но не начало — пропускаем (уже отрисовано через colspan)
-                                    $i++;
                                 }
                             }
                             ?>
