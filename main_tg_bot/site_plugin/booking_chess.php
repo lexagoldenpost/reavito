@@ -81,7 +81,8 @@ $startDateParam = $_GET['start'] ?? null;
 if ($startDateParam && preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDateParam)) {
     $startDate = new DateTime($startDateParam);
 } else {
-    $startDate = new DateTime('first day of this month');
+    $startDate = new DateTime(); // текущая дата
+    $startDate->setTime(0, 0, 0); // обнуляем время
 }
 $endDate = clone $startDate;
 $endDate->modify("+{$monthsToShow} months -1 day");
@@ -114,6 +115,7 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
         .chessboard-table th.date-header { background: #f8f9fa; font-size: 0.7rem; }
         .chessboard-table th.date-header.today { background: #ffeaa7; font-weight: bold; }
         .chessboard-table th.date-header.weekend { background: #fdcb6e; }
+        .chessboard-table tbody tr:not(:last-child) td {border-bottom: 2px solid #e9ecef;}
         .cell-free { background-color: #d5f4e6; }
         .cell-booked { background-color: #fadbd8; color: #2c3e50; font-weight: 600; }
         .price-tag { display: block; font-size: 0.7rem; color: #27ae60; margin-top: 2px; }
@@ -122,6 +124,7 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
         .legend-color { width: 14px; height: 14px; border: 1px solid #999; }
         .table-responsive { overflow: auto; max-height: 80vh; }
         .time-label { visibility: hidden; height: 0; overflow: hidden; font-size: 0; line-height: 0; }
+        .cell-booked.checkout-border {border-left: 3px solid #2c3e50; border-right: 3px solid #2c3e50;}
     </style>
 </head>
 <body>
@@ -214,7 +217,7 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
                             while ($i < $totalCells) {
                                 if (isset($cellData[$i])) {
                                     $d = $cellData[$i];
-                                    echo '<td class="cell-booked" colspan="' . $d['length'] . '">';
+                                    echo '<td class="cell-booked checkout-border" colspan="' . $d['length'] . '">';
                                     echo htmlspecialchars($d['guest']);
                                     if ($d['amount'] > 0) {
                                         echo '<span class="price-tag">' . number_format($d['amount'], 0, '', ' ') . ' ฿</span>';
