@@ -1,5 +1,5 @@
 <?php
-// chessboard.php — строго по требованию: половинки + гость один раз + цены в свободных
+// chessboard.php — утро/вечер остаются, но надписи скрыты; гость и цена — через colspan
 
 function readBookedDatesWithGuests($filePath) {
     $booked = [];
@@ -101,14 +101,14 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Шахматка бронирования</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css  " rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background-color: #f8f9fa; }
         .container { max-width: 1800px; }
         .card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; border-radius: 15px; background: white; }
         .chessboard-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem; text-align: center; }
         .chessboard-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
-        .chessboard-table th, .chessboard-table td { text-align: center; padding: 2px; border: 1px solid #ddd; vertical-align: middle; }
+        .chessboard-table th, .chessboard-table td { text-align: center; padding: 4px; border: 1px solid #ddd; vertical-align: middle; }
         .chessboard-table th.room-name { background: #f1f3f5; position: sticky; left: 0; z-index: 20; width: 200px; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
         .chessboard-table td.room-name { background: white; position: sticky; left: 0; z-index: 15; width: 200px; box-shadow: 2px 0 5px rgba(0,0,0,0.1); font-weight: 600; }
         .chessboard-table th.date-header { background: #f8f9fa; font-size: 0.7rem; }
@@ -116,11 +116,13 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
         .chessboard-table th.date-header.weekend { background: #fdcb6e; }
         .cell-free { background-color: #d5f4e6; }
         .cell-booked { background-color: #fadbd8; color: #2c3e50; font-weight: 600; }
-        .price-tag { display: block; font-size: 0.7rem; color: #27ae60; margin-top: 1px; }
+        .price-tag { display: block; font-size: 0.7rem; color: #27ae60; margin-top: 2px; }
         .legend { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-top: 1rem; }
         .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.85rem; }
         .legend-color { width: 14px; height: 14px; border: 1px solid #999; }
         .table-responsive { overflow: auto; max-height: 80vh; }
+        /* Скрыть надписи "Утро/Вечер", но оставить ячейки */
+        .time-label { visibility: hidden; height: 0; overflow: hidden; font-size: 0; line-height: 0; }
     </style>
 </head>
 <body>
@@ -146,22 +148,24 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
                             <th class="date-header" colspan="2">
                                 <?php
                                 $dt = new DateTime($dateStr);
-                                $classes = [];
-                                if ($dateStr === $todayStr) echo '<span class="today">';
-                                if ((int)$dt->format('N') >= 6) echo '<span class="weekend">';
-                                echo $dt->format('j') . '<br>' . $russianWeekdays[(int)$dt->format('N') - 1];
-                                if ((int)$dt->format('N') >= 6) echo '</span>';
-                                if ($dateStr === $todayStr) echo '</span>';
+                                $content = $dt->format('j') . '<br>' . $russianWeekdays[(int)$dt->format('N') - 1];
+                                if ($dateStr === $todayStr) {
+                                    echo '<span class="today">' . $content . '</span>';
+                                } elseif ((int)$dt->format('N') >= 6) {
+                                    echo '<span class="weekend">' . $content . '</span>';
+                                } else {
+                                    echo $content;
+                                }
                                 ?>
                             </th>
                         <?php endforeach; ?>
                     </tr>
-                    <!-- Нижний заголовок: Утро / Вечер -->
+                    <!-- Нижний заголовок: "Утро"/"Вечер" — скрыты -->
                     <tr>
                         <th class="room-name"></th>
                         <?php foreach ($allDates as $dateStr): ?>
-                            <th class="date-header">Утро</th>
-                            <th class="date-header">Вечер</th>
+                            <th class="date-header time-label">Утро</th>
+                            <th class="date-header time-label">Вечер</th>
                         <?php endforeach; ?>
                     </tr>
                 </thead>
@@ -170,70 +174,80 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
                         <tr>
                             <td class="room-name"><?= htmlspecialchars($obj['name']) ?></td>
                             <?php
-                            // Создаём карту для каждой половинки
-                            $halfMap = [];
-                            foreach ($allDates as $date) {
-                                $halfMap[$date . '_morning'] = ['type' => 'free', 'price' => null, 'guest' => '', 'amount' => 0, 'is_start' => false];
-                                $halfMap[$date . '_evening'] = ['type' => 'free', 'price' => null, 'guest' => '', 'amount' => 0, 'is_start' => false];
-                            }
+                            // Создаём карту занятых позиций (индексы)
+                            $occupied = [];
+                            $guestInfo = [];
 
-                            // Заполняем бронирования
+                            // Преобразуем даты в индексы
+                            $dateToIndex = array_flip($allDates); // дата => индекс
+
+                            // Подготавливаем информацию о бронировании по индексам
                             foreach ($obj['booked'] as $booking) {
-                                // Ночи: от start до end-1
-                                $current = new DateTime($booking['start']);
-                                $end = new DateTime($booking['end']);
-                                while ($current < $end) {
-                                    $dateKey = $current->format('Y-m-d');
-                                    // Вечер текущей даты = начало ночи
-                                    $halfMap[$dateKey . '_evening']['type'] = 'booked';
-                                    // Утро следующей даты = конец ночи
-                                    $nextDate = clone $current;
-                                    $nextDate->modify('+1 day');
-                                    $nextKey = $nextDate->format('Y-m-d');
-                                    if (isset($halfMap[$nextKey . '_morning'])) {
-                                        $halfMap[$nextKey . '_morning']['type'] = 'booked';
-                                    }
-                                    // Гостя ставим только в первую вечернюю ячейку
-                                    if ($dateKey === $booking['start']) {
-                                        $halfMap[$dateKey . '_evening']['guest'] = $booking['guest'];
-                                        $halfMap[$dateKey . '_evening']['amount'] = $booking['total_amount'];
-                                        $halfMap[$dateKey . '_evening']['is_start'] = true;
-                                    }
-                                    $current->modify('+1 day');
+                                $startIdx = $dateToIndex[$booking['start']] ?? null;
+                                $endIdx = $dateToIndex[$booking['end']] ?? null;
+                                if ($startIdx === null || $endIdx === null) continue;
+
+                                // Бронь занимает: от start (вечер) до end (утро не включается)
+                                // В терминах ячеек: каждая дата = [утро, вечер] → индексы: 2*i, 2*i+1
+                                // Ночи: от start (вечер = 2*startIdx+1) до end (утро = 2*endIdx)
+                                // То есть ячейки: [2*startIdx+1, 2*startIdx+2, ..., 2*endIdx - 1]
+                                $cellStart = 2 * $startIdx + 1;
+                                $cellEnd = 2 * $endIdx; // не включительно
+                                for ($c = $cellStart; $c < $cellEnd; $c++) {
+                                    $occupied[$c] = true;
                                 }
+                                // Сохраняем данные для отображения в первой ячейке брони
+                                $guestInfo[$cellStart] = [
+                                    'guest' => $booking['guest'],
+                                    'amount' => $booking['total_amount'],
+                                    'length' => $cellEnd - $cellStart
+                                ];
                             }
 
-                            // Заполняем цены для свободных вечеров
-                            foreach ($allDates as $date) {
-                                if ($halfMap[$date . '_evening']['type'] === 'free') {
-                                    $halfMap[$date . '_evening']['price'] = getPriceForDate($date, $obj['prices']);
-                                }
-                                // Утро не имеет собственной цены — оно относится к предыдущей ночи, но если оно свободно, и вечер тоже, то цена уже в вечерней ячейке
-                                // В нашем отображении утро без брони — просто свободно, цена не дублируется
-                            }
-
-                            // Выводим все половинки
-                            foreach ($allDates as $date) {
-                                // Утро
-                                $morning = $halfMap[$date . '_morning'];
-                                $m_class = $morning['type'] === 'booked' ? 'cell-booked' : 'cell-free';
-                                echo '<td class="' . $m_class . '">';
-                                // В утре гостя не показываем
-                                echo '</td>';
-
-                                // Вечер
-                                $evening = $halfMap[$date . '_evening'];
-                                $e_class = $evening['type'] === 'booked' ? 'cell-booked' : 'cell-free';
-                                echo '<td class="' . $e_class . '">';
-                                if ($evening['is_start'] && $evening['guest']) {
-                                    echo htmlspecialchars($evening['guest']);
-                                    if ($evening['amount'] > 0) {
-                                        echo '<span class="price-tag">' . number_format($evening['amount'], 0, '', ' ') . ' ฿</span>';
+                            $totalCells = count($allDates) * 2;
+                            $i = 0;
+                            while ($i < $totalCells) {
+                                if (isset($guestInfo[$i])) {
+                                    // Начало бронирования — рисуем одну ячейку на весь период
+                                    $info = $guestInfo[$i];
+                                    $colspan = $info['length'];
+                                    echo '<td class="cell-booked" colspan="' . $colspan . '">';
+                                    echo htmlspecialchars($info['guest']);
+                                    if ($info['amount'] > 0) {
+                                        echo '<span class="price-tag">' . number_format($info['amount'], 0, '', ' ') . ' ฿</span>';
                                     }
-                                } elseif ($evening['type'] === 'free' && $evening['price'] !== null) {
-                                    echo '<span class="price-tag">' . number_format($evening['price'], 0, '', ' ') . ' ฿</span>';
+                                    echo '</td>';
+                                    $i += $colspan;
+                                } elseif (!isset($occupied[$i])) {
+                                    // Свободная ячейка — проверяем, можно ли объединить с соседней
+                                    // Правило: если обе ячейки (утро+вечер одной даты) свободны — объединяем
+                                    $isMorning = ($i % 2 === 0);
+                                    $sameDatePairFree = false;
+                                    if ($isMorning && ($i + 1) < $totalCells && !isset($occupied[$i + 1])) {
+                                        // Утро и вечер одной даты свободны
+                                        $sameDatePairFree = true;
+                                        $price = getPriceForDate($allDates[$i / 2], $obj['prices']);
+                                        echo '<td class="cell-free" colspan="2">';
+                                        if ($price !== null) {
+                                            echo '<span class="price-tag">' . number_format($price, 0, '', ' ') . ' ฿</span>';
+                                        }
+                                        echo '</td>';
+                                        $i += 2;
+                                    } else {
+                                        // Одиночная свободная ячейка (редко, но возможно при частичной брони)
+                                        $dateIndex = intdiv($i, 2);
+                                        $price = getPriceForDate($allDates[$dateIndex], $obj['prices']);
+                                        echo '<td class="cell-free">';
+                                        if ($price !== null) {
+                                            echo '<span class="price-tag">' . number_format($price, 0, '', ' ') . ' ฿</span>';
+                                        }
+                                        echo '</td>';
+                                        $i++;
+                                    }
+                                } else {
+                                    // Занято, но не начало — пропускаем (уже отрисовано через colspan)
+                                    $i++;
                                 }
-                                echo '</td>';
                             }
                             ?>
                         </tr>
