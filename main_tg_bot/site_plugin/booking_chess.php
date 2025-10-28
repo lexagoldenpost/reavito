@@ -209,7 +209,7 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
                                 }
                             }
 
-                            // Рендерим с colspan
+                                                        // Рендерим с colspan
                             $i = 0;
                             while ($i < $totalCells) {
                                 if (isset($cellData[$i])) {
@@ -227,10 +227,16 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
                                 } else {
                                     // Свободная ячейка
                                     $isMorning = ($i % 2 === 0);
-                                    if ($isMorning && ($i + 1) < $totalCells && $cellType[$i + 1] === 'free') {
-                                        // Обе ячейки дня свободны — объединяем
-                                        $date = $allDates[$i / 2];
-                                        $price = getPriceForDate($date, $obj['prices']);
+
+                                    // Проверяем: если это ВЕЧЕР (нечётный индекс) и есть следующий день (утро), и оба свободны — объединяем
+                                    if (!$isMorning && ($i + 1) < $totalCells && $cellType[$i + 1] === 'free') {
+                                        // Объединяем вечер текущего дня и утро следующего дня
+                                        $currentDateIndex = intdiv($i, 2); // индекс текущей даты (вечер)
+                                        $nextDateIndex = $currentDateIndex + 1; // индекс следующей даты (утро)
+
+                                        // Берём цену за текущую дату (вечер) — по условию задачи, цена за ночь+день — это цена текущего дня
+                                        $price = getPriceForDate($allDates[$currentDateIndex], $obj['prices']);
+
                                         echo '<td class="cell-free" colspan="2">';
                                         if ($price !== null) {
                                             echo '<span class="price-tag">' . number_format($price, 0, '', ' ') . ' ฿</span>';
@@ -238,7 +244,7 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
                                         echo '</td>';
                                         $i += 2;
                                     } else {
-                                        // Одиночная свободная ячейка
+                                        // Одиночная свободная ячейка (утро или вечер без пары)
                                         $dateIndex = intdiv($i, 2);
                                         $price = getPriceForDate($allDates[$dateIndex], $obj['prices']);
                                         echo '<td class="cell-free">';
