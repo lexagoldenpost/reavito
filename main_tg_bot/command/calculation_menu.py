@@ -28,6 +28,7 @@ async def show_calculation_menu(update: Update, context: ContextTypes.DEFAULT_TY
         # URL для форм
         calculation_url = f"{web_app_url}{Config.REMOTE_WEB_APP_BOOKING_CALCULATE_URL}"
         chess_url = f"{web_app_url}{Config.REMOTE_WEB_APP_BOOKING_CHESS_URL}"
+        create_contract_url = f"{web_app_url}{Config.REMOTE_WEB_APP_CREATE_CONTRACT_URL}?token={Config.TELEGRAM_BOOKING_BOT_TOKEN}&chat_id={Config.TELEGRAM_DATA_CHANNEL_ID}"
 
         # Кнопки, которые сразу открывают Web App
         keyboard = [
@@ -38,6 +39,10 @@ async def show_calculation_menu(update: Update, context: ContextTypes.DEFAULT_TY
             [InlineKeyboardButton(
                 "2. 📊 Шахматка бронирования",
                 web_app=WebAppInfo(url=chess_url)
+            )],
+            [InlineKeyboardButton(
+                "3. 📑 Создание договора",
+                web_app=WebAppInfo(url=create_contract_url)
             )],
             [InlineKeyboardButton("❌ Закрыть меню", callback_data="close_calculation_menu")]
         ]

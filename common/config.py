@@ -72,3 +72,7 @@ class Config:
     # Файл
     REMOTE_WEB_APP_BOOKING_CALCULATE_URL = "/booking_calculator.php"
     REMOTE_WEB_APP_BOOKING_CHESS_URL = "/booking_chess.php"
+    REMOTE_WEB_APP_CREATE_CONTRACT_URL = "/contract_form.php"
+
+    #Канал где будут приниматься данные из форм и обрабатываться
+    TELEGRAM_DATA_CHANNEL_ID = "-1002679682284"

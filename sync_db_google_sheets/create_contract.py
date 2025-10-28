@@ -33,12 +33,12 @@ logger = setup_logger("create_contract")
 # Шаблоны документов
 TEMPLATES = {
   "HALO Title": {
-    "contract": "site_plugin/HALO_Title_contract.docx",
-    "confirmation": "site_plugin/HALO_Title_confirmation.docx"
+    "contract": "php_files/HALO_Title_contract.docx",
+    "confirmation": "php_files/HALO_Title_confirmation.docx"
   },
   "Citygate Р311": {
-    "contract": "site_plugin/Citygate_P311_contract.docx",
-    "confirmation": "site_plugin/Citygate_P311_confirmation.docx"
+    "contract": "php_files/Citygate_P311_contract.docx",
+    "confirmation": "php_files/Citygate_P311_confirmation.docx"
   }
 }
 
