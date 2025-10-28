@@ -557,8 +557,8 @@ if (!empty($files)) {
 
                     <!-- Сравнение цен -->
                     <div class="price-comparison">
-                        <div class="original-price" id="originalPrice">0 ₽ без скидки</div>
-                        <div class="final-amount" id="finalAmount">0 ₽</div>
+                        <div class="original-price" id="originalPrice">0 ฿ без скидки</div>
+                        <div class="final-amount" id="finalAmount">0 ฿</div>
                     </div>
 
                     <!-- Секция скидки внутри общей стоимости -->
@@ -796,11 +796,11 @@ if (!empty($files)) {
                 const discountAmount = originalTotalCost * discount / 100;
                 const finalAmount = originalTotalCost - discountAmount;
 
-                document.getElementById('originalPrice').textContent = originalTotalCost.toLocaleString('ru-RU') + ' ₽ без скидки';
-                document.getElementById('finalAmount').textContent = finalAmount.toLocaleString('ru-RU') + ' ₽';
+                document.getElementById('originalPrice').textContent = originalTotalCost.toLocaleString('ru-RU') + ' ฿ без скидки';
+                document.getElementById('finalAmount').textContent = finalAmount.toLocaleString('ru-RU') + ' ฿';
             } else {
                 document.getElementById('originalPrice').textContent = '';
-                document.getElementById('finalAmount').textContent = originalTotalCost.toLocaleString('ru-RU') + ' ₽';
+                document.getElementById('finalAmount').textContent = originalTotalCost.toLocaleString('ru-RU') + ' ฿';
             }
         }
 
@@ -884,7 +884,7 @@ if (!empty($files)) {
                     if (price > 0) {
                         dayElement.innerHTML = `
                             <div>${day}</div>
-                            <div class="calendar-day-price">${price} ₽</div>
+                            <div class="calendar-day-price">${price} ฿</div>
                         `;
                     } else {
                         dayElement.innerHTML = `
