@@ -76,3 +76,5 @@ class Config:
 
     #Канал где будут приниматься данные из форм и обрабатываться
     TELEGRAM_DATA_CHANNEL_ID = "-1002679682284"
+    # Бот для отправки данных с веб форм в канал
+    PHP_TELEGRAM_BOOKING_BOT_TOKEN = os.getenv("PHP_TELEGRAM_BOOKING_BOT_TOKEN")

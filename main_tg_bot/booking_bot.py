@@ -116,6 +116,10 @@ class BookingBot:
         # Сохраняем URL веб-приложения в bot_data для доступа из обработчиков
         self.application.bot_data['web_app_url'] = self.remote_web_app_url
 
+        # В setup_handlers добавьте В САМОЕ НАЧАЛО (до других MessageHandler):
+        # Для логирования
+        #self.application.add_handler(MessageHandler(filters.ALL, self.debug_all_messages))
+
         # 1. Обработчики команд с проверкой доступа
         self._add_secure_command_handler("start", start)
         self._add_secure_command_handler("help", help_command)
@@ -142,21 +146,24 @@ class BookingBot:
         # 5. Обработчики для меню расчета (только закрытие меню)
         self._add_secure_callback_handler(close_calculation_menu_handler, pattern="^close_calculation_menu$")
 
-        # 6. Обработчик неизвестных команд
-        self.application.add_handler(
-            MessageHandler(filters.TEXT & ~filters.COMMAND, self.unknown_command)
-        )
-
-        # 7. Обработчик JSON из приватного канала (фоновая передача данных форм)
+        # 6. Обработчик JSON из приватного канала (фоновая передача данных форм)
         if Config.TELEGRAM_DATA_CHANNEL_ID:
             # Принимаем и документы, и текст (на случай, если кто-то отправит JSON как текст)
-            json_filter = filters.Document.MimeType('application/json') | filters.Document.FileExtension('json') | filters.TEXT
+            json_filter = filters.Document.MimeType('application/json') | filters.Document.FileExtension(
+                'json')
             self.application.add_handler(
                 MessageHandler(json_filter, self.handle_channel_document)
             )
             logger.info(f"✅ JSON form handler enabled for channel: {Config.TELEGRAM_DATA_CHANNEL_ID}")
         else:
             logger.warning("⚠️ TELEGRAM_DATA_CHANNEL_ID not set — form handler disabled")
+
+
+        # 7. Обработчик неизвестных команд
+        self.application.add_handler(
+            MessageHandler(filters.TEXT & ~filters.COMMAND, self.unknown_command)
+        )
+
 
         logger.info("Handlers setup completed")
 
@@ -172,73 +179,86 @@ class BookingBot:
             "\n".join(f"/{cmd} - {desc}" for cmd, desc in COMMANDS)
         )
 
+    async def debug_all_messages(self, update: Update, context):
+        chat = update.effective_chat
+        logger.info(f"📩 [DEBUG] Получено сообщение из чата: {chat.id} ({chat.title or chat.username})")
+        if update.message and update.message.document:
+            logger.info(f"📄 Документ: {update.message.document.file_name}")
+
     async def handle_channel_document(self, update: Update, context):
         """
         Обработчик JSON-документов из приватного канала.
-        Определяет тип обработчика по префиксу имени файла (до первого '_').
+        Поддерживает как группы (update.message), так и каналы (update.channel_post).
         """
-        if not update.message:
+        logger.info("🔍 handle_channel_document: метод ВЫЗВАН")
+
+        if not update:
+            logger.warning("⚠️ update is None")
             return
 
-        chat = update.effective_chat
+        # Определяем источник сообщения
+        message = update.message or update.channel_post
+        if not message:
+            logger.warning("⚠️ Ни update.message, ни update.channel_post не найдены")
+            logger.debug(f"Содержимое update: {update}")
+            return
+
+        chat = message.chat
         channel_id = Config.TELEGRAM_DATA_CHANNEL_ID
 
-        logger.info(f"Received message in chat: {chat.id} ({chat.title or chat.username or 'no title'})")
+        logger.info(f"📥 Получено сообщение в чате: {chat.id} ({chat.title or 'no title'})")
 
         if not channel_id:
-            logger.warning("TELEGRAM_DATA_CHANNEL_ID not configured — ignoring document")
+            logger.error("❌ TELEGRAM_DATA_CHANNEL_ID не задан")
             return
 
-        # Простая проверка по ID чата
         if str(chat.id) != channel_id:
-            logger.debug(f"Ignoring message from chat {chat.id} (expected {channel_id})")
+            logger.info(f"⏭️ Сообщение из чата {chat.id} проигнорировано (ожидался {channel_id})")
             return
 
-        # Поддержка: только документы (файлы)
-        if not update.message.document:
-            logger.debug("Ignoring non-document message in channel")
+        if not message.document:
+            logger.info("⏭️ Сообщение не содержит документа")
             return
 
-        doc = update.message.document
+        doc = message.document
         file_name = doc.file_name or "unnamed.json"
+        mime_type = doc.mime_type or "unknown"
 
-        # Проверяем расширение
-        if not (doc.mime_type == 'application/json' or file_name.endswith('.json')):
-            logger.debug(f"Ignoring non-JSON document: {file_name}")
+        logger.info(f"📂 Имя файла: {file_name}")
+        logger.info(f".mime_type: {mime_type}")
+
+        if not (mime_type == 'application/json' or file_name.lower().endswith('.json')):
+            logger.info(f"⏭️ Файл '{file_name}' не является JSON")
             return
 
-        # Извлекаем префикс: первое слово до '_'
-        base_name = file_name.rsplit('.', 1)[0]  # убираем .json
+        base_name = file_name.rsplit('.', 1)[0]
         prefix = base_name.split('_', 1)[0].lower() if '_' in base_name else base_name.lower()
-
-        logger.info(f"📥 Получен файл '{file_name}' → префикс обработчика: '{prefix}'")
+        logger.info(f"🏷️ Префикс обработчика: '{prefix}'")
 
         try:
-            # Скачиваем и парсим JSON
+            logger.info("⬇️ Загрузка файла...")
             file = await doc.get_file()
             file_bytes = await file.download_as_bytearray()
             json_content = file_bytes.decode('utf-8')
             data = json.loads(json_content)
+            logger.info("✅ JSON успешно загружен и распарсен")
         except Exception as e:
-            logger.error(f"Ошибка при загрузке или парсинге JSON из файла '{file_name}': {e}")
+            logger.error(f"❌ Ошибка при загрузке/парсинге '{file_name}': {e}")
             return
 
-        # Диспетчеризация по префиксу
         try:
-            if prefix == "Договор":
+            if prefix == "договор":
                 from main_tg_bot.handlers.contract_handler import handle_contract
                 await handle_contract(data, file_name, logger)
             elif prefix == "booking":
-                # TODO: добавить позже
                 logger.info("📥 Получены данные бронирования (обработчик пока не реализован)")
             else:
-                logger.warning(f"Неизвестный префикс обработчика: '{prefix}'. Данные проигнорированы.")
+                logger.warning(f"❓ Неизвестный префикс: '{prefix}' — игнорируем")
                 return
 
-            logger.info(f"✅ Обработка файла '{file_name}' завершена успешно")
-
+            logger.info(f"✅ Обработка файла '{file_name}' завершена")
         except Exception as e:
-            logger.error(f"Ошибка в обработчике '{prefix}' для файла '{file_name}': {e}", exc_info=True)
+            logger.error(f"💥 Ошибка в обработчике '{prefix}' для '{file_name}': {e}", exc_info=True)
 
     def get_web_app_url(self):
         """Получение URL удаленного веб-приложения"""

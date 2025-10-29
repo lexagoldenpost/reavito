@@ -36,9 +36,9 @@ if (isset($data['filename']) && preg_match('/^[a-zA-Zа-яА-Я0-9_\-\.\s]+\.jso
 }
 
 // Капшн (опционально)
-$caption = $data['caption'] ?? (
-    isset($data['message']) ? $data['message'] : '📄 Новые данные из веб-формы'
-);
+// $caption = $data['caption'] ?? (
+//     isset($data['message']) ? $data['message'] : '📄 Новые данные из веб-формы'
+// );
 
 // Текст для отправки как сообщение (если не файл)
 $messageText = $data['message'] ?? json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);

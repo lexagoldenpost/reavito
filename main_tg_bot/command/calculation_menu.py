@@ -28,8 +28,10 @@ async def show_calculation_menu(update: Update, context: ContextTypes.DEFAULT_TY
         # URL для форм
         calculation_url = f"{web_app_url}{Config.REMOTE_WEB_APP_BOOKING_CALCULATE_URL}"
         chess_url = f"{web_app_url}{Config.REMOTE_WEB_APP_BOOKING_CHESS_URL}"
-        create_contract_url = f"{web_app_url}{Config.REMOTE_WEB_APP_CREATE_CONTRACT_URL}?token={Config.TELEGRAM_BOOKING_BOT_TOKEN}&chat_id={Config.TELEGRAM_DATA_CHANNEL_ID}"
+        init_chat_id = update.effective_chat.id
 
+        create_contract_url = f"{web_app_url}{Config.REMOTE_WEB_APP_CREATE_CONTRACT_URL}?token={Config.PHP_TELEGRAM_BOOKING_BOT_TOKEN}&chat_id={Config.TELEGRAM_DATA_CHANNEL_ID}&init_chat_id={init_chat_id}"
+        logger.info(f"✅ show_calculation_menu create_contract_url = '{create_contract_url}'")
         # Кнопки, которые сразу открывают Web App
         keyboard = [
             [InlineKeyboardButton(
