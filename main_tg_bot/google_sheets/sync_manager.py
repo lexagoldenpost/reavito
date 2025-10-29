@@ -250,53 +250,42 @@ class GoogleSheetsCSVSync:
                     # ➕ Отправка на FTP после успешного сохранения
                     self._upload_sheet_to_ftp(sheet_name)
                 return success
-
-
             elif direction == 'bidirectional':
                 google_data = self.download_sheet(sheet_name)
                 local_data = self.load_local_csv(sheet_name)
-                # Индексируем обе таблицы по _sync_id для быстрого поиска
+                # Индексация
                 google_indexed = {row['_sync_id']: row for _, row in
                                   google_data.iterrows()} if not google_data.empty else {}
                 local_indexed = {row['_sync_id']: row for _, row in
                                  local_data.iterrows()} if not local_data.empty else {}
+                # Получаем все _sync_id в порядке: сначала из local (более свежие), потом новые из google
+                # Но лучше — собрать все и потом отсортировать ПОСЛЕ объединения
                 all_sync_ids = set(google_indexed.keys()) | set(local_indexed.keys())
                 merged_rows = []
                 for sync_id in all_sync_ids:
                     google_row = google_indexed.get(sync_id)
                     local_row = local_indexed.get(sync_id)
                     if google_row is not None and local_row is not None:
-                        # Строка есть в обоих → выбрать более свежую по _last_sync
                         google_ts = pd.to_datetime(google_row['_last_sync'], errors='coerce')
                         local_ts = pd.to_datetime(local_row['_last_sync'], errors='coerce')
-                        if pd.isna(google_ts) and pd.isna(local_ts):
-                            chosen = local_row  # или google_row — на ваш выбор
-                        elif pd.isna(google_ts):
-                            chosen = local_row
-                        elif pd.isna(local_ts):
+                        if pd.isna(local_ts) or (not pd.isna(google_ts) and google_ts > local_ts):
                             chosen = google_row
                         else:
-                            chosen = local_row if local_ts > google_ts else google_row
+                            chosen = local_row
                         merged_rows.append(chosen)
                     elif google_row is not None:
                         merged_rows.append(google_row)
                     else:
                         merged_rows.append(local_row)
-                # Теперь обрабатываем "осиротевшие" строки без _sync_id (маловероятно, но на всякий случай)
-                # Или строки, где _sync_id был сгенерирован заново — но это уже edge case
-                # Также нужно добавить строки, которые вообще не имеют _sync_id (теоретически не должно быть)
-                # Но для надёжности можно обработать "unidentified" строки отдельно по хешу
-                # Преобразуем обратно в DataFrame
                 if merged_rows:
                     final_df = pd.DataFrame(merged_rows)
                 else:
                     final_df = pd.DataFrame()
-                # Убедимся, что у всех строк есть _sync_id (на случай, если где-то его не было)
                 final_df = self._ensure_sync_id(final_df)
                 final_df['_sheet_name'] = sheet_name
                 final_df['_last_sync'] = datetime.now().isoformat()
                 final_df['_hash'] = final_df.apply(self._generate_row_hash, axis=1)
-                # Сохраняем результат
+                # 🔥 Главное: сортируем ПОСЛЕ объединения и ПЕРЕД сохранением
                 final_df = self._sort_dataframe_by_check_in(final_df, sheet_name)
                 self.save_local_csv(final_df, sheet_name)
                 self.update_google_sheet(sheet_name, final_df)
@@ -312,44 +301,36 @@ class GoogleSheetsCSVSync:
             return False
 
     def _sort_dataframe_by_check_in(self, df: pd.DataFrame, sheet_name: str) -> pd.DataFrame:
-        """
-        Сортирует DataFrame по дате заезда (check_in), если это booking-лист.
-        Поддерживает форматы: 'dd.mm.yyyy', 'yyyy-mm-dd', и др.
-        Некорректные/пустые даты помещаются в конец.
-        """
-        # Применяем сортировку только к booking-листам
-        if sheet_name not in BOOKING_SHEETS:
+        if sheet_name not in BOOKING_SHEETS or df.empty:
             return df
 
-        if df.empty:
-            return df
-
-        check_in_col = 'check_in'  # ← убедитесь, что имя колонки именно такое!
+        check_in_col = 'Заезд'
         if check_in_col not in df.columns:
             logger.warning(f"Column '{check_in_col}' not found in sheet '{sheet_name}', skipping sort")
             return df
 
-        # Создаём копию для безопасной модификации
         df = df.copy()
 
-        # Попытка парсинга дат в нескольких форматах
         def parse_date(val):
             if pd.isna(val) or str(val).strip() == '':
                 return pd.NaT
             val = str(val).strip()
-            # Поддерживаем оба распространённых формата
             for fmt in ('%d.%m.%Y', '%Y-%m-%d'):
                 try:
                     return pd.to_datetime(val, format=fmt)
                 except ValueError:
                     continue
-            # Если не удалось — NaT (будет в конце)
             return pd.NaT
 
         df['_sort_check_in'] = df[check_in_col].apply(parse_date)
-        df = df.sort_values(by='_sort_check_in', na_position='last')
-        df = df.drop(columns=['_sort_check_in'])
 
+        # Сортируем сначала по дате, потом по _sync_id для стабильности
+        df = df.sort_values(
+            by=['_sort_check_in', '_sync_id'],
+            na_position='last',
+            kind='mergesort'  # стабильная сортировка
+        )
+        df = df.drop(columns=['_sort_check_in'])
         return df
 
     def sync_all_sheets(self, direction: str = 'auto') -> Dict[str, bool]:
