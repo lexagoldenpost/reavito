@@ -233,6 +233,7 @@ class GoogleSheetsCSVSync:
 
             if direction == 'google_to_csv':
                 google_data = self.download_sheet(sheet_name)
+                google_data = self._sort_dataframe_by_check_in(google_data, sheet_name)
                 self.save_local_csv(google_data, sheet_name)
                 logger.info(f"Synced Google → CSV for '{sheet_name}'")
 
@@ -241,6 +242,7 @@ class GoogleSheetsCSVSync:
                 if local_data.empty:
                     logger.warning(f"No local data to sync for '{sheet_name}'")
                     return False
+                local_data = self._sort_dataframe_by_check_in(local_data, sheet_name)
                 success = self.update_google_sheet(sheet_name, local_data)
                 if success:
                     local_data['_last_sync'] = datetime.now().isoformat()
@@ -295,6 +297,7 @@ class GoogleSheetsCSVSync:
                 final_df['_last_sync'] = datetime.now().isoformat()
                 final_df['_hash'] = final_df.apply(self._generate_row_hash, axis=1)
                 # Сохраняем результат
+                final_df = self._sort_dataframe_by_check_in(final_df, sheet_name)
                 self.save_local_csv(final_df, sheet_name)
                 self.update_google_sheet(sheet_name, final_df)
                 self._upload_sheet_to_ftp(sheet_name)
@@ -307,6 +310,47 @@ class GoogleSheetsCSVSync:
         except Exception as e:
             logger.error(f"Error syncing sheet '{sheet_name}': {e}")
             return False
+
+    def _sort_dataframe_by_check_in(self, df: pd.DataFrame, sheet_name: str) -> pd.DataFrame:
+        """
+        Сортирует DataFrame по дате заезда (check_in), если это booking-лист.
+        Поддерживает форматы: 'dd.mm.yyyy', 'yyyy-mm-dd', и др.
+        Некорректные/пустые даты помещаются в конец.
+        """
+        # Применяем сортировку только к booking-листам
+        if sheet_name not in BOOKING_SHEETS:
+            return df
+
+        if df.empty:
+            return df
+
+        check_in_col = 'check_in'  # ← убедитесь, что имя колонки именно такое!
+        if check_in_col not in df.columns:
+            logger.warning(f"Column '{check_in_col}' not found in sheet '{sheet_name}', skipping sort")
+            return df
+
+        # Создаём копию для безопасной модификации
+        df = df.copy()
+
+        # Попытка парсинга дат в нескольких форматах
+        def parse_date(val):
+            if pd.isna(val) or str(val).strip() == '':
+                return pd.NaT
+            val = str(val).strip()
+            # Поддерживаем оба распространённых формата
+            for fmt in ('%d.%m.%Y', '%Y-%m-%d'):
+                try:
+                    return pd.to_datetime(val, format=fmt)
+                except ValueError:
+                    continue
+            # Если не удалось — NaT (будет в конце)
+            return pd.NaT
+
+        df['_sort_check_in'] = df[check_in_col].apply(parse_date)
+        df = df.sort_values(by='_sort_check_in', na_position='last')
+        df = df.drop(columns=['_sort_check_in'])
+
+        return df
 
     def sync_all_sheets(self, direction: str = 'auto') -> Dict[str, bool]:
         logger.info(f"Starting sync of all sheets (direction: {direction})")
