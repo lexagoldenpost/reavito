@@ -249,44 +249,56 @@ class GoogleSheetsCSVSync:
                     self._upload_sheet_to_ftp(sheet_name)
                 return success
 
+
             elif direction == 'bidirectional':
                 google_data = self.download_sheet(sheet_name)
                 local_data = self.load_local_csv(sheet_name)
-
-                combined = pd.concat([google_data, local_data], ignore_index=True)
-                if combined.empty:
-                    self.save_local_csv(combined, sheet_name)
-                    return True
-
-                # Преобразуем _last_sync в datetime для сортировки
-                combined['_last_sync_ts'] = pd.to_datetime(combined['_last_sync'], errors='coerce')
-                combined = combined.sort_values('_last_sync_ts', na_position='first')
-
-                # Разделяем на пустые и непустые строки
-                empty_mask = combined.apply(self._is_row_empty, axis=1)
-                non_empty = combined[~empty_mask].copy()
-                empty_rows = combined[empty_mask].copy()
-
-                # Удаляем дубликаты ТОЛЬКО среди непустых строк — по хешу содержимого
-                if not non_empty.empty:
-                    non_empty = non_empty.drop_duplicates(subset=['_hash'], keep='last')
-
-                # Пустые строки оставляем ВСЕ (никакой дедупликации)
-                final_df = pd.concat([non_empty, empty_rows], ignore_index=True)
-
-                # Убедимся, что у всех строк есть _sync_id
+                # Индексируем обе таблицы по _sync_id для быстрого поиска
+                google_indexed = {row['_sync_id']: row for _, row in
+                                  google_data.iterrows()} if not google_data.empty else {}
+                local_indexed = {row['_sync_id']: row for _, row in
+                                 local_data.iterrows()} if not local_data.empty else {}
+                all_sync_ids = set(google_indexed.keys()) | set(local_indexed.keys())
+                merged_rows = []
+                for sync_id in all_sync_ids:
+                    google_row = google_indexed.get(sync_id)
+                    local_row = local_indexed.get(sync_id)
+                    if google_row is not None and local_row is not None:
+                        # Строка есть в обоих → выбрать более свежую по _last_sync
+                        google_ts = pd.to_datetime(google_row['_last_sync'], errors='coerce')
+                        local_ts = pd.to_datetime(local_row['_last_sync'], errors='coerce')
+                        if pd.isna(google_ts) and pd.isna(local_ts):
+                            chosen = local_row  # или google_row — на ваш выбор
+                        elif pd.isna(google_ts):
+                            chosen = local_row
+                        elif pd.isna(local_ts):
+                            chosen = google_row
+                        else:
+                            chosen = local_row if local_ts > google_ts else google_row
+                        merged_rows.append(chosen)
+                    elif google_row is not None:
+                        merged_rows.append(google_row)
+                    else:
+                        merged_rows.append(local_row)
+                # Теперь обрабатываем "осиротевшие" строки без _sync_id (маловероятно, но на всякий случай)
+                # Или строки, где _sync_id был сгенерирован заново — но это уже edge case
+                # Также нужно добавить строки, которые вообще не имеют _sync_id (теоретически не должно быть)
+                # Но для надёжности можно обработать "unidentified" строки отдельно по хешу
+                # Преобразуем обратно в DataFrame
+                if merged_rows:
+                    final_df = pd.DataFrame(merged_rows)
+                else:
+                    final_df = pd.DataFrame()
+                # Убедимся, что у всех строк есть _sync_id (на случай, если где-то его не было)
                 final_df = self._ensure_sync_id(final_df)
-
-                # Удаляем временные колонки
-                final_df = final_df.drop(columns=['_last_sync_ts'], errors='ignore')
-
+                final_df['_sheet_name'] = sheet_name
+                final_df['_last_sync'] = datetime.now().isoformat()
+                final_df['_hash'] = final_df.apply(self._generate_row_hash, axis=1)
+                # Сохраняем результат
                 self.save_local_csv(final_df, sheet_name)
                 self.update_google_sheet(sheet_name, final_df)
-                # ➕ Отправка на FTP после завершения двусторонней синхронизации
                 self._upload_sheet_to_ftp(sheet_name)
-                logger.info(f"Completed bidirectional sync for '{sheet_name}': "
-                            f"{len(non_empty)} non-empty (deduped), {len(empty_rows)} empty rows kept")
-
+                logger.info(f"Completed bidirectional sync for '{sheet_name}': {len(final_df)} rows")
             else:
                 raise ValueError(f"Unknown direction: {direction}")
 
