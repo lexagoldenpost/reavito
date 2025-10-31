@@ -6,6 +6,8 @@ $TELEGRAM_BOT_TOKEN = $_GET['token'] ?? '';
 $CHAT_ID = $_GET['chat_id'] ?? '';
 $INIT_CHAT_ID = $_GET['init_chat_id'] ?? '';
 
+$INIT_CHAT_ID_JS = json_encode($INIT_CHAT_ID); // для безопасной вставки в JS
+
 // Проверка обязательных параметров
 if (empty($TELEGRAM_BOT_TOKEN) || empty($CHAT_ID )  || empty($INIT_CHAT_ID )) {
     http_response_code(400);
@@ -1182,6 +1184,7 @@ const checkOutShort = formatDateShort(formData.get('check_out'));
 const filename = `Договор_${formData.get('contract_object')}_${formData.get('contract_type')}_${shortName}_${checkInShort}_${checkOutShort}.json`;
                     const contractData = {
                         form_type: 'contract',
+                        init_chat_id: <?= $INIT_CHAT_ID_JS ?>,
                         contract_object: formData.get('contract_object'),
                         contract_type: formData.get('contract_type'),
                         fullname: formData.get('fullname'),

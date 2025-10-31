@@ -44,7 +44,7 @@ async def show_calculation_menu(update: Update, context: ContextTypes.DEFAULT_TY
                 web_app=WebAppInfo(url=chess_url)
             )],
             [InlineKeyboardButton(
-                "3. 📑 Создание бронирования",
+                "3. 🗓️ Создание бронирования",
                 web_app=WebAppInfo(url=create_booking_url)
             )],
             [InlineKeyboardButton(

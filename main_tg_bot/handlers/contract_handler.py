@@ -1,10 +1,11 @@
 # main_tg_bot/handlers/contract_handler.py
 
-import logging
+from common.logging_config import setup_logger
 from typing import Any, Dict
 
+logger = setup_logger("contract_handler")
 
-async def handle_contract(data: Dict[str, Any], filename: str, logger: logging.Logger):
+async def handle_contract(data: Dict[str, Any], filename: str):
     """
     Заглушка для обработки договора.
     Позже сюда добавим генерацию PDF, сохранение в CSV, синхронизацию и т.д.

@@ -33,7 +33,6 @@ from scheduler.scheduler import AsyncScheduler
 
 from main_tg_bot.command.calculation_menu import (
     calculation_command,
-    show_calculation_menu,
     close_calculation_menu_handler
 )
 
@@ -247,11 +246,12 @@ class BookingBot:
             return
 
         try:
-            if prefix == "Договор":
+            if prefix == "договор":
                 from main_tg_bot.handlers.contract_handler import handle_contract
-                await handle_contract(data, file_name, logger)
-            elif prefix == "booking":
-                logger.info("📥 Получены данные бронирования (обработчик пока не реализован)")
+                await handle_contract(data, file_name)
+            elif prefix == "бронь":
+                from main_tg_bot.handlers.add_booking_handler import handle_add_booking
+                await handle_add_booking(data, file_name)
             else:
                 logger.warning(f"❓ Неизвестный префикс: '{prefix}' — игнорируем")
                 return

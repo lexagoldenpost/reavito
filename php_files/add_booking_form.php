@@ -9,6 +9,9 @@ if (empty($TELEGRAM_BOT_TOKEN) || empty($CHAT_ID) || empty($INIT_CHAT_ID)) {
     die('❌ Отсутствуют параметры в URL.');
 }
 
+$INIT_CHAT_ID_JS = json_encode($INIT_CHAT_ID); // для безопасной вставки в JS
+
+
 function getRentalObjects() {
     $bookingFilesPath = __DIR__ . '/booking_files/*.csv';
     $files = glob($bookingFilesPath);
@@ -35,7 +38,6 @@ $today = date('d.m.Y');
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <style>
-        /* Скопированы стили из contract_form.php */
         :root {
             --tg-theme-bg-color: #ffffff;
             --tg-theme-text-color: #000000;
@@ -118,18 +120,13 @@ $today = date('d.m.Y');
             grid-template-columns: 1fr 1fr;
             gap: 10px;
         }
-        .grid-3 {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-        }
-        .payment-buttons {
+        .payment-buttons, .source-buttons {
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
             margin-top: 8px;
         }
-        .payment-btn {
+        .payment-btn, .source-btn {
             background: #f0f8ff;
             border: 1px solid #2481cc;
             color: #2481cc;
@@ -139,10 +136,10 @@ $today = date('d.m.Y');
             cursor: pointer;
             transition: all 0.2s;
         }
-        .payment-btn:hover {
+        .payment-btn:hover, .source-btn:hover {
             background: #e0f0ff;
         }
-        .payment-btn.active {
+        .payment-btn.active, .source-btn.active {
             background: #2481cc;
             color: white;
         }
@@ -198,13 +195,6 @@ $today = date('d.m.Y');
             border-color: #28a745 !important;
             background-color: rgba(40, 167, 69, 0.05) !important;
         }
-        .error-message {
-            color: #dc3545;
-            font-size: 12px;
-            margin-top: -8px;
-            margin-bottom: 8px;
-            display: block;
-        }
         .form-control:not(.flatpickr-input) {
             background-image: none;
             padding-right: 40px;
@@ -221,7 +211,7 @@ $today = date('d.m.Y');
         @media (max-width: 480px) {
             .container { padding: 8px; }
             .form-container { padding: 12px; }
-            .grid-2, .grid-3 { grid-template-columns: 1fr; gap: 8px; }
+            .grid-2 { grid-template-columns: 1fr; gap: 8px; }
             .form-control { padding: 12px; font-size: 16px; }
             .btn-tg-success { padding: 16px 20px; font-size: 16px; }
         }
@@ -258,8 +248,8 @@ $today = date('d.m.Y');
 
                 <!-- Дата бронирования -->
                 <div class="form-section">
-                    <label class="form-label">Дата бронирования</label>
-                    <input type="text" class="form-control" name="booking_date" value="<?= htmlspecialchars($today) ?>" placeholder="ДД.ММ.ГГГГ">
+                    <label class="form-label required">Дата бронирования</label>
+                    <input type="text" class="form-control flatpickr-input" name="booking_date" value="<?= htmlspecialchars($today) ?>" placeholder="ДД.ММ.ГГГГ" readonly>
                 </div>
 
                 <!-- Даты -->
@@ -267,15 +257,11 @@ $today = date('d.m.Y');
                     <div class="grid-2">
                         <div>
                             <label class="form-label required">Заезд</label>
-                            <div class="date-input-wrapper">
-                                <input type="text" class="form-control flatpickr-input" name="check_in" required placeholder="ДД.ММ.ГГГГ" readonly>
-                            </div>
+                            <input type="text" class="form-control flatpickr-input" name="check_in" required placeholder="ДД.ММ.ГГГГ" readonly>
                         </div>
                         <div>
                             <label class="form-label required">Выезд</label>
-                            <div class="date-input-wrapper">
-                                <input type="text" class="form-control flatpickr-input" name="check_out" required placeholder="ДД.ММ.ГГГГ" readonly>
-                            </div>
+                            <input type="text" class="form-control flatpickr-input" name="check_out" required placeholder="ДД.ММ.ГГГГ" readonly>
                         </div>
                     </div>
                     <div style="margin-top:8px;">
@@ -350,9 +336,20 @@ $today = date('d.m.Y');
                     <input type="text" class="form-control" name="extra_phone" placeholder="Анна +7988...">
                 </div>
 
+                <!-- Источник -->
+                <div class="form-section">
+                    <label class="form-label">Источник</label>
+                    <input type="text" class="form-control" id="source" name="source" placeholder="Авито, Телеграм...">
+                    <div class="source-buttons">
+                        <?php foreach (['Авито (вотс ап)', 'Телеграм'] as $src): ?>
+                            <div class="source-btn" data-value="<?= htmlspecialchars($src) ?>"><?= htmlspecialchars($src) ?></div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+
                 <div class="form-section">
                     <label class="form-label">Комментарий</label>
-                    <textarea class="form-control" name="comment" rows="2" style="resize:vertical;" placeholder="Особые пожелания..."></textarea>
+                    <textarea class="form-control" name="comment" rows="2" style="resize:vertical;" placeholder="Комментарий..."></textarea>
                 </div>
 
                 <div class="form-section">
@@ -389,20 +386,27 @@ $today = date('d.m.Y');
                 this.initDatepickers();
                 this.bindEvents();
                 this.initPaymentButtons();
+                this.initSourceButtons();
                 this.highlightRequiredFields();
             }
 
             initDatepickers() {
-                const config = {
+                const commonConfig = {
                     locale: 'ru',
                     dateFormat: 'd.m.Y',
-                    allowInput: false,
-                    minDate: 'today',
-                    onChange: () => this.calculateNights()
+                    allowInput: false
                 };
 
+                // Дата бронирования — без ограничений
+                this.datepickers.booking_date = flatpickr('input[name="booking_date"]', {
+                    ...commonConfig
+                });
+
+                // Заезд/выезд — с логикой
                 this.datepickers.check_in = flatpickr('input[name="check_in"]', {
-                    ...config,
+                    ...commonConfig,
+                    minDate: 'today',
+                    onChange: () => this.calculateNights(),
                     onValueUpdate: (dates) => {
                         if (this.datepickers.check_out && dates[0]) {
                             this.datepickers.check_out.set('minDate', dates[0]);
@@ -411,7 +415,9 @@ $today = date('d.m.Y');
                 });
 
                 this.datepickers.check_out = flatpickr('input[name="check_out"]', {
-                    ...config,
+                    ...commonConfig,
+                    minDate: 'today',
+                    onChange: () => this.calculateNights(),
                     onValueUpdate: (dates) => {
                         if (this.datepickers.check_in && dates[0]) {
                             const checkIn = this.datepickers.check_in.selectedDates[0];
@@ -446,6 +452,18 @@ $today = date('d.m.Y');
                 });
             }
 
+            initSourceButtons() {
+                document.querySelectorAll('.source-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const input = document.getElementById('source');
+                        input.value = btn.dataset.value;
+                        document.querySelectorAll('.source-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        this.updateFieldHighlight(input);
+                    });
+                });
+            }
+
             bindEvents() {
                 document.getElementById('bookingForm').addEventListener('submit', (e) => {
                     e.preventDefault();
@@ -463,7 +481,7 @@ $today = date('d.m.Y');
                     select.addEventListener('change', () => this.updateFieldHighlight(select));
                 });
 
-                // Числовые поля — только цифры
+                // Только цифры в числовых полях
                 document.querySelectorAll('input[type="number"]').forEach(input => {
                     input.addEventListener('input', (e) => {
                         e.target.value = e.target.value.replace(/\D/g, '');
@@ -475,73 +493,56 @@ $today = date('d.m.Y');
                 const value = field.value.trim();
                 const fieldName = field.name || field.id;
 
+                this.hideFieldError(field);
+
                 if (!value) {
                     if (field.hasAttribute('required')) {
-                        this.showError(field, 'Это поле обязательно для заполнения');
+                        field.classList.add('field-error');
                         return false;
                     }
                     return true;
                 }
 
                 let isValid = true;
-                let msg = '';
 
                 switch(fieldName) {
                     case 'guest':
                         isValid = value.length >= 2;
-                        msg = 'Минимум 2 символа';
                         break;
+                    case 'booking_date':
                     case 'check_in':
                     case 'check_out':
                         isValid = this.isValidDate(value);
-                        msg = 'Некорректная дата';
                         break;
                     case 'total_sum':
                     case 'advance_bath':
                     case 'advance_rub':
                         isValid = /^\d+$/.test(value) && parseInt(value) > 0;
-                        msg = 'Введите положительное число';
                         break;
                     case 'additional_bath':
                     case 'additional_rub':
-                        isValid = /^\d*$/.test(value); // может быть пустым
-                        msg = 'Только цифры';
+                        isValid = /^\d*$/.test(value);
                         break;
                     case 'phone':
                         isValid = value.length >= 2;
-                        msg = 'Минимум 2 символа';
                         break;
                 }
 
                 if (!isValid) {
-                    this.showError(field, msg);
+                    field.classList.add('field-error');
                     return false;
                 }
 
-                this.hideFieldError(field);
+                field.classList.add('field-valid');
                 return true;
             }
 
-            showError(field, msg) {
-                field.classList.add('field-error');
-                this.hideFieldError(field);
-                const err = document.createElement('span');
-                err.className = 'error-message';
-                err.id = field.name + '-error';
-                err.textContent = msg;
-                field.parentNode.insertBefore(err, field.nextSibling);
-            }
-
             hideFieldError(field) {
-                const el = document.getElementById(field.name + '-error');
-                if (el) el.remove();
                 field.classList.remove('field-error', 'field-valid');
             }
 
             updateFieldHighlight(field) {
-                if (this.validateField(field)) {
-                    field.classList.add('field-valid');
-                }
+                this.validateField(field);
             }
 
             isValidDate(dateString) {
@@ -573,7 +574,7 @@ $today = date('d.m.Y');
             async submitForm() {
                 if (this.isSubmitting) return;
 
-                const requiredFields = ['object', 'guest', 'check_in', 'check_out', 'total_sum', 'advance_bath', 'advance_rub', 'phone'];
+                const requiredFields = ['object', 'guest', 'booking_date', 'check_in', 'check_out', 'total_sum', 'advance_bath', 'advance_rub', 'phone'];
                 let valid = true;
                 for (const name of requiredFields) {
                     const field = document.querySelector(`[name="${name}"], #${name}`);
@@ -581,7 +582,7 @@ $today = date('d.m.Y');
                 }
 
                 if (!valid) {
-                    this.tg.showPopup({ title: 'Ошибка', message: 'Проверьте обязательные поля', buttons: [{type:'ok'}] });
+                    this.tg.showPopup({ title: 'Ошибка', message: 'Проверьте выделенные поля', buttons: [{type:'ok'}] });
                     return;
                 }
 
@@ -602,7 +603,6 @@ $today = date('d.m.Y');
 
                     const filename = `Бронь_${formData.get('object')}_${shortName}_${formatDateShort(checkIn)}_${formatDateShort(checkOut)}.json`;
 
-                    // Собираем аванс и доплату
                     const advanceBath = document.getElementById('advance_bath').value;
                     const advanceRub = document.getElementById('advance_rub').value;
                     const additionalBath = document.getElementById('additional_bath').value;
@@ -613,6 +613,7 @@ $today = date('d.m.Y');
 
                     const bookingData = {
                         form_type: 'booking',
+                        init_chat_id: <?= $INIT_CHAT_ID_JS ?>,
                         object: formData.get('object'),
                         guest: formData.get('guest'),
                         booking_date: formData.get('booking_date') || '<?= $today ?>',
@@ -627,6 +628,7 @@ $today = date('d.m.Y');
                         payment_method: formData.get('payment_method') || '',
                         phone: formData.get('phone'),
                         extra_phone: formData.get('extra_phone') || '',
+                        source: formData.get('source') || '',
                         comment: formData.get('comment') || '',
                         flights: formData.get('flights') || '',
                         timestamp: new Date().toLocaleString('ru-RU'),
