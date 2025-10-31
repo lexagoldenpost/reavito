@@ -247,7 +247,7 @@ class BookingBot:
             return
 
         try:
-            if prefix == "договор":
+            if prefix == "Договор":
                 from main_tg_bot.handlers.contract_handler import handle_contract
                 await handle_contract(data, file_name, logger)
             elif prefix == "booking":

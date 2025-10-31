@@ -1156,6 +1156,30 @@ getValidationErrorMessage(field) {
                 try {
                     // Собираем данные для отправки
                     const formData = new FormData(document.getElementById('contractForm'));
+                    const fullnameRaw = formData.get('fullname') || 'Арендатор';
+// Сокращаем ФИО до "Фамилия_И_О"
+const parts = fullnameRaw.trim().split(/\s+/);
+let shortName = 'Арендатор';
+if (parts.length >= 3) {
+    shortName = `${parts[0]}_${parts[1][0]}_${parts[2][0]}`;
+} else if (parts.length === 2) {
+    shortName = `${parts[0]}_${parts[1][0]}`;
+} else {
+    shortName = parts[0] || 'Арендатор';
+}
+// Очищаем от недопустимых символов (оставляем кириллицу, латиницу, цифры, _)
+shortName = shortName.replace(/[^a-zA-Zа-яА-ЯёЁ0-9_]/g, '');
+
+// Сокращаем даты: 10.11.2025 → 251110
+const formatDateShort = (d) => {
+    const [dd, mm, yyyy] = d.split('.');
+    return `${yyyy.slice(-2)}${mm}${dd}`;
+};
+
+const checkInShort = formatDateShort(formData.get('check_in'));
+const checkOutShort = formatDateShort(formData.get('check_out'));
+
+const filename = `Договор_${formData.get('contract_object')}_${formData.get('contract_type')}_${shortName}_${checkInShort}_${checkOutShort}.json`;
                     const contractData = {
                         form_type: 'contract',
                         contract_object: formData.get('contract_object'),
@@ -1173,7 +1197,8 @@ getValidationErrorMessage(field) {
                         prepayment_rub: formData.get('prepayment_rub'),
                         selected_guest_id: this.selectedGuest?.id || '',
                         selected_guest_name: this.selectedGuest?.guest || '',
-                        timestamp: new Date().toLocaleString('ru-RU')
+                        timestamp: new Date().toLocaleString('ru-RU'),
+                        filename: filename
                     };
 
                     // Используем универсальный обработчик send_to_telegram.php
