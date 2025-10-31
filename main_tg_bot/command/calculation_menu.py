@@ -31,7 +31,8 @@ async def show_calculation_menu(update: Update, context: ContextTypes.DEFAULT_TY
         init_chat_id = update.effective_chat.id
 
         create_contract_url = f"{web_app_url}{Config.REMOTE_WEB_APP_CREATE_CONTRACT_URL}?token={Config.PHP_TELEGRAM_BOOKING_BOT_TOKEN}&chat_id={Config.TELEGRAM_DATA_CHANNEL_ID}&init_chat_id={init_chat_id}"
-        logger.info(f"✅ show_calculation_menu create_contract_url = '{create_contract_url}'")
+        #logger.info(f"✅ show_calculation_menu create_contract_url = '{create_contract_url}'")
+        create_booking_url = f"{web_app_url}{Config.REMOTE_WEB_APP_CREATE_BOOKING_URL}?token={Config.PHP_TELEGRAM_BOOKING_BOT_TOKEN}&chat_id={Config.TELEGRAM_DATA_CHANNEL_ID}&init_chat_id={init_chat_id}"
         # Кнопки, которые сразу открывают Web App
         keyboard = [
             [InlineKeyboardButton(
@@ -43,7 +44,11 @@ async def show_calculation_menu(update: Update, context: ContextTypes.DEFAULT_TY
                 web_app=WebAppInfo(url=chess_url)
             )],
             [InlineKeyboardButton(
-                "3. 📑 Создание договора",
+                "3. 📑 Создание бронирования",
+                web_app=WebAppInfo(url=create_booking_url)
+            )],
+            [InlineKeyboardButton(
+                "4. 📑 Создание договора",
                 web_app=WebAppInfo(url=create_contract_url)
             )],
             [InlineKeyboardButton("❌ Закрыть меню", callback_data="close_calculation_menu")]
@@ -55,6 +60,8 @@ async def show_calculation_menu(update: Update, context: ContextTypes.DEFAULT_TY
             "Выберите опцию:\n"
             "• *Расчет стоимости* - калькулятор стоимости бронирования\n"
             "• *Шахматка бронирования* - визуализация занятости\n\n"
+            "• *Создание бронирования* - создание бронирования\n\n"
+            "• *Создание договора* - создание договора и подтверждения брони\n\n"
             "_Формы открываются автоматически при нажатии_"
         )
 
