@@ -31,7 +31,7 @@ from main_tg_bot.command.edit_booking import EditBookingHandler
 from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
 from scheduler.scheduler import AsyncScheduler
 
-from main_tg_bot.command.calculation_menu import (
+from main_tg_bot.command.new_menu import (
     calculation_command,
     close_calculation_menu_handler
 )
@@ -231,8 +231,36 @@ class BookingBot:
             return
 
         base_name = file_name.rsplit('.', 1)[0]
-        prefix = base_name.split('_', 1)[0].lower() if '_' in base_name else base_name.lower()
-        logger.info(f"🏷️ Префикс обработчика: '{prefix}'")
+        base_name_lower = base_name.lower()
+
+        # Карта префиксов → обработчиков
+        handlers_map = {
+            "договор": ("main_tg_bot.handlers.contract_handler", "handle_contract"),
+            "удаление_бронь": ("main_tg_bot.handlers.delete_booking_handler", "handle_delete_booking"),
+            "изменение_бронь": ("main_tg_bot.handlers.edit_booking_handler", "handle_edit_booking"),
+            "бронь": ("main_tg_bot.handlers.add_booking_handler", "handle_add_booking"),
+        }
+
+        # Определяем, какой обработчик подходит
+        handler_func = None
+        matched_prefix = None
+
+        for prefix, (module_path, func_name) in handlers_map.items():
+            if base_name_lower.startswith(prefix.lower()):
+                try:
+                    module = __import__(module_path, fromlist=[func_name])
+                    handler_func = getattr(module, func_name)
+                    matched_prefix = prefix
+                    break
+                except (ImportError, AttributeError) as e:
+                    logger.error(f"❌ Не удалось загрузить обработчик для '{prefix}': {e}")
+                    return
+
+        if handler_func is None:
+            logger.warning(f"❓ Неизвестный префикс в имени файла: '{base_name}' — игнорируем")
+            return
+
+        logger.info(f"🏷️ Префикс обработчика: '{matched_prefix}'")
 
         try:
             logger.info("⬇️ Загрузка файла...")
@@ -246,19 +274,10 @@ class BookingBot:
             return
 
         try:
-            if prefix == "договор":
-                from main_tg_bot.handlers.contract_handler import handle_contract
-                await handle_contract(data, file_name)
-            elif prefix == "бронь":
-                from main_tg_bot.handlers.add_booking_handler import handle_add_booking
-                await handle_add_booking(data, file_name)
-            else:
-                logger.warning(f"❓ Неизвестный префикс: '{prefix}' — игнорируем")
-                return
-
+            await handler_func(data, file_name)
             logger.info(f"✅ Обработка файла '{file_name}' завершена")
         except Exception as e:
-            logger.error(f"💥 Ошибка в обработчике '{prefix}' для '{file_name}': {e}", exc_info=True)
+            logger.error(f"💥 Ошибка в обработчике '{matched_prefix}' для '{file_name}': {e}", exc_info=True)
 
     def get_web_app_url(self):
         """Получение URL удаленного веб-приложения"""
@@ -340,7 +359,7 @@ def sync_google_sheets():
 
         # Синхронизация всех листов
         logger.info("Starting full Google Sheets sync...")
-        results = sync_manager.sync_all_sheets()
+        results = sync_manager.sync_all_sheets("csv_to_google")
         success_count = sum(results.values())
         total_count = len(results)
         logger.info(f"Sync completed: {success_count}/{total_count} sheets successful")

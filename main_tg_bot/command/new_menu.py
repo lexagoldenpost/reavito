@@ -1,11 +1,11 @@
-# main_tg_bot/command/calculation_menu.py
+# main_tg_bot/command/new_menu.py
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler
 
 from common.config import Config
 from common.logging_config import setup_logger
 
-logger = setup_logger("calculation_menu")
+logger = setup_logger("new_menu")
 
 
 async def calculation_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -33,6 +33,7 @@ async def show_calculation_menu(update: Update, context: ContextTypes.DEFAULT_TY
         create_contract_url = f"{web_app_url}{Config.REMOTE_WEB_APP_CREATE_CONTRACT_URL}?token={Config.PHP_TELEGRAM_BOOKING_BOT_TOKEN}&chat_id={Config.TELEGRAM_DATA_CHANNEL_ID}&init_chat_id={init_chat_id}"
         #logger.info(f"✅ show_calculation_menu create_contract_url = '{create_contract_url}'")
         create_booking_url = f"{web_app_url}{Config.REMOTE_WEB_APP_CREATE_BOOKING_URL}?token={Config.PHP_TELEGRAM_BOOKING_BOT_TOKEN}&chat_id={Config.TELEGRAM_DATA_CHANNEL_ID}&init_chat_id={init_chat_id}"
+        edit_booking_url = f"{web_app_url}{Config.REMOTE_WEB_APP_EDIT_BOOKING_URL}?token={Config.PHP_TELEGRAM_BOOKING_BOT_TOKEN}&chat_id={Config.TELEGRAM_DATA_CHANNEL_ID}&init_chat_id={init_chat_id}"
         # Кнопки, которые сразу открывают Web App
         keyboard = [
             [InlineKeyboardButton(
@@ -48,7 +49,11 @@ async def show_calculation_menu(update: Update, context: ContextTypes.DEFAULT_TY
                 web_app=WebAppInfo(url=create_booking_url)
             )],
             [InlineKeyboardButton(
-                "4. 📑 Создание договора",
+                "4. ✏️ Редактирование бронирования",
+                web_app=WebAppInfo(url=edit_booking_url)
+            )],
+            [InlineKeyboardButton(
+                "5. 📑 Создание договора",
                 web_app=WebAppInfo(url=create_contract_url)
             )],
             [InlineKeyboardButton("❌ Закрыть меню", callback_data="close_calculation_menu")]
@@ -61,6 +66,7 @@ async def show_calculation_menu(update: Update, context: ContextTypes.DEFAULT_TY
             "• *Расчет стоимости* - калькулятор стоимости бронирования\n"
             "• *Шахматка бронирования* - визуализация занятости\n\n"
             "• *Создание бронирования* - создание бронирования\n\n"
+            "• *Редактирование бронирования* - редактирование/удаление бронирования\n\n"
             "• *Создание договора* - создание договора и подтверждения брони\n\n"
             "_Формы открываются автоматически при нажатии_"
         )

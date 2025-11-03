@@ -5,7 +5,7 @@ from common.logging_config import setup_logger
 from main_tg_bot.command.sync_command import sync_handler
 from main_tg_bot.command.view_booking import view_booking_handler
 from main_tg_bot.command.view_dates import view_dates_handler
-from main_tg_bot.command.calculation_menu import calculation_command
+from main_tg_bot.command.new_menu import calculation_command
 
 logger = setup_logger("commands")
 
