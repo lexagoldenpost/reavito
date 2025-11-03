@@ -17,7 +17,6 @@ from telegram.ext import (
 
 from common.config import Config
 from common.logging_config import setup_logger
-from main_tg_bot.command.add_booking import AddBookingHandler
 from main_tg_bot.command.commands import (
     COMMANDS,
     start,
@@ -27,7 +26,6 @@ from main_tg_bot.command.commands import (
     sync_handler,
     exit_bot,
 )
-from main_tg_bot.command.edit_booking import EditBookingHandler
 from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
 from scheduler.scheduler import AsyncScheduler
 
@@ -127,14 +125,6 @@ class BookingBot:
         self._add_secure_command_handler("calculation", calculation_command)  # Добавлено
         self._add_secure_command_handler("sync_booking", sync_handler)
         self._add_secure_command_handler("exit", exit_bot)
-
-        # 2. ConversationHandler для add_booking
-        booking_handler = AddBookingHandler(self)
-        self.application.add_handler(booking_handler.get_conversation_handler())
-
-        # 3. Добавляем обработчик редактирования бронирования
-        edit_handler = EditBookingHandler(self)
-        self.application.add_handler(edit_handler.get_conversation_handler())
 
         # 4. CallbackHandler для view_booking с фильтром по префиксу
         self._add_secure_callback_handler(
