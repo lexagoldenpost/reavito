@@ -59,12 +59,25 @@ $bookingFilesPath = __DIR__ . '/booking_files/*.csv';
 $files = glob($bookingFilesPath);
 
 $bookedData = [];
+$checkoutDates = [];
+$checkinDates = [];
 $priceData = [];
 
 if (!empty($files)) {
     foreach ($files as $file) {
         $filename = pathinfo($file, PATHINFO_FILENAME);
-        $bookedData[$filename] = readBookedDates($file);
+        $bookings = readBookedDates($file);
+        $bookedData[$filename] = $bookings;
+
+        $checkouts = [];
+        $checkins = [];
+        foreach ($bookings as $b) {
+            $checkouts[] = $b['end'];
+            $checkins[] = $b['start'];
+        }
+        $checkoutDates[$filename] = array_unique($checkouts);
+        $checkinDates[$filename] = array_unique($checkins);
+
         $priceFile = __DIR__ . "/task_files/{$filename}_price.csv";
         $priceData[$filename] = readPriceData($priceFile);
     }
@@ -92,7 +105,6 @@ if (!empty($files)) {
             overflow: hidden;
         }
 
-        /* Занятые даты */
         .flatpickr-day.booked {
             background-color: #ffb347 !important;
             color: white !important;
@@ -102,7 +114,6 @@ if (!empty($files)) {
             background-color: #ff9a1f !important;
         }
 
-        /* Доступные для стыковки: день выезда или заезда существующей брони */
         .flatpickr-day.available-checkout,
         .flatpickr-day.available-checkin {
             background-color: #e8f5e9 !important;
@@ -114,7 +125,6 @@ if (!empty($files)) {
             background-color: #c8e6c9 !important;
         }
 
-        /* Исправляем стили дат следующего/предыдущего месяца */
         .flatpickr-day.flatpickr-disabled,
         .flatpickr-day.prevMonthDay,
         .flatpickr-day.nextMonthDay {
@@ -414,11 +424,6 @@ if (!empty($files)) {
             max-width: 120px;
         }
 
-        .input-group-discount .form-control {
-            text-align: center;
-            font-weight: 600;
-        }
-
         .auto-discount-badge {
             background: linear-gradient(135deg, #ff6b6b, #ee5a24);
             color: white;
@@ -437,7 +442,6 @@ if (!empty($files)) {
         @media (max-width: 1024px) {
             .calculator-form-container {
                 grid-template-columns: 1fr 1fr;
-                gap: 15px;
             }
             .calculate-btn-container {
                 grid-column: span 2;
@@ -451,7 +455,6 @@ if (!empty($files)) {
         @media (max-width: 768px) {
             .calculator-form-container {
                 grid-template-columns: 1fr;
-                gap: 15px;
             }
             .calculate-btn-container {
                 grid-column: span 1;
@@ -459,18 +462,6 @@ if (!empty($files)) {
             .date-fields-container {
                 grid-column: span 1;
                 grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .container {
-                padding: 10px;
-            }
-            .card {
-                padding: 15px !important;
-            }
-            .calculator-form-container {
-                gap: 10px;
             }
         }
     </style>
@@ -587,10 +578,14 @@ if (!empty($files)) {
 
     <script>
         const allBookedData = <?= json_encode($bookedData, JSON_UNESCAPED_UNICODE) ?>;
+        const allCheckoutDates = <?= json_encode($checkoutDates, JSON_UNESCAPED_UNICODE) ?>;
+        const allCheckinDates = <?= json_encode($checkinDates, JSON_UNESCAPED_UNICODE) ?>;
         const allPriceData = <?= json_encode($priceData, JSON_UNESCAPED_UNICODE) ?>;
 
         let bookedRanges = [];
         let pricePeriods = [];
+        let currentCheckoutDates = new Set();
+        let currentCheckinDates = new Set();
         let fpCheckin = null;
         let fpCheckout = null;
         let currentBreakdown = [];
@@ -603,19 +598,19 @@ if (!empty($files)) {
         function toggleBookingForm() {
             const formCard = document.getElementById('bookingFormCard');
             const toggleBtn = document.getElementById('toggleFormBtn');
-
+            isFormCollapsed = !isFormCollapsed;
+            
             if (isFormCollapsed) {
-                formCard.classList.remove('collapsed');
-                toggleBtn.innerHTML = '▲';
-                toggleBtn.classList.remove('btn-secondary');
-                toggleBtn.classList.add('btn-outline-secondary');
-            } else {
                 formCard.classList.add('collapsed');
                 toggleBtn.innerHTML = '▼';
                 toggleBtn.classList.remove('btn-outline-secondary');
                 toggleBtn.classList.add('btn-secondary');
+            } else {
+                formCard.classList.remove('collapsed');
+                toggleBtn.innerHTML = '▲';
+                toggleBtn.classList.remove('btn-secondary');
+                toggleBtn.classList.add('btn-outline-secondary');
             }
-            isFormCollapsed = !isFormCollapsed;
         }
 
         function parseDate(str) {
@@ -644,22 +639,37 @@ if (!empty($files)) {
             return bookedDates;
         }
 
-        function getCheckoutDates() {
-            const dates = new Set();
-            for (const range of bookedRanges) {
-                const d = parseDate(range.end);
-                dates.add(d.toISOString().split('T')[0]);
-            }
-            return dates;
+        function isDateAvailableForCheckin(dateStr) {
+            // Дата доступна для заезда если:
+            // 1. Она не занята бронированием
+            // 2. ИЛИ это дата выезда существующей брони и нет заезда в этот же день
+            const isBooked = getBookedDatesArray().includes(dateStr);
+            const isCheckoutDate = currentCheckoutDates.has(dateStr);
+            const isCheckinDate = currentCheckinDates.has(dateStr);
+            
+            return !isBooked || (isCheckoutDate && !isCheckinDate);
         }
 
-        function getCheckinDates() {
-            const dates = new Set();
-            for (const range of bookedRanges) {
-                const d = parseDate(range.start);
-                dates.add(d.toISOString().split('T')[0]);
-            }
-            return dates;
+        function isDateAvailableForCheckout(dateStr) {
+            // Дата доступна для выезда если:
+            // 1. Она не занята бронированием
+            // 2. ИЛИ это дата заезда существующей брони и нет выезда в этот же день
+            // 3. ИЛИ это дата перед чьим-то заездом
+            const isBooked = getBookedDatesArray().includes(dateStr);
+            const isCheckoutDate = currentCheckoutDates.has(dateStr);
+            const isCheckinDate = currentCheckinDates.has(dateStr);
+            
+            if (!isBooked) return true;
+            if (isCheckinDate && !isCheckoutDate) return true;
+            
+            // Проверяем, есть ли бронирования после этой даты
+            const date = parseDate(dateStr);
+            const hasBookingAfter = Array.from(currentCheckinDates).some(checkin => {
+                const checkinDate = parseDate(checkin);
+                return checkinDate > date;
+            });
+            
+            return hasBookingAfter && !isCheckoutDate;
         }
 
         function isDateBooked(dateToCheck) {
@@ -722,21 +732,15 @@ if (!empty($files)) {
                 onDayCreate: function(dObj, dStr, fp, dayElem) {
                     const date = new Date(dayElem.dateObj);
                     const dateStr = date.toISOString().split('T')[0];
-                    const booked = getBookedDatesArray();
-                    const checkouts = getCheckoutDates();
-                    const checkins = getCheckinDates();
-
-                    dayElem.classList.remove('booked', 'available-checkout', 'available-checkin');
-
-                    if (booked.includes(dateStr)) {
+                    
+                    dayElem.classList.remove('booked', 'available-checkin');
+                    
+                    if (!isDateAvailableForCheckin(dateStr)) {
                         dayElem.classList.add('booked');
                         dayElem.title = 'Занято';
-                    } else if (checkouts.has(dateStr)) {
-                        dayElem.classList.add('available-checkout');
-                        dayElem.title = 'Можно заехать (после выезда)';
-                    } else if (checkins.has(dateStr)) {
+                    } else if (currentCheckoutDates.has(dateStr) && !currentCheckinDates.has(dateStr)) {
                         dayElem.classList.add('available-checkin');
-                        dayElem.title = 'Можно выехать (до заезда)';
+                        dayElem.title = 'Свободна для заезда (стыковка)';
                     }
                 }
             });
@@ -757,21 +761,15 @@ if (!empty($files)) {
                 onDayCreate: function(dObj, dStr, fp, dayElem) {
                     const date = new Date(dayElem.dateObj);
                     const dateStr = date.toISOString().split('T')[0];
-                    const booked = getBookedDatesArray();
-                    const checkouts = getCheckoutDates();
-                    const checkins = getCheckinDates();
-
-                    dayElem.classList.remove('booked', 'available-checkout', 'available-checkin');
-
-                    if (booked.includes(dateStr)) {
+                    
+                    dayElem.classList.remove('booked', 'available-checkout');
+                    
+                    if (!isDateAvailableForCheckout(dateStr)) {
                         dayElem.classList.add('booked');
                         dayElem.title = 'Занято';
-                    } else if (checkouts.has(dateStr)) {
+                    } else if (currentCheckinDates.has(dateStr) && !currentCheckoutDates.has(dateStr)) {
                         dayElem.classList.add('available-checkout');
-                        dayElem.title = 'Можно заехать (после выезда)';
-                    } else if (checkins.has(dateStr)) {
-                        dayElem.classList.add('available-checkin');
-                        dayElem.title = 'Можно выехать (до заезда)';
+                        dayElem.title = 'Свободна для выезда (стыковка)';
                     }
                 }
             });
@@ -902,21 +900,63 @@ if (!empty($files)) {
         }
 
         function checkDateConflict(startDate, endDate) {
-            const bookedDates = getBookedDatesArray();
-            let currentDate = new Date(startDate);
-            while (currentDate < endDate) {
-                const currentDateStr = currentDate.toISOString().split('T')[0];
-                if (bookedDates.includes(currentDateStr)) return currentDateStr;
-                currentDate.setDate(currentDate.getDate() + 1);
-            }
-            return null;
+    const startStr = startDate.toISOString().split('T')[0];
+    const endStr = endDate.toISOString().split('T')[0];
+
+    // Проверяем каждую дату в выбранном периоде
+    let current = new Date(startDate);
+    while (current < endDate) {
+        const currentStr = current.toISOString().split('T')[0];
+
+        // Если дата занята и недоступна для бронирования
+        if (getBookedDatesArray().includes(currentStr) &&
+            !isDateAvailableForBooking(currentStr, current, startDate, endDate)) {
+            return currentStr;
         }
+        current.setDate(current.getDate() + 1);
+    }
+    return null;
+}
+
+function isDateAvailableForBooking(dateStr, currentDate, startDate, endDate) {
+    // Дата заезда может быть датой выезда существующей брони
+    if (currentDate.getTime() === startDate.getTime() &&
+        currentCheckoutDates.has(dateStr) &&
+        !currentCheckinDates.has(dateStr)) {
+        return true;
+    }
+
+    // Дата выезда может быть датой заезда существующей брони
+    if (currentDate.getTime() === endDate.getTime() - 86400000 && // день перед выездом
+        currentCheckinDates.has(dateStr) &&
+        !currentCheckoutDates.has(dateStr)) {
+        return true;
+    }
+
+    return false;
+}
 
         document.getElementById('objectSelect').addEventListener('change', function () {
             const obj = this.value;
             bookedRanges = allBookedData[obj] || [];
             pricePeriods = allPriceData[obj] || [];
             currentObjectName = this.options[this.selectedIndex].text;
+
+            currentCheckoutDates = new Set();
+            currentCheckinDates = new Set();
+
+            if (allCheckoutDates[obj]) {
+                allCheckoutDates[obj].forEach(d => {
+                    const dt = parseDate(d);
+                    currentCheckoutDates.add(dt.toISOString().split('T')[0]);
+                });
+            }
+            if (allCheckinDates[obj]) {
+                allCheckinDates[obj].forEach(d => {
+                    const dt = parseDate(d);
+                    currentCheckinDates.add(dt.toISOString().split('T')[0]);
+                });
+            }
 
             document.getElementById('checkin').disabled = false;
             document.getElementById('checkout').disabled = false;
@@ -947,29 +987,26 @@ if (!empty($files)) {
 
             const conflictDate = checkDateConflict(selectedStartDate, selectedEndDate);
             if (conflictDate) {
-                alert('Выбранный период содержит забронированные даты (' + formatDate(new Date(conflictDate)) + '). Пожалуйста, выберите другой период.');
+                alert('Выбранные даты пересекаются с существующей бронировкой на дату: ' + formatDate(new Date(conflictDate)));
                 return;
             }
 
             originalTotalCost = calculateTotalCost(selectedStartDate, selectedEndDate);
             document.getElementById('resultObjectName').textContent = currentObjectName;
-            document.getElementById('resultPeriodInfo').innerHTML =
-                `${formatDate(selectedStartDate)} – ${formatDate(selectedEndDate)}
-                 <span class="expand-form-btn">✏️</span>`;
-            document.getElementById('resultNightsInfo').textContent = nights;
+            document.getElementById('resultPeriodInfo').innerHTML = `${formatDate(selectedStartDate)} - ${formatDate(selectedEndDate)} <span class="expand-form-btn">✏️</span>`;
+            document.getElementById('resultNightsInfo').textContent = nights + ' ' + getNightsText(nights);
 
             applyAutoDiscount(nights);
-            updateDiscount();
             generatePriceCalendar();
+
             document.getElementById('resultSection').style.display = 'block';
-            if (!isFormCollapsed) toggleBookingForm();
-            document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setTimeout(() => {
+                document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+            }, 100);
         });
 
-        document.addEventListener('DOMContentLoaded', () => {
-            initCalendars();
-            updateNights();
-        });
+        initCalendars();
+        updateNights();
     </script>
 </body>
 </html>
