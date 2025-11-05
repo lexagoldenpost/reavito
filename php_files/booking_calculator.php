@@ -92,7 +92,7 @@ if (!empty($files)) {
             overflow: hidden;
         }
 
-        /* Стили для flatpickr календаря - подсветка занятых дат */
+        /* Занятые даты */
         .flatpickr-day.booked {
             background-color: #ffb347 !important;
             color: white !important;
@@ -100,6 +100,18 @@ if (!empty($files)) {
         }
         .flatpickr-day.booked:hover {
             background-color: #ff9a1f !important;
+        }
+
+        /* Доступные для стыковки: день выезда или заезда существующей брони */
+        .flatpickr-day.available-checkout,
+        .flatpickr-day.available-checkin {
+            background-color: #e8f5e9 !important;
+            color: #2e7d32 !important;
+            border: 1px solid #a5d6a7 !important;
+        }
+        .flatpickr-day.available-checkout:hover,
+        .flatpickr-day.available-checkin:hover {
+            background-color: #c8e6c9 !important;
         }
 
         /* Исправляем стили дат следующего/предыдущего месяца */
@@ -123,7 +135,6 @@ if (!empty($files)) {
             color: white;
         }
 
-        /* Стили формы в одну линию */
         .calculator-form-container {
             display: grid;
             grid-template-columns: 2fr 3fr 1fr;
@@ -236,7 +247,6 @@ if (!empty($files)) {
             box-shadow: none;
         }
 
-        /* Остальные стили */
         .total-with-discount {
             background: rgba(255, 255, 255, 0.15);
             border-radius: 12px;
@@ -424,17 +434,14 @@ if (!empty($files)) {
             margin: 15px 0;
         }
 
-        /* Адаптивность */
         @media (max-width: 1024px) {
             .calculator-form-container {
                 grid-template-columns: 1fr 1fr;
                 gap: 15px;
             }
-
             .calculate-btn-container {
                 grid-column: span 2;
             }
-
             .date-fields-container {
                 grid-column: span 2;
                 grid-template-columns: 1fr 1fr 1fr;
@@ -446,11 +453,9 @@ if (!empty($files)) {
                 grid-template-columns: 1fr;
                 gap: 15px;
             }
-
             .calculate-btn-container {
                 grid-column: span 1;
             }
-
             .date-fields-container {
                 grid-column: span 1;
                 grid-template-columns: 1fr;
@@ -461,11 +466,9 @@ if (!empty($files)) {
             .container {
                 padding: 10px;
             }
-
             .card {
                 padding: 15px !important;
             }
-
             .calculator-form-container {
                 gap: 10px;
             }
@@ -486,7 +489,6 @@ if (!empty($files)) {
 
                     <form id="bookingForm">
                         <div class="calculator-form-container">
-                            <!-- Выбор объекта -->
                             <div class="form-field">
                                 <label for="objectSelect">Объект недвижимости</label>
                                 <select class="form-select" id="objectSelect" required>
@@ -505,25 +507,21 @@ if (!empty($files)) {
                                 </select>
                             </div>
 
-                            <!-- Даты и ночи -->
                             <div class="date-fields-container">
                                 <div class="form-field">
                                     <label for="checkin">Дата заезда</label>
                                     <input type="text" id="checkin" placeholder="Выберите дату" readonly />
                                 </div>
-
                                 <div class="form-field">
                                     <label for="checkout">Дата выезда</label>
                                     <input type="text" id="checkout" placeholder="Выберите дату" readonly />
                                 </div>
-
                                 <div class="form-field-nights">
                                     <label for="nights">Ночей</label>
                                     <input type="text" id="nights" placeholder="0" readonly />
                                 </div>
                             </div>
 
-                            <!-- Кнопка расчета -->
                             <div class="calculate-btn-container">
                                 <button type="submit" class="calculate-btn">
                                     Рассчитать стоимость
@@ -536,7 +534,6 @@ if (!empty($files)) {
                 <div id="resultSection" class="card result-card p-4" style="display: none;">
                     <h3 class="text-center mb-3">Результат расчета</h3>
 
-                    <!-- Компактная информация о бронировании -->
                     <div class="booking-summary-compact">
                         <div class="summary-item">
                             <h6>Объект</h6>
@@ -555,13 +552,11 @@ if (!empty($files)) {
                         </div>
                     </div>
 
-                    <!-- Сравнение цен -->
                     <div class="price-comparison">
                         <div class="original-price" id="originalPrice">0 ฿ без скидки</div>
                         <div class="final-amount" id="finalAmount">0 ฿</div>
                     </div>
 
-                    <!-- Секция скидки внутри общей стоимости -->
                     <div class="total-with-discount">
                         <div class="discount-controls">
                             <label class="form-label mb-0">Скидка:</label>
@@ -577,7 +572,6 @@ if (!empty($files)) {
                         </div>
                     </div>
 
-                    <!-- Календарь с ценами -->
                     <div id="priceCalendar" class="price-calendar-section" style="display: none;">
                         <h5 class="text-center mb-4">📅 Стоимость по дням</h5>
                         <div id="calendarContainer"></div>
@@ -621,7 +615,6 @@ if (!empty($files)) {
                 toggleBtn.classList.remove('btn-outline-secondary');
                 toggleBtn.classList.add('btn-secondary');
             }
-
             isFormCollapsed = !isFormCollapsed;
         }
 
@@ -638,7 +631,6 @@ if (!empty($files)) {
             });
         }
 
-        // Получить все забронированные даты в виде массива строк 'YYYY-MM-DD'
         function getBookedDatesArray() {
             const bookedDates = [];
             for (const range of bookedRanges) {
@@ -652,17 +644,32 @@ if (!empty($files)) {
             return bookedDates;
         }
 
-        // Проверить, забронирована ли конкретная дата
+        function getCheckoutDates() {
+            const dates = new Set();
+            for (const range of bookedRanges) {
+                const d = parseDate(range.end);
+                dates.add(d.toISOString().split('T')[0]);
+            }
+            return dates;
+        }
+
+        function getCheckinDates() {
+            const dates = new Set();
+            for (const range of bookedRanges) {
+                const d = parseDate(range.start);
+                dates.add(d.toISOString().split('T')[0]);
+            }
+            return dates;
+        }
+
         function isDateBooked(dateToCheck) {
             const dateStr = dateToCheck.toISOString().split('T')[0];
-            const bookedDates = getBookedDatesArray();
-            return bookedDates.includes(dateStr);
+            return getBookedDatesArray().includes(dateStr);
         }
 
         function getPriceForDate(date) {
             const month = date.getMonth() + 1;
             const day = date.getDate();
-
             for (const p of pricePeriods) {
                 if (p.startMonth === month && day >= p.startDay && day <= p.endDay) {
                     return p.price;
@@ -674,17 +681,12 @@ if (!empty($files)) {
         function updateNights() {
             const checkin = document.getElementById('checkin').value;
             const checkout = document.getElementById('checkout').value;
-
             if (checkin && checkout) {
                 const start = new Date(checkin);
                 const end = new Date(checkout);
-                const nights = Math.floor((end - start) / (1000 * 60 * 60 * 24));
-
-                if (nights > 0) {
-                    document.getElementById('nights').value = nights + ' ' + getNightsText(nights);
-                } else {
-                    document.getElementById('nights').value = '0 ночей';
-                }
+                const diffTime = end - start;
+                const nights = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                document.getElementById('nights').value = nights > 0 ? nights + ' ' + getNightsText(nights) : '0 ночей';
             } else {
                 document.getElementById('nights').value = '0 ночей';
             }
@@ -697,26 +699,20 @@ if (!empty($files)) {
         }
 
         function initCalendars() {
-            if (fpCheckin) {
-                fpCheckin.destroy();
-            }
-            if (fpCheckout) {
-                fpCheckout.destroy();
-            }
+            if (fpCheckin) fpCheckin.destroy();
+            if (fpCheckout) fpCheckout.destroy();
 
-            // Календарь заезда
             fpCheckin = flatpickr("#checkin", {
                 dateFormat: "Y-m-d",
                 minDate: "today",
                 disableMobile: true,
                 locale: "ru",
-                onChange: function(selectedDates, dateStr, instance) {
+                onChange: function(selectedDates) {
                     updateNights();
                     if (selectedDates.length > 0) {
                         const nextDay = new Date(selectedDates[0]);
                         nextDay.setDate(nextDay.getDate() + 1);
                         fpCheckout.set("minDate", nextDay);
-
                         if (fpCheckout.selectedDates[0] && fpCheckout.selectedDates[0] <= selectedDates[0]) {
                             fpCheckout.clear();
                             updateNights();
@@ -725,25 +721,32 @@ if (!empty($files)) {
                 },
                 onDayCreate: function(dObj, dStr, fp, dayElem) {
                     const date = new Date(dayElem.dateObj);
-                    const isBooked = isDateBooked(date);
+                    const dateStr = date.toISOString().split('T')[0];
+                    const booked = getBookedDatesArray();
+                    const checkouts = getCheckoutDates();
+                    const checkins = getCheckinDates();
 
-                    if (isBooked) {
+                    dayElem.classList.remove('booked', 'available-checkout', 'available-checkin');
+
+                    if (booked.includes(dateStr)) {
                         dayElem.classList.add('booked');
-                        dayElem.title = 'Забронировано';
-                        const indicator = document.createElement('div');
-                        indicator.style.cssText = 'position: absolute; top: 2px; right: 2px; width: 6px; height: 6px; background: #fff; border-radius: 50%;';
-                        dayElem.appendChild(indicator);
+                        dayElem.title = 'Занято';
+                    } else if (checkouts.has(dateStr)) {
+                        dayElem.classList.add('available-checkout');
+                        dayElem.title = 'Можно заехать (после выезда)';
+                    } else if (checkins.has(dateStr)) {
+                        dayElem.classList.add('available-checkin');
+                        dayElem.title = 'Можно выехать (до заезда)';
                     }
                 }
             });
 
-            // Календарь выезда
             fpCheckout = flatpickr("#checkout", {
                 dateFormat: "Y-m-d",
                 minDate: "today",
                 disableMobile: true,
                 locale: "ru",
-                onChange: function(selectedDates, dateStr, instance) {
+                onChange: function(selectedDates) {
                     updateNights();
                     if (selectedDates.length > 0) {
                         const prevDay = new Date(selectedDates[0]);
@@ -753,14 +756,22 @@ if (!empty($files)) {
                 },
                 onDayCreate: function(dObj, dStr, fp, dayElem) {
                     const date = new Date(dayElem.dateObj);
-                    const isBooked = isDateBooked(date);
+                    const dateStr = date.toISOString().split('T')[0];
+                    const booked = getBookedDatesArray();
+                    const checkouts = getCheckoutDates();
+                    const checkins = getCheckinDates();
 
-                    if (isBooked) {
+                    dayElem.classList.remove('booked', 'available-checkout', 'available-checkin');
+
+                    if (booked.includes(dateStr)) {
                         dayElem.classList.add('booked');
-                        dayElem.title = 'Забронировано';
-                        const indicator = document.createElement('div');
-                        indicator.style.cssText = 'position: absolute; top: 2px; right: 2px; width: 6px; height: 6px; background: #fff; border-radius: 50%;';
-                        dayElem.appendChild(indicator);
+                        dayElem.title = 'Занято';
+                    } else if (checkouts.has(dateStr)) {
+                        dayElem.classList.add('available-checkout');
+                        dayElem.title = 'Можно заехать (после выезда)';
+                    } else if (checkins.has(dateStr)) {
+                        dayElem.classList.add('available-checkin');
+                        dayElem.title = 'Можно выехать (до заезда)';
                     }
                 }
             });
@@ -773,7 +784,6 @@ if (!empty($files)) {
             let total = 0;
             let current = new Date(startDate);
             currentBreakdown = [];
-
             while (current < endDate) {
                 const price = getPriceForDate(current);
                 total += price;
@@ -789,13 +799,10 @@ if (!empty($files)) {
 
         function updateDiscount() {
             const discount = parseInt(document.getElementById('discountInput').value) || 0;
-
             document.getElementById('discountValue').textContent = discount;
-
             if (discount > 0 && discount <= 100) {
                 const discountAmount = originalTotalCost * discount / 100;
                 const finalAmount = originalTotalCost - discountAmount;
-
                 document.getElementById('originalPrice').textContent = originalTotalCost.toLocaleString('ru-RU') + ' ฿ без скидки';
                 document.getElementById('finalAmount').textContent = finalAmount.toLocaleString('ru-RU') + ' ฿';
             } else {
@@ -819,25 +826,19 @@ if (!empty($files)) {
         function generatePriceCalendar() {
             const container = document.getElementById('calendarContainer');
             container.innerHTML = '';
-
             if (!selectedStartDate || !selectedEndDate) return;
 
             const startMonth = new Date(selectedStartDate.getFullYear(), selectedStartDate.getMonth(), 1);
             const endMonth = new Date(selectedEndDate.getFullYear(), selectedEndDate.getMonth(), 1);
-
             let currentMonth = new Date(startMonth);
 
             while (currentMonth <= endMonth) {
                 const year = currentMonth.getFullYear();
                 const month = currentMonth.getMonth();
-                const monthName = currentMonth.toLocaleDateString('ru-RU', {
-                    month: 'long',
-                    year: 'numeric'
-                });
+                const monthName = currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 
                 const monthElement = document.createElement('div');
                 monthElement.className = 'calendar-month';
-
                 const titleElement = document.createElement('div');
                 titleElement.className = 'calendar-month-title';
                 titleElement.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
@@ -845,7 +846,6 @@ if (!empty($files)) {
 
                 const gridElement = document.createElement('div');
                 gridElement.className = 'calendar-grid';
-
                 const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
                 weekdays.forEach(day => {
                     const dayHeader = document.createElement('div');
@@ -857,7 +857,6 @@ if (!empty($files)) {
                 const firstDayOfMonth = new Date(year, month, 1);
                 const firstWeekday = firstDayOfMonth.getDay();
                 const offset = firstWeekday === 0 ? 6 : firstWeekday - 1;
-
                 for (let j = 0; j < offset; j++) {
                     const emptyDay = document.createElement('div');
                     emptyDay.className = 'calendar-day';
@@ -867,32 +866,20 @@ if (!empty($files)) {
                 const daysInMonth = new Date(year, month + 1, 0).getDate();
                 for (let day = 1; day <= daysInMonth; day++) {
                     const currentDate = new Date(year, month, day);
-                    const isSelected = currentDate >= selectedStartDate && currentDate <= selectedEndDate;
+                    const isSelected = currentDate >= selectedStartDate && currentDate < selectedEndDate;
                     const isBooked = isDateBooked(currentDate);
                     const price = getPriceForDate(currentDate);
 
                     const dayElement = document.createElement('div');
                     dayElement.className = 'calendar-day';
-
-                    if (isSelected) {
-                        dayElement.classList.add('selected');
-                    }
-                    if (isBooked) {
-                        dayElement.classList.add('booked');
-                    }
+                    if (isSelected) dayElement.classList.add('selected');
+                    if (isBooked) dayElement.classList.add('booked');
 
                     if (price > 0) {
-                        dayElement.innerHTML = `
-                            <div>${day}</div>
-                            <div class="calendar-day-price">${price} ฿</div>
-                        `;
+                        dayElement.innerHTML = `<div>${day}</div><div class="calendar-day-price">${price} ฿</div>`;
                     } else {
-                        dayElement.innerHTML = `
-                            <div>${day}</div>
-                            <div class="calendar-day-price"></div>
-                        `;
+                        dayElement.innerHTML = `<div>${day}</div><div class="calendar-day-price"></div>`;
                     }
-
                     gridElement.appendChild(dayElement);
                 }
 
@@ -908,7 +895,6 @@ if (!empty($files)) {
 
                 monthElement.appendChild(gridElement);
                 container.appendChild(monthElement);
-
                 currentMonth.setMonth(currentMonth.getMonth() + 1);
             }
 
@@ -918,12 +904,9 @@ if (!empty($files)) {
         function checkDateConflict(startDate, endDate) {
             const bookedDates = getBookedDatesArray();
             let currentDate = new Date(startDate);
-
             while (currentDate < endDate) {
                 const currentDateStr = currentDate.toISOString().split('T')[0];
-                if (bookedDates.includes(currentDateStr)) {
-                    return currentDateStr;
-                }
+                if (bookedDates.includes(currentDateStr)) return currentDateStr;
                 currentDate.setDate(currentDate.getDate() + 1);
             }
             return null;
@@ -938,13 +921,8 @@ if (!empty($files)) {
             document.getElementById('checkin').disabled = false;
             document.getElementById('checkout').disabled = false;
 
-            if (fpCheckin) {
-                fpCheckin.redraw();
-            }
-            if (fpCheckout) {
-                fpCheckout.redraw();
-            }
-
+            if (fpCheckin) fpCheckin.redraw();
+            if (fpCheckout) fpCheckout.redraw();
             updateNights();
         });
 
@@ -952,10 +930,8 @@ if (!empty($files)) {
 
         document.getElementById('bookingForm').addEventListener('submit', function (e) {
             e.preventDefault();
-
             const checkin = document.getElementById('checkin').value;
             const checkout = document.getElementById('checkout').value;
-
             if (!checkin || !checkout) {
                 alert('Выберите даты заезда и выезда');
                 return;
@@ -964,7 +940,6 @@ if (!empty($files)) {
             selectedStartDate = new Date(checkin);
             selectedEndDate = new Date(checkout);
             const nights = Math.ceil((selectedEndDate - selectedStartDate) / (1000 * 60 * 60 * 24));
-
             if (nights <= 0) {
                 alert('Дата выезда должна быть позже даты заезда');
                 return;
@@ -977,7 +952,6 @@ if (!empty($files)) {
             }
 
             originalTotalCost = calculateTotalCost(selectedStartDate, selectedEndDate);
-
             document.getElementById('resultObjectName').textContent = currentObjectName;
             document.getElementById('resultPeriodInfo').innerHTML =
                 `${formatDate(selectedStartDate)} – ${formatDate(selectedEndDate)}
@@ -987,16 +961,9 @@ if (!empty($files)) {
             applyAutoDiscount(nights);
             updateDiscount();
             generatePriceCalendar();
-
             document.getElementById('resultSection').style.display = 'block';
-            if (!isFormCollapsed) {
-                toggleBookingForm();
-            }
-
-            document.getElementById('resultSection').scrollIntoView({
-                behavior: 'smooth',
-                block: 'start'
-            });
+            if (!isFormCollapsed) toggleBookingForm();
+            document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
 
         document.addEventListener('DOMContentLoaded', () => {
