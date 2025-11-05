@@ -806,7 +806,7 @@ if (!empty($files)) {
 
         function applyAutoDiscount(nights) {
             const autoDiscountBadge = document.getElementById('autoDiscountBadge');
-            if (nights >= 30) {
+            if (nights >= 27) {
                 document.getElementById('discountInput').value = 10;
                 autoDiscountBadge.style.display = 'inline';
             } else {

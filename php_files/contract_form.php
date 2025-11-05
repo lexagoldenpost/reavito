@@ -1,19 +1,15 @@
 <?php
 // contract_form.php — форма договора аренды для Telegram Mini App
-
 // Получаем параметры из URL
 $TELEGRAM_BOT_TOKEN = $_GET['token'] ?? '';
 $CHAT_ID = $_GET['chat_id'] ?? '';
 $INIT_CHAT_ID = $_GET['init_chat_id'] ?? '';
-
 $INIT_CHAT_ID_JS = json_encode($INIT_CHAT_ID); // для безопасной вставки в JS
-
 // Проверка обязательных параметров
 if (empty($TELEGRAM_BOT_TOKEN) || empty($CHAT_ID )  || empty($INIT_CHAT_ID )) {
     http_response_code(400);
     die('❌ Отсутствуют параметры в URL.');
 }
-
 // Функция получения списка объектов
 function getRentalObjects() {
     $bookingFilesPath = __DIR__ . '/booking_files/*.csv';
@@ -28,7 +24,6 @@ function getRentalObjects() {
     }
     return $objects;
 }
-
 $rentalObjects = getRentalObjects();
 ?>
 <!DOCTYPE html>
@@ -328,12 +323,10 @@ $rentalObjects = getRentalObjects();
     border-color: #28a745 !important;
     background-color: rgba(40, 167, 69, 0.05) !important;
 }
-
 .field-error {
     border-color: #dc3545 !important;
     background-color: rgba(220, 53, 69, 0.05) !important;
 }
-
 .error-message {
     color: #dc3545;
     font-size: 12px;
@@ -341,7 +334,6 @@ $rentalObjects = getRentalObjects();
     margin-bottom: 8px;
     display: block;
 }
-
 /* Добавляем иконки для статусов полей */
 .form-control:not(.flatpickr-input) {
     background-image: none;
@@ -350,11 +342,9 @@ $rentalObjects = getRentalObjects();
     background-repeat: no-repeat;
     background-size: 16px;
 }
-
 .form-control.field-valid:not(.flatpickr-input) {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2328a745'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E");
 }
-
 .form-control.field-error:not(.flatpickr-input) {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23dc3545'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z'/%3E%3C/svg%3E");
 }
@@ -379,7 +369,6 @@ $rentalObjects = getRentalObjects();
                         <?php endforeach; ?>
                     </select>
                 </div>
-
                 <!-- Шаг 2: Выбор гостя -->
                 <div class="form-section hidden-section" id="step2">
                     <div class="section-title"><span>👥 Выбор гостя</span></div>
@@ -390,7 +379,6 @@ $rentalObjects = getRentalObjects();
                         <div style="padding:20px;text-align:center;color:#666;">Выберите объект</div>
                     </div>
                 </div>
-
                 <!-- Шаг 3: Основная форма -->
                 <div class="hidden-section" id="step3">
                     <!-- Тип договора -->
@@ -404,13 +392,12 @@ $rentalObjects = getRentalObjects();
                         </select>
                         <div id="contractTypeInfo" style="font-size:12px;color:#666;margin-top:5px;"></div>
                     </div>
-
                     <!-- Паспортные данные -->
                     <div class="form-section">
                         <div class="section-title"><span>📕 Паспортные данные</span></div>
                         <label class="form-label required">ФИО арендатора</label>
-<input type="text" class="form-control" name="fullname" required placeholder="Иванов Иван Иванович">
-<span class="field-hint">Только буквы, пробелы и дефисы (минимум 2 слова)</span>
+                        <input type="text" class="form-control" name="fullname" required placeholder="Иванов Иван Иванович">
+                        <span class="field-hint">Только буквы, пробелы и дефисы (минимум 2 слова)</span>
                         <div class="grid-2">
                             <div>
                                 <label class="form-label required">Серия загранпаспорта</label>
@@ -431,20 +418,18 @@ $rentalObjects = getRentalObjects();
                             <input type="text" class="form-control flatpickr-input" name="passport_date" required placeholder="ДД.ММ.ГГГГ" readonly>
                         </div>
                     </div>
-
                     <!-- Контактные данные -->
                     <div class="form-section">
                         <div class="section-title"><span>📞 Контактные данные</span></div>
                         <label class="form-label required">Телефон</label>
                         <input type="tel" class="form-control" name="phone" required placeholder="+79991234567">
                     </div>
-
                     <!-- Даты аренды -->
                     <div class="form-section">
                         <div class="section-title"><span>📅 Даты аренды</span></div>
                         <div class="grid-2">
                             <div>
-                                <label class="form-label required">Заселение</label>
+                                <label class="form-label required">Заезд</label>
                                 <div class="date-input-wrapper">
                                     <input type="text" class="form-control flatpickr-input" name="check_in" required placeholder="ДД.ММ.ГГГГ" readonly>
                                 </div>
@@ -461,17 +446,15 @@ $rentalObjects = getRentalObjects();
                             <input type="text" class="form-control" id="nights" readonly style="background:#f8f9fa;">
                         </div>
                     </div>
-
                     <!-- Финансовые условия -->
                     <div class="form-section">
                         <div class="section-title"><span>💰 Финансовые условия</span></div>
                         <div class="grid-3">
                             <div><label class="form-label required">Сумма (баты)</label><input type="number" class="form-control" name="total_amount" required placeholder="10000"></div>
                             <div><label class="form-label required">Предоплата (баты)</label><input type="number" class="form-control" name="prepayment_bath" required placeholder="5000"></div>
-                            <div><label class="form-label required">Предоплата (рубли)</label><input type="number" class="form-control" name="prepayment_rub" required placeholder="15000"></div>
+                            <div><label class="form-label">Доп. оплата (баты)</label><input type="number" class="form-control" name="extraPaymentBath" placeholder="1500"></div>
                         </div>
                     </div>
-
                     <!-- Сводка -->
                     <div class="summary-card" id="summarySection" style="display:none;">
                         <div style="text-align:center;font-weight:600;margin-bottom:12px;font-size:14px;">📋 Сводка</div>
@@ -483,7 +466,6 @@ $rentalObjects = getRentalObjects();
                         <div class="summary-item"><span>Ночей:</span><strong id="summaryNights">-</strong></div>
                         <div class="summary-item"><span>Сумма:</span><strong id="summaryTotalAmount">-</strong></div>
                     </div>
-
                     <button type="submit" class="btn-tg-success" id="submitButton">
                         <span class="button-text">📨 Отправить данные договора</span>
                         <span class="button-loading" style="display:none;">⏳ Отправка...</span>
@@ -491,13 +473,11 @@ $rentalObjects = getRentalObjects();
                 </div>
             </div>
         </form>
-
         <div class="loading" id="loading">
             <div class="spinner"></div>
             <p>Отправка данных...</p>
         </div>
     </div>
-
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
     <script>
@@ -511,18 +491,15 @@ $rentalObjects = getRentalObjects();
                 this.datepickers = {};
                 this.submitTimeout = null;
                 this.isSubmitting = false;
-                this.autoFilledFields = new Set(); // Трекер автоматически заполненных полей
+                this.autoFilledFields = new Set();
                 this.init();
             }
-
             init() {
                 this.initDatepickers();
                 this.bindEvents();
                 this.initInputMasks();
                 this.highlightRequiredFields();
             }
-
-            // Упрощенная функция подсветки - не подсвечиваем авто-заполненные поля
             highlightRequiredFields() {
                 const requiredFields = document.querySelectorAll('[required]');
                 requiredFields.forEach(field => {
@@ -531,73 +508,61 @@ $rentalObjects = getRentalObjects();
                     }
                 });
             }
-
             updateFieldHighlight(field, isAutoFilled = false) {
-    const value = field.value?.trim();
-    const fieldName = field.name || field.id;
-    const isValid = this.validateFieldValue(field, value);
-
-    // Если поле автоматически заполнено — всё равно проверяем валидность
-    if (isAutoFilled || this.autoFilledFields.has(fieldName)) {
-        if (isValid) {
-            field.classList.remove('field-error', 'field-valid');
-            this.hideFieldError(field);
-        } else {
-            field.classList.add('field-error');
-            field.classList.remove('field-valid');
-            this.showFieldError(field, this.getValidationErrorMessage(field));
-        }
-        return;
-    }
-
-    // Обычная логика для ручного ввода
-    if (!value) {
-        field.classList.add('field-error');
-        field.classList.remove('field-valid');
-    } else if (!isValid) {
-        field.classList.add('field-error');
-        field.classList.remove('field-valid');
-        this.showFieldError(field, this.getValidationErrorMessage(field));
-    } else {
-        field.classList.remove('field-error');
-        field.classList.remove('field-valid'); // или добавьте 'field-valid', если нужно
-        this.hideFieldError(field);
-    }
-}
-
-getValidationErrorMessage(field) {
-    const value = field.value?.trim() || '';
-    switch(field.name) {
-        case 'passport_series':
-            return 'Серия должна содержать 2 латинских символа или цифры';
-        case 'passport_number':
-            return 'Номер должен содержать 7 цифр';
-        case 'phone':
-            return 'Введите корректный номер телефона';
-        case 'fullname':
-            return 'Введите ФИО (минимум 2 слова)';
-        case 'total_amount':
-        case 'prepayment_bath':
-        case 'prepayment_rub':
-            return 'Введите корректное положительное число';
-        case 'check_in':
-        case 'check_out':
-        case 'passport_date':
-            return 'Введите корректную дату';
-        default:
-            return 'Некорректное значение';
-    }
-}
-
-            // Очистка автоматически заполненных полей при смене гостя
+                const value = field.value?.trim();
+                const fieldName = field.name || field.id;
+                const isValid = this.validateFieldValue(field, value);
+                if (isAutoFilled || this.autoFilledFields.has(fieldName)) {
+                    if (isValid) {
+                        field.classList.remove('field-error', 'field-valid');
+                        this.hideFieldError(field);
+                    } else {
+                        field.classList.add('field-error');
+                        this.showFieldError(field, this.getValidationErrorMessage(field));
+                    }
+                    return;
+                }
+                if (!value) {
+                    field.classList.add('field-error');
+                    field.classList.remove('field-valid');
+                } else if (!isValid) {
+                    field.classList.add('field-error');
+                    field.classList.remove('field-valid');
+                    this.showFieldError(field, this.getValidationErrorMessage(field));
+                } else {
+                    field.classList.remove('field-error');
+                    field.classList.remove('field-valid');
+                    this.hideFieldError(field);
+                }
+            }
+            getValidationErrorMessage(field) {
+                const value = field.value?.trim() || '';
+                switch(field.name) {
+                    case 'passport_series':
+                        return 'Серия должна содержать 2 латинских символа или цифры';
+                    case 'passport_number':
+                        return 'Номер должен содержать 7 цифр';
+                    case 'phone':
+                        return 'Введите корректный номер телефона';
+                    case 'fullname':
+                        return 'Введите ФИО (минимум 2 слова)';
+                    case 'total_amount':
+                    case 'prepayment_bath':
+                    case 'extraPaymentBath':
+                        return 'Введите корректное положительное число';
+                    case 'check_in':
+                    case 'check_out':
+                    case 'passport_date':
+                        return 'Введите корректную дату';
+                    default:
+                        return 'Некорректное значение';
+                }
+            }
             clearAutoFilledFields() {
                 this.autoFilledFields.clear();
             }
-
-            // Функция валидации значения поля (без показа сообщений об ошибках)
             validateFieldValue(field, value) {
                 if (!value) return false;
-
                 switch(field.name) {
                     case 'passport_series':
                         return /^[A-Z0-9]{2}$/.test(value);
@@ -612,15 +577,14 @@ getValidationErrorMessage(field) {
                     case 'passport_date':
                         return this.isValidDate(value);
                     case 'total_amount':
-        case 'prepayment_bath':
-        case 'prepayment_rub':
-            const num = Number(value);
-            return !isNaN(num) && num > 0 && Number.isInteger(num);
+                    case 'prepayment_bath':
+                    case 'extraPaymentBath':
+                        const num = Number(value);
+                        return !isNaN(num) && num > 0 && Number.isInteger(num);
                     default:
                         return true;
                 }
             }
-
             initDatepickers() {
                 const config = {
                     locale: 'ru',
@@ -635,7 +599,6 @@ getValidationErrorMessage(field) {
                         this.updateSummary();
                     }
                 };
-
                 this.datepickers.check_in = flatpickr('input[name="check_in"]', {
                     ...config,
                     onValueUpdate: (dates) => {
@@ -644,7 +607,6 @@ getValidationErrorMessage(field) {
                         }
                     }
                 });
-
                 this.datepickers.check_out = flatpickr('input[name="check_out"]', {
                     ...config,
                     onValueUpdate: (dates) => {
@@ -656,16 +618,13 @@ getValidationErrorMessage(field) {
                         }
                     }
                 });
-
                 this.datepickers.passport_date = flatpickr('input[name="passport_date"]', {
                     ...config,
                     maxDate: 'today',
                     minDate: new Date().setFullYear(new Date().getFullYear() - 50)
                 });
             }
-
             initInputMasks() {
-                // Маска для серии паспорта (только латинские буквы и цифры, 2 символа)
                 const passportSeriesInput = document.querySelector('input[name="passport_series"]');
                 passportSeriesInput.addEventListener('input', (e) => {
                     let value = e.target.value.toUpperCase();
@@ -673,26 +632,19 @@ getValidationErrorMessage(field) {
                     value = value.substring(0, 2);
                     e.target.value = value;
                 });
-
-                // Маска для номера паспорта (только цифры, 7 символов)
                 const passportNumberInput = document.querySelector('input[name="passport_number"]');
                 passportNumberInput.addEventListener('input', (e) => {
                     let value = e.target.value.replace(/\D/g, '');
                     value = value.substring(0, 7);
                     e.target.value = value;
                 });
-
-                // Маска для телефона
                 const phoneInput = document.querySelector('input[name="phone"]');
                 phoneInput.addEventListener('input', (e) => {
                     let value = e.target.value.replace(/\D/g, '');
-
                     if (value.startsWith('7') || value.startsWith('8')) {
                         value = value.substring(1);
                     }
-
                     let formattedValue = '+7';
-
                     if (value.length > 0) {
                         formattedValue += ' (' + value.substring(0, 3);
                     }
@@ -705,30 +657,21 @@ getValidationErrorMessage(field) {
                     if (value.length > 8) {
                         formattedValue += '-' + value.substring(8, 10);
                     }
-
                     e.target.value = formattedValue;
                 });
-
-                // Маска для ФИО (только буквы и пробелы)
                 const fullnameInput = document.querySelector('input[name="fullname"]');
                 fullnameInput.addEventListener('input', (e) => {
                     let value = e.target.value;
                     value = value.replace(/[^a-zA-Zа-яА-ЯёЁ\s\-]/g, '');
-                    // Убираем лишние пробелы
                     value = value.replace(/\s+/g, ' ').trim();
                     e.target.value = value;
                 });
-
-                // Маска для поля "Кем выдан"
                 const passportIssuedInput = document.querySelector('input[name="passport_issued"]');
                 passportIssuedInput.addEventListener('input', (e) => {
                     let value = e.target.value;
-                    // Разрешаем буквы, цифры, пробелы и основные пунктуации
                     value = value.replace(/[^a-zA-Zа-яА-ЯёЁ0-9\s\-.,()]/g, '');
                     e.target.value = value;
                 });
-
-                // Маски для числовых полей (только цифры)
                 const numberInputs = document.querySelectorAll('input[type="number"]');
                 numberInputs.forEach(input => {
                     input.addEventListener('input', (e) => {
@@ -738,13 +681,11 @@ getValidationErrorMessage(field) {
                     });
                 });
             }
-
             bindEvents() {
                 document.getElementById('objectSelect').addEventListener('change', (e) => {
                     if (e.target.value) {
                         this.loadBookings(e.target.value);
                         this.showStep(2);
-                        // Сбрасываем выбранного гостя при смене объекта
                         this.selectedGuest = null;
                         this.clearAutoFilledFields();
                     } else {
@@ -753,57 +694,44 @@ getValidationErrorMessage(field) {
                     }
                     this.updateFieldHighlight(e.target);
                 });
-
                 document.getElementById('guestSearch').addEventListener('input', (e) => {
                     this.filterGuests(e.target.value);
                 });
-
                 document.getElementById('contractForm').addEventListener('submit', (e) => {
                     e.preventDefault();
                     this.submitForm();
                 });
-
                 document.getElementById('contractForm').addEventListener('input', (e) => {
                     this.updateSummary();
                     if (e.target.hasAttribute('required')) {
-                        // При ручном вводе убираем поле из автоматически заполненных
                         this.autoFilledFields.delete(e.target.name);
                         this.updateFieldHighlight(e.target, false);
                     }
                 });
-
-                // Валидация при потере фокуса
                 const inputs = document.querySelectorAll('input[required], select[required]');
                 inputs.forEach(input => {
                     input.addEventListener('blur', (e) => {
-                        // Не валидируем автоматически заполненные поля
                         if (!this.autoFilledFields.has(e.target.name)) {
                             this.validateField(e.target);
                             this.updateFieldHighlight(e.target);
                         }
                     });
-
                     input.addEventListener('focus', (e) => {
                         this.hideFieldError(e.target);
                     });
                 });
-
-                // Для селектов тоже добавляем обработчик
                 document.querySelectorAll('select[required]').forEach(select => {
                     select.addEventListener('change', (e) => {
                         this.updateFieldHighlight(e.target);
                     });
                 });
             }
-
             setSubmitButtonState(disabled, loading = false) {
                 const button = document.getElementById('submitButton');
                 const buttonText = button.querySelector('.button-text');
                 const buttonLoading = button.querySelector('.button-loading');
-
                 button.disabled = disabled;
                 this.isSubmitting = disabled;
-
                 if (loading) {
                     buttonText.style.display = 'none';
                     buttonLoading.style.display = 'inline';
@@ -812,19 +740,15 @@ getValidationErrorMessage(field) {
                     buttonLoading.style.display = 'none';
                 }
             }
-
             validateField(field) {
                 const value = field.value.trim();
-
                 if (!value) {
                     field.classList.add('field-error');
                     this.showFieldError(field, 'Это поле обязательно для заполнения');
                     return false;
                 }
-
                 let isValid = true;
                 let errorMessage = '';
-
                 switch(field.name) {
                     case 'passport_series':
                         isValid = /^[A-Z0-9]{2}$/.test(value);
@@ -849,7 +773,6 @@ getValidationErrorMessage(field) {
                         errorMessage = 'Введите корректную дату';
                         break;
                 }
-
                 if (isValid) {
                     field.classList.remove('field-error');
                     this.hideFieldError(field);
@@ -859,28 +782,20 @@ getValidationErrorMessage(field) {
                 }
                 return isValid;
             }
-
             showFieldError(field, message) {
-                // Удаляем существующее сообщение об ошибке
                 this.hideFieldError(field);
-
-                // Создаем новое сообщение об ошибке
                 const errorElement = document.createElement('span');
                 errorElement.className = 'error-message';
                 errorElement.textContent = message;
                 errorElement.id = field.name + '-error';
-
-                // Вставляем после поля
                 field.parentNode.insertBefore(errorElement, field.nextSibling);
             }
-
             hideFieldError(field) {
                 const existingError = document.getElementById(field.name + '-error');
                 if (existingError) {
                     existingError.remove();
                 }
             }
-
             async loadBookings(objectName) {
                 try {
                     const res = await fetch(`get_bookings.php?object=${encodeURIComponent(objectName)}`);
@@ -890,7 +805,6 @@ getValidationErrorMessage(field) {
                 }
                 this.renderGuestList(this.currentBookings);
             }
-
             renderGuestList(bookings) {
                 const el = document.getElementById('guestList');
                 if (!bookings.length) {
@@ -898,14 +812,12 @@ getValidationErrorMessage(field) {
                     this.hideStep(3);
                     return;
                 }
-
                 el.innerHTML = bookings.map((booking, i) => {
                     const isSelected = this.selectedGuest && this.selectedGuest.id === booking.id;
                     const guestName = booking.guest || 'Не указан';
                     const checkIn = booking.check_in || 'Не указана';
                     const checkOut = booking.check_out || 'Не указана';
                     const totalAmount = booking.total_amount || 'Не указана';
-
                     return `
                         <div class="guest-item ${isSelected ? 'selected' : ''}" data-index="${i}">
                             <div class="guest-name">${this.escapeHtml(guestName)}</div>
@@ -916,115 +828,111 @@ getValidationErrorMessage(field) {
                         </div>
                     `;
                 }).join('');
-
                 el.querySelectorAll('.guest-item').forEach(item => {
                     item.addEventListener('click', () => this.selectGuest(bookings[parseInt(item.dataset.index)]));
                 });
             }
-
             selectGuest(guest) {
                 this.selectedGuest = guest;
                 document.querySelectorAll('.guest-item').forEach(item => {
                     item.classList.toggle('selected', item.dataset.index === guest.id);
                 });
-
-                // Очищаем предыдущие авто-заполнения
                 this.clearAutoFilledFields();
                 this.fillFormFromGuest(guest);
                 this.showStep(3);
                 this.updateSummary();
             }
-
             fillFormFromGuest(guest) {
-    // === ФИО ===
-    if (guest.guest) {
-        const fullnameInput = document.querySelector('input[name="fullname"]');
-        fullnameInput.value = guest.guest;
-        this.autoFilledFields.add('fullname');
-        this.updateFieldHighlight(fullnameInput, true);
-    }
-
-    // === Телефон ===
-    if (guest.phone) {
-        const phoneInput = document.querySelector('input[name="phone"]');
-        const extractedPhone = this.extractFirstPhone(guest.phone);
-        if (extractedPhone) {
-            phoneInput.value = extractedPhone;
-            this.autoFilledFields.add('phone');
-            this.updateFieldHighlight(phoneInput, true);
-        }
-    }
-
-    // === Даты заезда/выезда ===
-    if (guest.check_in) {
-        this.datepickers.check_in.setDate(guest.check_in, true);
-        this.autoFilledFields.add('check_in');
-    }
-    if (guest.check_out) {
-        this.datepickers.check_out.setDate(guest.check_out, true);
-        this.autoFilledFields.add('check_out');
-    }
-
-    // === Сумма договора (total_amount) ===
-    const totalAmountInput = document.querySelector('input[name="total_amount"]');
-    if (guest.total_amount) {
-        const amount = guest.total_amount.replace(/\s/g, '');
-        totalAmountInput.value = amount;
-        this.autoFilledFields.add('total_amount');
-        this.updateFieldHighlight(totalAmountInput, true);
-    } else {
-        totalAmountInput.value = '';
-        this.autoFilledFields.delete('total_amount');
-    }
-
-    // === Предоплата из guest.prepayment (формат: "баты/рубли") ===
-    const prepaymentBathInput = document.querySelector('input[name="prepayment_bath"]');
-    const prepaymentRubInput = document.querySelector('input[name="prepayment_rub"]');
-
-    let prepaymentBath = '', prepaymentRub = '';
-    if (guest.prepayment) {
-        const parts = guest.prepayment.split('/');
-        if (parts.length === 2) {
-            prepaymentBath = parts[0].trim().replace(/\s/g, '');
-            prepaymentRub = parts[1].trim().replace(/\s/g, '');
-        } else if (parts.length === 1) {
-            prepaymentBath = parts[0].trim().replace(/\s/g, '');
-            prepaymentRub = '';
-        }
-    }
-
-    // Заполняем баты
-    if (prepaymentBath && /^\d+$/.test(prepaymentBath)) {
-        prepaymentBathInput.value = prepaymentBath;
-        this.autoFilledFields.add('prepayment_bath');
-        this.updateFieldHighlight(prepaymentBathInput, true);
-    } else {
-        prepaymentBathInput.value = '';
-        this.autoFilledFields.delete('prepayment_bath');
-    }
-
-    // Заполняем рубли
-    if (prepaymentRub && /^\d+$/.test(prepaymentRub)) {
-        prepaymentRubInput.value = prepaymentRub;
-        this.autoFilledFields.add('prepayment_rub');
-        this.updateFieldHighlight(prepaymentRubInput, true);
-    } else {
-        prepaymentRubInput.value = '';
-        this.autoFilledFields.delete('prepayment_rub');
-    }
-
-    // === Автоматическое определение типа договора ===
-    this.calculateNights();
-    this.updateContractType(); // устанавливает select и бейдж
-}
-
+                if (guest.guest) {
+                    const fullnameInput = document.querySelector('input[name="fullname"]');
+                    fullnameInput.value = guest.guest;
+                    this.autoFilledFields.add('fullname');
+                    this.updateFieldHighlight(fullnameInput, true);
+                }
+                if (guest.phone) {
+                    const phoneInput = document.querySelector('input[name="phone"]');
+                    const extractedPhone = this.extractFirstPhone(guest.phone);
+                    if (extractedPhone) {
+                        phoneInput.value = extractedPhone;
+                        this.autoFilledFields.add('phone');
+                        this.updateFieldHighlight(phoneInput, true);
+                    }
+                }
+                if (guest.check_in) {
+                    this.datepickers.check_in.setDate(guest.check_in, true);
+                    this.autoFilledFields.add('check_in');
+                }
+                if (guest.check_out) {
+                    this.datepickers.check_out.setDate(guest.check_out, true);
+                    this.autoFilledFields.add('check_out');
+                }
+                const totalAmountInput = document.querySelector('input[name="total_amount"]');
+                if (guest.total_amount) {
+                    const amount = guest.total_amount.replace(/\s/g, '');
+                    totalAmountInput.value = amount;
+                    this.autoFilledFields.add('total_amount');
+                    this.updateFieldHighlight(totalAmountInput, true);
+                } else {
+                    totalAmountInput.value = '';
+                    this.autoFilledFields.delete('total_amount');
+                }
+                const prepaymentBathInput = document.querySelector('input[name="prepayment_bath"]');
+                let prepaymentBath = '';
+                if (guest.prepayment) {
+                    const parts = guest.prepayment.split('/');
+                    prepaymentBath = parts[0].trim().replace(/\s/g, '');
+                }
+                if (prepaymentBath && /^\d+$/.test(prepaymentBath)) {
+                    prepaymentBathInput.value = prepaymentBath;
+                    this.autoFilledFields.add('prepayment_bath');
+                    this.updateFieldHighlight(prepaymentBathInput, true);
+                } else {
+                    prepaymentBathInput.value = '';
+                    this.autoFilledFields.delete('prepayment_bath');
+                }
+                // === Доп. оплата (баты) из "Дополнительные доплаты" ===
+                const extraPaymentBathInput = document.querySelector('input[name="extraPaymentBath"]');
+                let extraValue = '';
+                if (guest.extra_charges) {
+                    const matches = guest.extra_charges.match(/\+\s*(\d+)|(\d+)/g);
+                    if (matches) {
+                        const nums = matches.map(m => {
+                            const n = m.replace(/\D/g, '');
+                            return n ? parseInt(n, 10) : 0;
+                        }).filter(n => n > 0);
+                        if (nums.length) {
+                            const candidate = nums.find(n => n > 31) || nums[nums.length - 1];
+                            extraValue = String(candidate);
+                        }
+                    }
+                }
+                const nights = this.calculateNights();
+                const isShortTerm = nights > 0 && nights < 27;
+                const extraPaymentBathField = extraPaymentBathInput.closest('.grid-3').children[2];
+                if (isShortTerm) {
+                    extraPaymentBathField.style.display = 'block';
+                    if (extraValue && /^\d+$/.test(extraValue)) {
+                        extraPaymentBathInput.value = extraValue;
+                        this.autoFilledFields.add('extraPaymentBath');
+                        this.updateFieldHighlight(extraPaymentBathInput, true);
+                    } else {
+                        extraPaymentBathInput.value = '';
+                        this.autoFilledFields.delete('extraPaymentBath');
+                    }
+                } else {
+                    extraPaymentBathField.style.display = 'none';
+                    extraPaymentBathInput.value = '0';
+                    this.autoFilledFields.add('extraPaymentBath');
+                    this.updateFieldHighlight(extraPaymentBathInput, true);
+                }
+                this.calculateNights();
+                this.updateContractType();
+            }
             extractFirstPhone(phoneText) {
                 if (!phoneText) return '';
-                // Ищем первый номер телефона в тексте
                 const phoneMatch = phoneText.match(/[\+]?[7|8][\s(]?[0-9]{3}[\s)]?[\s-]?[0-9]{3}[\s-]?[0-9]{2}[\s-]?[0-9]{2}/);
                 if (phoneMatch) {
                     let phone = phoneMatch[0];
-                    // Нормализуем номер к формату +7 (XXX) XXX-XX-XX
                     phone = phone.replace(/\D/g, '');
                     if (phone.startsWith('7') || phone.startsWith('8')) {
                         phone = '7' + phone.substring(1);
@@ -1035,12 +943,9 @@ getValidationErrorMessage(field) {
                 }
                 return '';
             }
-
             formatPhone(phone) {
-                // Форматируем номер как +7 (XXX) XXX-XX-XX
                 return `+7 (${phone.substring(1, 4)}) ${phone.substring(4, 7)}-${phone.substring(7, 9)}-${phone.substring(9, 11)}`;
             }
-
             filterGuests(query) {
                 const filtered = this.currentBookings.filter(booking =>
                     booking.guest?.toLowerCase().includes(query.toLowerCase()) ||
@@ -1048,42 +953,37 @@ getValidationErrorMessage(field) {
                 );
                 this.renderGuestList(filtered);
             }
-
             calculateNights() {
-    const checkIn = this.datepickers.check_in.selectedDates[0];
-    const checkOut = this.datepickers.check_out.selectedDates[0];
-    let nights = '';
-    if (checkIn && checkOut) {
-        const diff = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
-        nights = diff > 0 ? diff : 0;
-    }
-    const nightsInput = document.getElementById('nights');
-    if (nightsInput) nightsInput.value = nights;
-    return parseInt(nights) || 0; // ← теперь возвращает число
-}
-
+                const checkIn = this.datepickers.check_in.selectedDates[0];
+                const checkOut = this.datepickers.check_out.selectedDates[0];
+                let nights = '';
+                if (checkIn && checkOut) {
+                    const diff = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+                    nights = diff > 0 ? diff : 0;
+                }
+                const nightsInput = document.getElementById('nights');
+                if (nightsInput) nightsInput.value = nights;
+                return parseInt(nights) || 0;
+            }
             updateContractType() {
-    const nights = this.calculateNights(); // ← теперь возвращает число
-    const select = document.getElementById('contractType');
-    const info = document.getElementById('contractTypeInfo');
-
-    if (nights >= 30) {
-        select.value = 'среднесрок';
-        info.innerHTML = '<span class="contract-type-badge contract-type-medium">Автоматически: Среднесрочный (30+ ночей)</span>';
-    } else if (nights > 0) {
-        select.value = 'краткосрок';
-        info.innerHTML = '<span class="contract-type-badge contract-type-short">Автоматически: Краткосрочный</span>';
-    } else {
-        select.value = '';
-        info.innerHTML = '';
-    }
-}
-
+                const nights = this.calculateNights();
+                const select = document.getElementById('contractType');
+                const info = document.getElementById('contractTypeInfo');
+                if (nights >= 27) {
+                    select.value = 'среднесрок';
+                    info.innerHTML = '<span class="contract-type-badge contract-type-medium">Автоматически: Среднесрочный (27+ ночей)</span>';
+                } else if (nights > 0) {
+                    select.value = 'краткосрок';
+                    info.innerHTML = '<span class="contract-type-badge contract-type-short">Автоматически: Краткосрочный</span>';
+                } else {
+                    select.value = '';
+                    info.innerHTML = '';
+                }
+            }
             updateSummary() {
                 const formData = new FormData(document.getElementById('contractForm'));
                 const objectSelect = document.getElementById('objectSelect');
                 const objectText = objectSelect.options[objectSelect.selectedIndex]?.text || '-';
-
                 document.getElementById('summaryObject').textContent = objectText;
                 document.getElementById('summaryContractType').textContent = formData.get('contract_type') || '-';
                 document.getElementById('summaryFullname').textContent = formData.get('fullname') || '-';
@@ -1091,12 +991,9 @@ getValidationErrorMessage(field) {
                 document.getElementById('summaryPeriod').textContent = `${formData.get('check_in') || ''} - ${formData.get('check_out') || ''}`;
                 document.getElementById('summaryNights').textContent = document.getElementById('nights').value || '-';
                 document.getElementById('summaryTotalAmount').textContent = formData.get('total_amount') ? `${formData.get('total_amount')} бат` : '-';
-
-                // Показываем/скрываем сводку в зависимости от заполненности
                 const hasData = Array.from(formData.entries()).some(([key, value]) => value && !['contract_object', 'token', 'chat_id', 'init_chat_id'].includes(key));
                 document.getElementById('summarySection').style.display = hasData ? 'block' : 'none';
             }
-
             isValidDate(dateString) {
                 if (!dateString) return false;
                 const parts = dateString.split('.');
@@ -1107,31 +1004,23 @@ getValidationErrorMessage(field) {
                 const date = new Date(year, month - 1, day);
                 return date.getDate() === day && date.getMonth() === month - 1 && date.getFullYear() === year;
             }
-
             showStep(stepNumber) {
                 document.getElementById(`step${stepNumber}`).classList.remove('hidden-section');
             }
-
             hideStep(stepNumber) {
                 document.getElementById(`step${stepNumber}`).classList.add('hidden-section');
             }
-
             escapeHtml(text) {
                 const div = document.createElement('div');
                 div.textContent = text;
                 return div.innerHTML;
             }
-
             async submitForm() {
                 if (this.isSubmitting) return;
-
-                // Валидация всех обязательных полей
                 const requiredFields = document.querySelectorAll('[required]');
                 let isValid = true;
                 let firstErrorField = null;
-
                 requiredFields.forEach(field => {
-                    // Пропускаем валидацию автоматически заполненных полей
                     if (!this.autoFilledFields.has(field.name) && !this.validateField(field)) {
                         isValid = false;
                         if (!firstErrorField) {
@@ -1139,11 +1028,9 @@ getValidationErrorMessage(field) {
                         }
                     }
                 });
-
                 if (!isValid && firstErrorField) {
                     firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     firstErrorField.focus();
-
                     this.tg.showPopup({
                         title: 'Ошибка',
                         message: 'Пожалуйста, заполните все обязательные поля корректно',
@@ -1151,37 +1038,28 @@ getValidationErrorMessage(field) {
                     });
                     return;
                 }
-
                 this.setSubmitButtonState(true, true);
                 document.getElementById('loading').style.display = 'block';
-
                 try {
-                    // Собираем данные для отправки
                     const formData = new FormData(document.getElementById('contractForm'));
                     const fullnameRaw = formData.get('fullname') || 'Арендатор';
-// Сокращаем ФИО до "Фамилия_И_О"
-const parts = fullnameRaw.trim().split(/\s+/);
-let shortName = 'Арендатор';
-if (parts.length >= 3) {
-    shortName = `${parts[0]}_${parts[1][0]}_${parts[2][0]}`;
-} else if (parts.length === 2) {
-    shortName = `${parts[0]}_${parts[1][0]}`;
-} else {
-    shortName = parts[0] || 'Арендатор';
-}
-// Очищаем от недопустимых символов (оставляем кириллицу, латиницу, цифры, _)
-shortName = shortName.replace(/[^a-zA-Zа-яА-ЯёЁ0-9_]/g, '');
-
-// Сокращаем даты: 10.11.2025 → 251110
-const formatDateShort = (d) => {
-    const [dd, mm, yyyy] = d.split('.');
-    return `${yyyy.slice(-2)}${mm}${dd}`;
-};
-
-const checkInShort = formatDateShort(formData.get('check_in'));
-const checkOutShort = formatDateShort(formData.get('check_out'));
-
-const filename = `Договор_${formData.get('contract_object')}_${formData.get('contract_type')}_${shortName}_${checkInShort}_${checkOutShort}.json`;
+                    const parts = fullnameRaw.trim().split(/\s+/);
+                    let shortName = 'Арендатор';
+                    if (parts.length >= 3) {
+                        shortName = `${parts[0]}_${parts[1][0]}_${parts[2][0]}`;
+                    } else if (parts.length === 2) {
+                        shortName = `${parts[0]}_${parts[1][0]}`;
+                    } else {
+                        shortName = parts[0] || 'Арендатор';
+                    }
+                    shortName = shortName.replace(/[^a-zA-Zа-яА-ЯёЁ0-9_]/g, '');
+                    const formatDateShort = (d) => {
+                        const [dd, mm, yyyy] = d.split('.');
+                        return `${yyyy.slice(-2)}${mm}${dd}`;
+                    };
+                    const checkInShort = formatDateShort(formData.get('check_in'));
+                    const checkOutShort = formatDateShort(formData.get('check_out'));
+                    const filename = `Договор_${formData.get('contract_object')}_${formData.get('contract_type')}_${shortName}_${checkInShort}_${checkOutShort}.json`;
                     const contractData = {
                         form_type: 'contract',
                         init_chat_id: <?= $INIT_CHAT_ID_JS ?>,
@@ -1197,14 +1075,12 @@ const filename = `Договор_${formData.get('contract_object')}_${formData.g
                         check_out: formData.get('check_out'),
                         total_amount: formData.get('total_amount'),
                         prepayment_bath: formData.get('prepayment_bath'),
-                        prepayment_rub: formData.get('prepayment_rub'),
+                        extraPaymentBath: formData.get('extraPaymentBath'),
                         selected_guest_id: this.selectedGuest?.id || '',
                         selected_guest_name: this.selectedGuest?.guest || '',
                         timestamp: new Date().toLocaleString('ru-RU'),
                         filename: filename
                     };
-
-                    // Используем универсальный обработчик send_to_telegram.php
                     const response = await fetch(`send_to_telegram.php?token=<?= $TELEGRAM_BOT_TOKEN ?>&chat_id=<?= $CHAT_ID ?>&as_file=1`, {
                         method: 'POST',
                         headers: {
@@ -1212,46 +1088,35 @@ const filename = `Договор_${formData.get('contract_object')}_${formData.g
                         },
                         body: JSON.stringify(contractData)
                     });
-
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
-
                     const result = await response.json();
-
                     if (result.ok) {
                         this.tg.showPopup({
                             title: '✅ Успех',
                             message: 'Данные договора успешно отправлены!',
                             buttons: [{ type: 'ok' }]
                         });
-
-                        // Закрываем Mini App через 2 секунды
                         setTimeout(() => {
                             this.tg.close();
                         }, 2000);
-
                     } else {
                         throw new Error(result.error || 'Неизвестная ошибка отправки');
                     }
-
                 } catch (error) {
                     console.error('Submit error:', error);
-
                     let errorMessage = 'Не удалось отправить данные. Попробуйте еще раз.';
-
                     if (error.name === 'AbortError') {
                         errorMessage = 'Превышено время ожидания ответа от сервера. Проверьте подключение к интернету.';
                     } else if (error.message) {
                         errorMessage = error.message;
                     }
-
                     this.tg.showPopup({
                         title: '❌ Ошибка',
                         message: errorMessage,
                         buttons: [{ type: 'ok' }]
                     });
-
                 } finally {
                     this.setSubmitButtonState(false, false);
                     document.getElementById('loading').style.display = 'none';
@@ -1259,8 +1124,6 @@ const filename = `Договор_${formData.get('contract_object')}_${formData.g
                 }
             }
         }
-
-        // Инициализация при загрузке
         document.addEventListener('DOMContentLoaded', () => {
             new TelegramContractForm();
         });
