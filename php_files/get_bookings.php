@@ -29,6 +29,7 @@ $idx_check_out  = array_search('Выезд', $headers);
 $idx_phone      = array_search('телефон', $headers);
 $idx_total      = array_search('СуммаБатты', $headers);
 $idx_advance    = array_search('Аванс Батты/Рубли', $headers);
+$idx_extra_charges = array_search('Дополнительные доплаты', $headers);
 $idx_sync_id    = array_search('_sync_id', $headers);
 
 if ($idx_sync_id === false || $idx_check_out === false) {
@@ -58,7 +59,8 @@ while (($row = fgetcsv($handle, 1000, ',')) !== false) {
             'check_out'      => $checkOutStr,
             'phone'          => isset($row[$idx_phone]) ? trim($row[$idx_phone]) : '',
             'total_amount'   => isset($row[$idx_total]) ? trim($row[$idx_total]) : '',
-            'prepayment'     => isset($row[$idx_advance]) ? trim($row[$idx_advance]) : ''
+            'prepayment'     => isset($row[$idx_advance]) ? trim($row[$idx_advance]) : '',
+            'extra_charges'  => isset($row[$idx_extra_charges]) ? trim($row[$idx_extra_charges]) : ''
         ];
     }
 }
