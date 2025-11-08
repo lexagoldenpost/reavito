@@ -105,6 +105,58 @@ if (!empty($files)) {
             overflow: hidden;
         }
 
+        .calendar-info {
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    border-radius: 10px;
+}
+
+.example-booking {
+    font-size: 12px;
+    border: 1px dashed #28a745 !important;
+}
+
+.calendar-day.selected {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    position: relative;
+}
+
+.calendar-day.checkout-day {
+    background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+    color: #2e7d32;
+    border: 1px dashed #28a745;
+}
+
+.legend {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 15px;
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+}
+
+.legend-color {
+    width: 15px;
+    height: 15px;
+    border-radius: 3px;
+}
+
+.legend-color.night {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+}
+
+.legend-color.checkout {
+    background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+    border: 1px dashed #28a745;
+}
+
         .flatpickr-day.booked {
             background-color: #ffb347 !important;
             color: white !important;
@@ -564,9 +616,30 @@ if (!empty($files)) {
                     </div>
 
                     <div id="priceCalendar" class="price-calendar-section" style="display: none;">
-                        <h5 class="text-center mb-4">📅 Стоимость по дням</h5>
-                        <div id="calendarContainer"></div>
-                    </div>
+    <h5 class="text-center mb-4">📅 Стоимость по ночам</h5>
+
+    <!-- ДОБАВЬТЕ ЭТОТ БЛОК -->
+    <div class="calendar-info mb-4 p-3 bg-light rounded" style="border-left: 4px solid #2980b9;">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <small class="text-muted">
+                    <strong>💡 Расчет стоимости осуществляется по ночам:</strong><br>
+                    • Дата заезда = ночь, за которую платите<br>
+                    • Дата выезда = утренний выезд (не оплачивается)
+                </small>
+            </div>
+            <div class="col-md-4">
+                <div class="example-booking p-2 bg-white rounded border">
+                    <small class="text-muted d-block">Пример:</small>
+                    <small class="text-success fw-bold">15 → 16 ноября = 1 ночь (15 ноября)</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- КОНЕЦ ДОБАВЛЕННОГО БЛОКА -->
+
+    <div id="calendarContainer"></div>
+</div>
                 </div>
             </div>
         </div>
@@ -822,82 +895,97 @@ if (!empty($files)) {
         }
 
         function generatePriceCalendar() {
-            const container = document.getElementById('calendarContainer');
-            container.innerHTML = '';
-            if (!selectedStartDate || !selectedEndDate) return;
+    const container = document.getElementById('calendarContainer');
+    container.innerHTML = '';
+    if (!selectedStartDate || !selectedEndDate) return;
 
-            const startMonth = new Date(selectedStartDate.getFullYear(), selectedStartDate.getMonth(), 1);
-            const endMonth = new Date(selectedEndDate.getFullYear(), selectedEndDate.getMonth(), 1);
-            let currentMonth = new Date(startMonth);
+    const startMonth = new Date(selectedStartDate.getFullYear(), selectedStartDate.getMonth(), 1);
+    const endMonth = new Date(selectedEndDate.getFullYear(), selectedEndDate.getMonth(), 1);
+    let currentMonth = new Date(startMonth);
 
-            while (currentMonth <= endMonth) {
-                const year = currentMonth.getFullYear();
-                const month = currentMonth.getMonth();
-                const monthName = currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+    while (currentMonth <= endMonth) {
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth();
+        const monthName = currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+        const monthElement = document.createElement('div');
+        monthElement.className = 'calendar-month';
 
-                const monthElement = document.createElement('div');
-                monthElement.className = 'calendar-month';
-                const titleElement = document.createElement('div');
-                titleElement.className = 'calendar-month-title';
-                titleElement.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
-                monthElement.appendChild(titleElement);
+        const titleElement = document.createElement('div');
+        titleElement.className = 'calendar-month-title';
+        titleElement.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+        monthElement.appendChild(titleElement);
 
-                const gridElement = document.createElement('div');
-                gridElement.className = 'calendar-grid';
-                const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-                weekdays.forEach(day => {
-                    const dayHeader = document.createElement('div');
-                    dayHeader.className = 'calendar-day-header';
-                    dayHeader.textContent = day;
-                    gridElement.appendChild(dayHeader);
-                });
+        const gridElement = document.createElement('div');
+        gridElement.className = 'calendar-grid';
 
-                const firstDayOfMonth = new Date(year, month, 1);
-                const firstWeekday = firstDayOfMonth.getDay();
-                const offset = firstWeekday === 0 ? 6 : firstWeekday - 1;
-                for (let j = 0; j < offset; j++) {
-                    const emptyDay = document.createElement('div');
-                    emptyDay.className = 'calendar-day';
-                    gridElement.appendChild(emptyDay);
-                }
+        const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+        weekdays.forEach(day => {
+            const dayHeader = document.createElement('div');
+            dayHeader.className = 'calendar-day-header';
+            dayHeader.textContent = day;
+            gridElement.appendChild(dayHeader);
+        });
 
-                const daysInMonth = new Date(year, month + 1, 0).getDate();
-                for (let day = 1; day <= daysInMonth; day++) {
-                    const currentDate = new Date(year, month, day);
-                    const isSelected = currentDate >= selectedStartDate && currentDate < selectedEndDate;
-                    const isBooked = isDateBooked(currentDate);
-                    const price = getPriceForDate(currentDate);
+        const firstDayOfMonth = new Date(year, month, 1);
+        const firstWeekday = firstDayOfMonth.getDay();
+        const offset = firstWeekday === 0 ? 6 : firstWeekday - 1;
 
-                    const dayElement = document.createElement('div');
-                    dayElement.className = 'calendar-day';
-                    if (isSelected) dayElement.classList.add('selected');
-                    if (isBooked) dayElement.classList.add('booked');
+        for (let j = 0; j < offset; j++) {
+            const emptyDay = document.createElement('div');
+            emptyDay.className = 'calendar-day';
+            gridElement.appendChild(emptyDay);
+        }
 
-                    if (price > 0) {
-                        dayElement.innerHTML = `<div>${day}</div><div class="calendar-day-price">${price} ฿</div>`;
-                    } else {
-                        dayElement.innerHTML = `<div>${day}</div><div class="calendar-day-price"></div>`;
-                    }
-                    gridElement.appendChild(dayElement);
-                }
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-                const totalCells = offset + daysInMonth;
-                const remainingCells = 7 - (totalCells % 7);
-                if (remainingCells < 7) {
-                    for (let j = 0; j < remainingCells; j++) {
-                        const emptyDay = document.createElement('div');
-                        emptyDay.className = 'calendar-day';
-                        gridElement.appendChild(emptyDay);
-                    }
-                }
+        for (let day = 1; day <= daysInMonth; day++) {
+            const currentDate = new Date(year, month, day);
+            const isSelected = currentDate >= selectedStartDate && currentDate < selectedEndDate;
+            const isBooked = isDateBooked(currentDate);
+            const price = getPriceForDate(currentDate);
 
-                monthElement.appendChild(gridElement);
-                container.appendChild(monthElement);
-                currentMonth.setMonth(currentMonth.getMonth() + 1);
+            const dayElement = document.createElement('div');
+            dayElement.className = 'calendar-day';
+
+            if (isSelected) dayElement.classList.add('selected');
+            if (isBooked) dayElement.classList.add('booked');
+
+            if (price > 0) {
+                dayElement.innerHTML = `<div>${day}</div><div class="calendar-day-price">${price} ฿</div>`;
+            } else {
+                dayElement.innerHTML = `<div>${day}</div><div class="calendar-day-price"></div>`;
             }
 
-            document.getElementById('priceCalendar').style.display = 'block';
+            gridElement.appendChild(dayElement);
         }
+
+        const totalCells = offset + daysInMonth;
+        const remainingCells = 7 - (totalCells % 7);
+        if (remainingCells < 7) {
+            for (let j = 0; j < remainingCells; j++) {
+                const emptyDay = document.createElement('div');
+                emptyDay.className = 'calendar-day';
+                gridElement.appendChild(emptyDay);
+            }
+        }
+
+        monthElement.appendChild(gridElement);
+        container.appendChild(monthElement);
+        currentMonth.setMonth(currentMonth.getMonth() + 1);
+    }
+
+    const legendElement = document.createElement('div');
+    legendElement.className = 'legend';
+    legendElement.innerHTML = `
+        <div class="legend-item">
+            <div class="legend-color night"></div>
+            <span>Ночь проживания (оплачиваемая)</span>
+        </div>
+    `;
+    container.appendChild(legendElement);
+
+    document.getElementById('priceCalendar').style.display = 'block';
+}
 
         function checkDateConflict(startDate, endDate) {
     const startStr = startDate.toISOString().split('T')[0];
@@ -977,8 +1065,14 @@ function isDateAvailableForBooking(dateStr, currentDate, startDate, endDate) {
                 return;
             }
 
-            selectedStartDate = new Date(checkin);
-            selectedEndDate = new Date(checkout);
+            function parseLocalDate(str) {
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d); // локальная дата
+}
+
+// В обработчике формы:
+selectedStartDate = parseLocalDate(checkin);
+selectedEndDate = parseLocalDate(checkout);
             const nights = Math.ceil((selectedEndDate - selectedStartDate) / (1000 * 60 * 60 * 24));
             if (nights <= 0) {
                 alert('Дата выезда должна быть позже даты заезда');
