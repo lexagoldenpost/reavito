@@ -227,7 +227,8 @@ class GoogleSheetsCSVSync:
             csv_exists = csv_file.exists()
 
             if direction == 'auto':
-                direction = 'google_to_csv' if not csv_exists else 'bidirectional'
+                # Всегда по умолчанию из гугла тянет в локал
+                direction = 'google_to_csv' if not csv_exists else 'google_to_csv'
 
             logger.info(f"Syncing sheet '{sheet_name}' with direction: {direction}")
 
