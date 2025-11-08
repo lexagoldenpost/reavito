@@ -11,6 +11,7 @@ import aiohttp
 import os
 import tempfile
 
+from docxtpl import DocxTemplate
 from num2words import num2words
 
 from common.logging_config import setup_logger
@@ -19,7 +20,7 @@ from main_tg_bot.sender.tg_notifier import send_message
 logger = setup_logger("contract_handler")
 
 # Корень проекта — родитель main_tg_bot/
-PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+PROJECT_ROOT = Path(__file__).parent.parent.parent.resolve()
 # Константы для путей к шаблонам
 TEMPLATE_DIR = PROJECT_ROOT / "word_templates"
 CONTRACT_TEMPLATE_PREFIX = "Договор"
@@ -56,7 +57,7 @@ async def handle_contract(data: Dict[str, Any], filename: str):
     if init_chat_id:
         try:
             async with aiohttp.ClientSession() as session:
-                await send_message(session, init_chat_id, f"📄 Договора и подтверждение {guest_name} формируется, ожидайте...")
+                await send_message(session, init_chat_id, f"📄 формируются договор и подтверждение {guest_name}, ожидайте...")
                 logger.info(f"📢 Уведомление 'обрабатывается' отправлено в чат {init_chat_id}")
         except Exception as e:
             logger.warning(f"Не удалось отправить начальное уведомление в Telegram: {e}")
@@ -115,48 +116,45 @@ async def handle_contract(data: Dict[str, Any], filename: str):
 
         # --- Генерация документов ---
         with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
+          temp_path = Path(temp_dir)
 
-            # Генерация договора
-            contract_docx_path = temp_path / f"contract_{contract_number}.docx"
-            contract_pdf_path = temp_path / f"contract_{contract_number}.pdf"
+          # Генерация договора
+          contract_docx_path = temp_path / f"{contract_number}.docx"
+          contract_pdf_path = temp_path / f"{contract_number}.pdf"
+          await fill_template(contract_template_path, contract_docx_path,
+                              contract_data)
+          await convert_to_pdf(contract_docx_path, contract_pdf_path)
 
-            await fill_template(contract_template_path, contract_docx_path, contract_data)
-            await convert_to_pdf(contract_docx_path, contract_pdf_path)
+          # Генерация подтверждения
+          confirmation_docx_path = temp_path / f"{confirmation_number}.docx"
+          confirmation_pdf_path = temp_path / f"{confirmation_number}.pdf"
+          await fill_template(confirmation_template_path,
+                              confirmation_docx_path, confirmation_data)
+          await convert_to_pdf(confirmation_docx_path, confirmation_pdf_path)
 
-            # Генерация подтверждения
-            confirmation_docx_path = temp_path / f"confirmation_{contract_number}.docx"
-            confirmation_pdf_path = temp_path / f"confirmation_{contract_number}.pdf"
-
-            await fill_template(confirmation_template_path, confirmation_docx_path, confirmation_data)
-            await convert_to_pdf(confirmation_docx_path, confirmation_pdf_path)
-
-            # --- Отправка файлов пользователю ---
-            if init_chat_id:
-                async with aiohttp.ClientSession() as session:
-                    # Отправка договора
-                    with open(contract_pdf_path, 'rb') as contract_file:
-                        await send_message(
-                            session,
-                            init_chat_id,
-                            f"📄 Договор аренды для {data['fullname']}",
-                            document=contract_file,
-                            filename=f"{contract_number}.pdf"
-                        )
-
-                    # Отправка подтверждения
-                    with open(confirmation_pdf_path, 'rb') as confirmation_file:
-                        await send_message(
-                            session,
-                            init_chat_id,
-                            f"✅ Подтверждение бронирования для {data['fullname']}",
-                            document=confirmation_file,
-                            filename=f"{confirmation_number}.pdf"
-                        )
-                    success_msg = f"✅ Документы для {data['fullname']} успешно сгенерированы и отправлены!"
-                    await send_message(session, init_chat_id, success_msg)
-                    logger.info(f"✅ Уведомление об успешной генерации отправлено в чат {init_chat_id}")
-
+          # --- Отправка файлов ПО ПУТЯМ ---
+          if init_chat_id:
+            async with aiohttp.ClientSession() as session:
+              # Договор
+              await send_message(
+                  session,
+                  init_chat_id,
+                  f"📄 Договор аренды для {data['fullname']}",
+                  media_files=str(contract_pdf_path)
+              )
+              # Подтверждение
+              await send_message(
+                  session,
+                  init_chat_id,
+                  f"✅ Подтверждение бронирования для {data['fullname']}",
+                  media_files=str(confirmation_pdf_path)
+              )
+              # Успех
+              await send_message(
+                  session,
+                  init_chat_id,
+                  f"✅ Документы для {data['fullname']} успешно сгенерированы и отправлены!"
+              )
         logger.info("📄 [contract_handler] Генерация договоров завершена успешно")
 
     except Exception as e:
@@ -175,13 +173,17 @@ def prepare_template_data(data: Dict[str, Any], contract_number: str) -> Dict[st
     """
     Подготовка данных для заполнения шаблонов, включая суммы прописью и форматированные числа
     """
+
     def bath_to_words(amount: str) -> str:
-        try:
-            value = int(amount)
-            words = num2words(value, lang='en').capitalize()
-            return f"{words} Baht"
-        except (ValueError, TypeError):
-            return ""
+      try:
+        value = int(amount)
+        # Получаем число прописью на русском
+        words = num2words(value, lang='ru')
+        # Первое слово с заглавной буквы, остальное — как есть
+        words = words.capitalize()
+        return f"{words} бат"
+      except (ValueError, TypeError):
+        return ""
 
     def rub_to_words(amount: str) -> str:
         try:
@@ -194,12 +196,12 @@ def prepare_template_data(data: Dict[str, Any], contract_number: str) -> Dict[st
     # Исходные значения
     total_amount_raw = data.get('total_amount', '0')
     prepayment_bath_raw = data.get('prepayment_bath', '0')
-    prepayment_rub_raw = data.get('prepayment_rub', '0')
+    extraPaymentBath_raw = data.get('extraPaymentBath', '0')
 
     # Форматированные значения с пробелами
     total_amount = format_number_with_spaces(total_amount_raw)
     prepayment_bath = format_number_with_spaces(prepayment_bath_raw)
-    prepayment_rub = format_number_with_spaces(prepayment_rub_raw)
+    extraPaymentBath = format_number_with_spaces(extraPaymentBath_raw)
 
     # Расчёт остатка в батах
     try:
@@ -215,7 +217,7 @@ def prepare_template_data(data: Dict[str, Any], contract_number: str) -> Dict[st
     # Суммы прописью (на основе исходных чисел)
     total_amount_words_th = bath_to_words(total_amount_raw)
     prepayment_bath_words_th = bath_to_words(prepayment_bath_raw)
-    prepayment_rub_words_ru = rub_to_words(prepayment_rub_raw)
+    extraPaymentBath_words_ru = rub_to_words(extraPaymentBath_raw)
 
     template_data = {
         # Основная информация
@@ -238,13 +240,13 @@ def prepare_template_data(data: Dict[str, Any], contract_number: str) -> Dict[st
         # Финансовые данные (цифрами, с пробелами)
         'total_amount': total_amount,
         'prepayment_bath': prepayment_bath,
-        'prepayment_rub': prepayment_rub,
+        'extraPaymentBath': extraPaymentBath,
         'final_payment_bath': final_payment_bath,  # ← новое поле
 
         # Финансовые данные (прописью)
         'total_amount_words_th': total_amount_words_th,
         'prepayment_bath_words_th': prepayment_bath_words_th,
-        'prepayment_rub_words_ru': prepayment_rub_words_ru,
+        'extraPaymentBath_words_ru': extraPaymentBath_words_ru,
         'final_payment_bath_words_th': final_payment_bath_words_th,  # ← новое поле
 
         # Объект недвижимости
@@ -259,33 +261,14 @@ def prepare_template_data(data: Dict[str, Any], contract_number: str) -> Dict[st
     return template_data
 
 async def fill_template(template_path: Path, output_path: Path, data: Dict[str, str]):
-    """
-    Заполнение шаблона DOCX данными
-    """
     try:
-        doc = docx.Document(template_path)
-
-        # Замена текста в параграфах
-        for paragraph in doc.paragraphs:
-            for key, value in data.items():
-                if f'{{{key}}}' in paragraph.text:
-                    paragraph.text = paragraph.text.replace(f'{{{key}}}', value)
-
-        # Замена текста в таблицах
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    for key, value in data.items():
-                        if f'{{{key}}}' in cell.text:
-                            cell.text = cell.text.replace(f'{{{key}}}', value)
-
+        doc = DocxTemplate(template_path)
+        doc.render(data)
         doc.save(output_path)
-        logger.info(f"✅ Шаблон заполнен: {output_path}")
-
+        logger.info(f"✅ Шаблон заполнен через docxtpl: {output_path}")
     except Exception as e:
-        logger.error(f"❌ Ошибка при заполнении шаблона {template_path}: {e}")
+        logger.error(f"❌ Ошибка в docxtpl: {e}")
         raise
-
 
 async def convert_to_pdf(docx_path: Path, pdf_path: Path):
     """

@@ -227,7 +227,8 @@ class GoogleSheetsCSVSync:
             csv_exists = csv_file.exists()
 
             if direction == 'auto':
-                direction = 'google_to_csv' if not csv_exists else 'bidirectional'
+                # Всегда по умолчанию из гугла тянет в локал
+                direction = 'google_to_csv' if not csv_exists else 'google_to_csv'
 
             logger.info(f"Syncing sheet '{sheet_name}' with direction: {direction}")
 
@@ -235,7 +236,9 @@ class GoogleSheetsCSVSync:
                 google_data = self.download_sheet(sheet_name)
                 google_data = self._sort_dataframe_by_check_in(google_data, sheet_name)
                 self.save_local_csv(google_data, sheet_name)
-                logger.info(f"Synced Google → CSV for '{sheet_name}'")
+                # ➕ Добавьте FTP-загрузку здесь
+                self._upload_sheet_to_ftp(sheet_name)
+                logger.info(f"Synced Google → CSV for '{sheet_name}' and uploaded to FTP")
 
             elif direction == 'csv_to_google':
                 local_data = self.load_local_csv(sheet_name)
