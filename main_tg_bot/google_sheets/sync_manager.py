@@ -46,6 +46,20 @@ class GoogleSheetsCSVSync:
             'Сумма помесячно HALO Title': 'halo_title_price.csv'
         }
 
+        # Форматирование для сохранения внешнего вида в Google Таблице
+        self.column_formats = {
+            'HALO Title': {
+                'Заезд': {'numberFormat': {'type': 'DATE', 'pattern': 'dd.mm.yyyy'}},
+                'Выезд': {'numberFormat': {'type': 'DATE', 'pattern': 'dd.mm.yyyy'}},
+                'СуммаБатты': {'numberFormat': {'type': 'NUMBER', 'pattern': '# ###0'}},
+            },
+            'Citygate P311': {
+                'Заезд': {'numberFormat': {'type': 'DATE', 'pattern': 'dd.mm.yyyy'}},
+                'Выезд': {'numberFormat': {'type': 'DATE', 'pattern': 'dd.mm.yyyy'}},
+                'СуммаБатты': {'numberFormat': {'type': 'NUMBER', 'pattern': '# ###0'}},
+            },
+        }
+
         # Маппинги
         self.sheet_to_spreadsheet: Dict[str, str] = {}
         self.sheet_to_filepath: Dict[str, Path] = {}
@@ -211,10 +225,20 @@ class GoogleSheetsCSVSync:
             save_df = df.drop(columns=['_hash', '_sheet_name', '_last_sync'], errors='ignore')
             values = [save_df.columns.tolist()] + save_df.values.tolist()
 
-            worksheet.clear()
-            worksheet.update(values, value_input_option='RAW')
+            num_rows = len(values)
+            num_cols = len(values[0]) if num_rows > 0 else 0
 
-            logger.info(f"Updated Google Sheet '{sheet_name}' with {len(values)} rows")
+            if num_rows == 0:
+                return False
+
+            # Полная перезапись данных (очищаем всё)
+            worksheet.clear()
+            worksheet.update("A1", values, value_input_option='USER_ENTERED')
+
+            # Применяем форматирование к нужным столбцам
+            self._apply_column_formats(worksheet, sheet_name, num_rows)
+
+            logger.info(f"Updated Google Sheet '{sheet_name}' with {num_rows} rows and applied formatting")
             return True
 
         except Exception as e:
@@ -302,6 +326,43 @@ class GoogleSheetsCSVSync:
         except Exception as e:
             logger.error(f"Error syncing sheet '{sheet_name}': {e}")
             return False
+
+    def _apply_column_formats(self, worksheet, sheet_name: str, num_rows: int):
+        """Применяет числовой и датный формат к указанным столбцам после обновления данных."""
+        if sheet_name not in self.column_formats or num_rows <= 1:
+            return
+
+        try:
+            headers = worksheet.row_values(1)
+        except Exception as e:
+            logger.warning(f"Не удалось прочитать заголовки листа '{sheet_name}': {e}")
+            return
+
+        requests = []
+
+        for col_idx, header in enumerate(headers, start=1):
+            if header in self.column_formats[sheet_name]:
+                fmt = self.column_formats[sheet_name][header]
+                requests.append({
+                    "repeatCell": {
+                        "range": {
+                            "sheetId": worksheet.id,
+                            "startRowIndex": 1,          # пропускаем заголовок (0-based)
+                            "endRowIndex": num_rows,     # до последней строки с данными
+                            "startColumnIndex": col_idx - 1,
+                            "endColumnIndex": col_idx,
+                        },
+                        "cell": {"userEnteredFormat": fmt},
+                        "fields": "userEnteredFormat.numberFormat"
+                    }
+                })
+
+        if requests:
+            try:
+                worksheet.spreadsheet.batch_update({"requests": requests})
+                logger.info(f"Применено форматирование к {len(requests)} столбцам в '{sheet_name}'")
+            except Exception as e:
+                logger.warning(f"Ошибка при применении форматирования к '{sheet_name}': {e}")
 
     def _sort_dataframe_by_check_in(self, df: pd.DataFrame, sheet_name: str) -> pd.DataFrame:
         if sheet_name not in BOOKING_SHEETS or df.empty:
