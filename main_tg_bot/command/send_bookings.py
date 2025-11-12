@@ -8,6 +8,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from common.config import Config
 from common.logging_config import setup_logger
 from main_tg_bot.booking_objects import PROJECT_ROOT
+from main_tg_bot.sender.halo_send_to_telegram_chats_bookings import send_to_specific_chat
 from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
 
 #from new_halo_notification_service import send_to_specific_chat
@@ -323,13 +324,13 @@ async def send_notification_to_chat(update, context, chat_name):
         logger.info(f"Sending announcement to chat {chat['chat_name']} with object {title}")
 
         # ЗАГЛУШКА - временно всегда возвращаем успех
-        success = True
+        #success = True
 
         # Когда будет готова реальная функция, раскомментируйте:
-        # success = await send_to_specific_chat(
-        #     chat_id=chat['chat_name'],
-        #     title=title
-        # )
+        success = await send_to_specific_chat(
+            chat_id=chat['chat_name'],
+            title=title
+        )
 
         if success:
             logger.debug("Notification sent successfully, updating last_send")
