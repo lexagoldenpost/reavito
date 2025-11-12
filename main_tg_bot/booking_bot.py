@@ -26,6 +26,7 @@ from main_tg_bot.command.commands import (
     sync_handler,
     exit_bot,
 )
+from main_tg_bot.command.send_bookings import send_bookings_handler
 from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
 from scheduler.scheduler import AsyncScheduler
 
@@ -123,6 +124,7 @@ class BookingBot:
         self._add_secure_command_handler("view_booking", view_booking_handler)
         self._add_secure_command_handler("view_available_dates", view_dates_handler)
         self._add_secure_command_handler("calculation", calculation_command)  # Добавлено
+        self._add_secure_command_handler("send_bookings", send_bookings_handler)
         self._add_secure_command_handler("sync_booking", sync_handler)
         self._add_secure_command_handler("exit", exit_bot)
 
@@ -130,6 +132,12 @@ class BookingBot:
         self._add_secure_callback_handler(
             view_booking_handler,
             pattern=f"^{VB_CALLBACK_PREFIX}.*"
+        )
+
+        # 5. CallbackHandler для send_booking с фильтром по префиксу
+        self._add_secure_callback_handler(
+            send_bookings_handler,
+            pattern=f"^{CALLBACK_PREFIX}.*"  # Добавляем фильтр по префиксу
         )
 
         # 5. Обработчики для меню расчета (только закрытие меню)
