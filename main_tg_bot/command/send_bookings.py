@@ -8,10 +8,9 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from common.config import Config
 from common.logging_config import setup_logger
 from main_tg_bot.booking_objects import PROJECT_ROOT
-from main_tg_bot.sender.halo_send_to_telegram_chats_bookings import send_to_specific_chat
+from telega.send_tg_reklama import TelegramSender
 from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
 
-#from new_halo_notification_service import send_to_specific_chat
 
 logger = setup_logger("send_bookings")
 
@@ -323,12 +322,9 @@ async def send_notification_to_chat(update, context, chat_name):
 
         logger.info(f"Sending announcement to chat {chat['chat_name']} with object {title}")
 
-        # ЗАГЛУШКА - временно всегда возвращаем успех
-        #success = True
-
-        # Когда будет готова реальная функция, раскомментируйте:
+        # Используем реальную функцию отправки
         success = await send_to_specific_chat(
-            chat_id=chat['chat_name'],
+            chat_id=chat['chat_name'],  # или используйте chat['chat_object'] если нужно
             title=title
         )
 
@@ -384,3 +380,23 @@ async def send_reply(update, text, reply_markup=None, parse_mode=None):
     except Exception as e:
         logger.error(f"Error in send_reply: {e}", exc_info=True)
         raise
+
+async def send_to_specific_chat(chat_id, title):
+        """Отправка сообщения в конкретный чат через TelegramSender"""
+        try:
+            sender = TelegramSender()
+
+            # Формируем сообщение для отправки
+            message = f"📢 Уведомление о бронировании\n\n{title}"
+
+            # Отправляем сообщение
+            success = await sender.send_message_async(
+                channel_identifier=chat_id,
+                message=message
+            )
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Error in send_to_specific_chat: {e}")
+            return False

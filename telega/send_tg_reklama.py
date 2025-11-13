@@ -8,7 +8,7 @@ from telethon.sessions import StringSession
 
 from common.config import Config
 from common.logging_config import setup_logger
-from telegram_utils import TelegramUtils
+from telega.telegram_utils import TelegramUtils
 
 logger = setup_logger("send_tg_reklama")
 
