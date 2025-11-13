@@ -143,6 +143,7 @@ class TelegramSender:
             logger.error(f"Ошибка при отправке сообщения: {str(e)}")
             return False
 
+
     async def send_message_async(
             self,
             channel_identifier: Union[str, int],
