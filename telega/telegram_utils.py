@@ -112,7 +112,7 @@ class TelegramUtils:
             return False
 
     @staticmethod
-    async def resolve_channel_identifier(client: TelegramClient, identifier: str) -> Optional[Tuple]:
+    async def resolve_channel_identifier(client: TelegramClient, identifier: Union[str, int]) -> Optional[Tuple]:
         """Разрешает идентификатор канала или чата в entity, реальный ID и отмеченный ID"""
         try:
             # Пробуем получить entity
@@ -125,18 +125,14 @@ class TelegramUtils:
                 logger.warning(f"Идентификатор {identifier} не является каналом или чатом.")
                 return None
 
-            # Получаем реальный ID
+            # Получаем реальный ID (используем entity.id напрямую)
             real_id = entity.id
-
-            # Формируем "отмеченный" ID в соответствии с документацией Telethon
-            # Используем utils.get_peer_id для получения "отмеченного" ID
-            marked_id = utils.get_peer_id(entity)
-            full_id = str(marked_id)
 
             # Получаем имя канала/чата
             entity_name = getattr(entity, 'title', None) or getattr(entity, 'username', None) or str(identifier)
 
-            return entity, full_id, entity_name
+            # ВОЗВРАЩАЕМ real_id вместо full_id для совместимости с основным кодом
+            return entity, real_id, entity_name
 
         except Exception as e:
             logger.error(f"Ошибка разрешения идентификатора {identifier}: {str(e)}")

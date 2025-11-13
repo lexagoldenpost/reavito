@@ -51,14 +51,16 @@ class TelegramSender:
 
             if file.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp'):
                 media = await self.client.upload_file(file)
-                return InputMediaUploadedPhoto(media, caption=caption)
+                # Для фото caption передается отдельно при отправке
+                return InputMediaUploadedPhoto(media)
             else:
                 media = await self.client.upload_file(file)
+                # Для документов caption также передается отдельно
                 return InputMediaUploadedDocument(
                     media,
                     mime_type=None,
                     attributes=[],
-                    caption=caption
+                    # caption больше не передается здесь
                 )
         except Exception as e:
             logger.error(f"Ошибка загрузки медиа: {str(e)}")
@@ -76,8 +78,12 @@ class TelegramSender:
             if not await TelegramUtils.initialize_client(self.client, self.phone):
                 return False
 
+            # Дополнительная отладка
+            logger.info(f"Пытаемся разрешить идентификатор: {channel_identifier} (тип: {type(channel_identifier)})")
+
             # Разрешаем идентификатор канала
             result = await TelegramUtils.resolve_channel_identifier(self.client, channel_identifier)
+            logger.info(f"Результат resolve_channel_identifier: {result}")
             if not result:
                 logger.error(f"Не удалось разрешить идентификатор канала: {channel_identifier}")
                 return False
@@ -101,8 +107,9 @@ class TelegramSender:
             if media_files:
                 media_objects = []
                 for file_path in media_files:
-                    media = await self._upload_media(file_path,
-                                                     message if not media_objects else None)
+                    # Для первого медиафайла передаем caption, для остальных - None
+                    media_caption = message if not media_objects else None
+                    media = await self._upload_media(file_path)
                     if media:
                         media_objects.append(media)
 
@@ -111,9 +118,11 @@ class TelegramSender:
                     return False
 
                 if len(media_objects) == 1:
-                    await self.client.send_message(entity, file=media_objects[0])
+                    # Для одного файла передаем caption как параметр
+                    await self.client.send_message(entity, message=message, file=media_objects[0])
                 else:
-                    await self.client.send_message(entity, file=media_objects)
+                    # Для альбома caption передается отдельно
+                    await self.client.send_message(entity, message=message, file=media_objects)
             # Если только текст
             elif message:
                 await self.client.send_message(entity, message)
@@ -205,20 +214,20 @@ async def main():
 
     # Пример: получение и логирование всех доступных каналов
     print("Получение списка всех доступных каналов...")
-    async with sender.client:
-        await TelegramUtils.initialize_client(sender.client, sender.phone)
-        available_channels = await TelegramUtils.log_all_available_channels(sender.client)
-
-        # Теперь вы можете использовать информацию из available_channels
-        # ВАЖНО: используйте реальный ID из поля 'id' (может быть отрицательным)
-        for channel in available_channels:
-            if channel['can_send_messages']:
-                print(f"Доступный канал для отправки: {channel['title']} (ID: {channel['id']} , FULL_ID: {channel['full_id']})")
+    # async with sender.client:
+    #     await TelegramUtils.initialize_client(sender.client, sender.phone)
+    #     available_channels = await TelegramUtils.log_all_available_channels(sender.client)
+    #
+    #     # Теперь вы можете использовать информацию из available_channels
+    #     # ВАЖНО: используйте реальный ID из поля 'id' (может быть отрицательным)
+    #     for channel in available_channels:
+    #         if channel['can_send_messages']:
+    #             print(f"Доступный канал для отправки: {channel['title']} (ID: {channel['id']} , FULL_ID: {channel['full_id']})")
 
     # Пример 1: Только текст
     print("Отправка текстового сообщения:")
     result = await sender.send_message_async(
-        "-4612514156",
+        -1002679682284,
         message="Тестовое текстовое сообщение"
     )
     print("Результат:", "Успешно" if result else "Ошибка")
@@ -226,7 +235,7 @@ async def main():
     # Пример 2: Текст с одним изображением
     print("\nОтправка сообщения с изображением:")
     result = await sender.send_message_async(
-        -1001234567891,  # channel_identifier в числовом формате
+        -1002679682284,  # channel_identifier в числовом формате
         message="Сообщение с картинкой",
         media_files="test_image.jpg"
     )
@@ -235,8 +244,8 @@ async def main():
     # Пример 3: Несколько медиафайлов
     print("\nОтправка нескольких медиафайлов:")
     result = await sender.send_message_async(
-        -1001234567891,  # channel_identifier в числовом формате
-        media_files=["image1.jpg", "document.pdf"]
+        -1002679682284,  # channel_identifier в числовом формате
+        media_files=["image1.jpg", "test_image.jpg"]
     )
     print("Результат:", "Успешно" if result else "Ошибка")
 
