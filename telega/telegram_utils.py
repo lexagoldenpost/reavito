@@ -7,6 +7,7 @@ from telethon.tl.types import ChatBannedRights, Channel, User, PeerChannel, Chat
 from telethon.errors import ChatWriteForbiddenError, ChannelPrivateError, UsernameNotOccupiedError
 from telethon.tl.functions.messages import GetDialogsRequest
 from telethon.tl.functions.channels import GetChannelsRequest
+from telethon import utils
 from telethon.tl.types import InputPeerEmpty
 from telethon.tl.functions.users import GetFullUserRequest
 from common.logging_config import setup_logger
@@ -112,29 +113,30 @@ class TelegramUtils:
 
     @staticmethod
     async def resolve_channel_identifier(client: TelegramClient, identifier: str) -> Optional[Tuple]:
-        """Разрешает идентификатор канала в entity и ID"""
+        """Разрешает идентификатор канала или чата в entity, реальный ID и отмеченный ID"""
         try:
             # Пробуем получить entity
             entity = await TelegramUtils.get_entity_safe(client, identifier)
             if not entity:
                 return None
 
-            # Получаем ID канала
-            if hasattr(entity, 'id'):
-                channel_id = entity.id
-                # Для каналов ID обычно отрицательный, преобразуем в строку для удобства
-                if channel_id < 0:
-                    # Преобразуем в формат -100XXXXXXX
-                    full_channel_id = f"-100{abs(channel_id)}"
-                else:
-                    full_channel_id = str(channel_id)
+            # Проверяем, является ли entity каналом или чатом
+            if not isinstance(entity, (Channel, Chat)):
+                logger.warning(f"Идентификатор {identifier} не является каналом или чатом.")
+                return None
 
-                # Получаем имя канала
-                channel_name = getattr(entity, 'title', None) or getattr(entity, 'username', None) or str(identifier)
+            # Получаем реальный ID
+            real_id = entity.id
 
-                return entity, full_channel_id, channel_name
+            # Формируем "отмеченный" ID в соответствии с документацией Telethon
+            # Используем utils.get_peer_id для получения "отмеченного" ID
+            marked_id = utils.get_peer_id(entity)
+            full_id = str(marked_id)
 
-            return None
+            # Получаем имя канала/чата
+            entity_name = getattr(entity, 'title', None) or getattr(entity, 'username', None) or str(identifier)
+
+            return entity, full_id, entity_name
 
         except Exception as e:
             logger.error(f"Ошибка разрешения идентификатора {identifier}: {str(e)}")
@@ -192,21 +194,30 @@ class TelegramUtils:
                 try:
                     entity = await client.get_entity(dialog.peer)
 
-                    # Проверяем, является ли это каналом или группой
+                    # Проверяем, является ли это каналом или группой (включая Chat)
                     if isinstance(entity, (Channel, Chat)):
                         # Проверяем права доступа
                         is_accessible = await TelegramUtils.check_account_restrictions(client, entity)
                         is_not_banned = not await TelegramUtils.is_user_banned(client, entity.id)
 
+                        # Формируем информацию о канале/чате
+                        # Правильно формируем 'full_id' в соответствии с документацией Telethon
+                        # Используем utils.get_peer_id для получения "отмеченного" ID
+                        marked_id = utils.get_peer_id(entity)
+                        full_id = str(marked_id)
+
+                        # Определяем тип (Channel или Group/Chat)
+                        entity_type = 'Channel' if isinstance(entity, Channel) else 'Group'
+
                         # Формируем информацию о канале
                         channel_info = {
                             'entity': entity,
-                            'id': entity.id,
-                            'full_id': f"-100{abs(entity.id)}" if entity.id < 0 else str(entity.id),
+                            'id': entity.id,  # Реальный ID
+                            'full_id': full_id,  # "Отмеченный" ID в формате Telethon
                             'title': getattr(entity, 'title', 'N/A'),
                             'username': getattr(entity, 'username', None),
                             'link': f"https://t.me/{entity.username}" if getattr(entity, 'username', None) else 'N/A',
-                            'type': 'Channel' if isinstance(entity, Channel) else 'Group',
+                            'type': entity_type,
                             'participants_count': getattr(entity, 'participants_count', None),
                             'description': getattr(entity, 'about', 'N/A'),
                             'accessible': is_accessible,

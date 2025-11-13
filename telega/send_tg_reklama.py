@@ -213,12 +213,12 @@ async def main():
         # ВАЖНО: используйте реальный ID из поля 'id' (может быть отрицательным)
         for channel in available_channels:
             if channel['can_send_messages']:
-                print(f"Доступный канал для отправки: {channel['title']} (ID: {channel['id']})")
+                print(f"Доступный канал для отправки: {channel['title']} (ID: {channel['id']} , FULL_ID: {channel['full_id']})")
 
     # Пример 1: Только текст
     print("Отправка текстового сообщения:")
     result = await sender.send_message_async(
-        -1001234567890,  # channel_identifier в числовом формате
+        "-4612514156",
         message="Тестовое текстовое сообщение"
     )
     print("Результат:", "Успешно" if result else "Ошибка")
