@@ -1,21 +1,17 @@
 # main_tg_bot/handlers/contract_handler.py
 
-import pandas as pd
 from pathlib import Path
 from typing import Any, Dict, Optional
 from docx2pdf import convert
-import docx
 from datetime import datetime
-import uuid
 import aiohttp
-import os
 import tempfile
 
 from docxtpl import DocxTemplate
 from num2words import num2words
 
 from common.logging_config import setup_logger
-from main_tg_bot.sender.tg_notifier import send_message
+from telega.tg_notifier import send_message
 
 logger = setup_logger("contract_handler")
 

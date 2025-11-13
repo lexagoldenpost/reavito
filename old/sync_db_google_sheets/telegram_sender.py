@@ -1,4 +1,4 @@
-# send_tg_reklama.py
+# telegram_sender.py
 from pathlib import Path
 from typing import Optional, Union, List
 
@@ -80,7 +80,7 @@ class TelegramSender:
 
   async def _send_message_async(
       self,
-      channel_name: str,
+      channel_identifier: Union[str, int],
       message: Optional[str] = None,
       media_files: Optional[List[str]] = None
   ):
@@ -89,13 +89,17 @@ class TelegramSender:
       await self.client.start(phone=self.phone)
 
       try:
-        entity = await self.client.get_entity(channel_name)
+        entity = await self.client.get_entity(channel_identifier)
       except ValueError:
-        logger.error(f"Не удалось найти канал/чат {channel_name}")
+        logger.error(f"Не удалось найти канал/чат {channel_identifier}")
         return False
 
+      # Форматируем ID с пробелами как разделителями
+      channel_id_formatted = f"{entity.id:,}".replace(',', ' ')
+      logger.info(f"Найден канал: {entity.title} (ID: {channel_id_formatted})")
+
       if not await self._check_account_restrictions(entity):
-        logger.error(f"Аккаунт ограничен в {channel_name}")
+        logger.error(f"Аккаунт ограничен в {entity.title} (ID: {channel_id_formatted})")
         return False
 
       # Если есть медиафайлы
@@ -122,14 +126,14 @@ class TelegramSender:
         logger.error("Не указано ни сообщение, ни медиафайлы")
         return False
 
-      logger.info(f"Сообщение успешно отправлено в {channel_name}")
+      logger.info(f"Сообщение успешно отправлено в {entity.title} (ID: {channel_id_formatted})")
       return True
 
     except errors.FloodWaitError as e:
       logger.error(f"Flood wait: нужно подождать {e.seconds} секунд")
       return False
     except errors.UserBannedInChannelError:
-      logger.error(f"Аккаунт заблокирован в канале {channel_name}")
+      logger.error(f"Аккаунт заблокирован в канале {channel_identifier}")
       return False
     except Exception as e:
       logger.error(f"Ошибка при отправке сообщения: {str(e)}")
@@ -139,14 +143,14 @@ class TelegramSender:
 
   def send_message(
       self,
-      channel_name: str,
+      channel_identifier: Union[str, int],
       message: Optional[str] = None,
       media_files: Optional[Union[str, List[str]]] = None
   ) -> bool:
     """Отправляет сообщение в канал/группу
 
     Args:
-        channel_name: Имя канала/группы (@"username" или "+79123456789")
+        channel_identifier: Числовой ID или строковый идентификатор канала/группы
         message: Текст сообщения (опционально, если отправляются медиафайлы)
         media_files: Путь к файлу или список путей к медиафайлам
 
@@ -159,7 +163,7 @@ class TelegramSender:
 
     with self.client:
       return self.client.loop.run_until_complete(
-          self._send_message_async(channel_name, message, media_files)
+          self._send_message_async(channel_identifier, message, media_files)
       )
 
 
@@ -170,7 +174,7 @@ if __name__ == "__main__":
   # Пример 1: Только текст
   print("Отправка текстового сообщения:")
   result = sender.send_message(
-      channel_name="@LapkaAvitoBot",
+      channel_identifier=-1001234567890,  # Числовой ID
       message="Тестовое текстовое сообщение"
   )
   print("Результат:", "Успешно" if result else "Ошибка")
@@ -178,7 +182,7 @@ if __name__ == "__main__":
   # Пример 2: Текст с одним изображением
   print("\nОтправка сообщения с изображением:")
   result = sender.send_message(
-      channel_name="@LapkaAvitoBot",
+      channel_identifier=-1001234567891,  # Числовой ID
       message="Сообщение с картинкой",
       media_files="test_image.jpg"
   )
@@ -187,10 +191,10 @@ if __name__ == "__main__":
   # Пример 3: Несколько медиафайлов
   print("\nОтправка нескольких медиафайлов:")
   result = sender.send_message(
-      channel_name="@LapkaAvitoBot",
+      channel_identifier=-1001234567891,  # Числовой ID
       media_files=["image1.jpg", "document.pdf"]
   )
   print("Результат:", "Успешно" if result else "Ошибка")
-  #sender.send_message("@channel", "Текст сообщения")
-  #sender.send_message("@channel", "Описание", "image.jpg")
-  #sender.send_message("@channel", media_files=["img1.jpg", "img2.png"])
+  #sender_telegram.send_message(-1001234567890, "Текст сообщения")
+  #sender_telegram.send_message(-1001234567890, "Описание", "image.jpg")
+  #sender_telegram.send_message(-1001234567890, media_files=["img1.jpg", "img2.png"])

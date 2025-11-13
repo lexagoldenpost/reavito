@@ -6,7 +6,7 @@ from common.database import SessionLocal
 from fastapi import FastAPI, HTTPException, status, Header, Request
 from pydantic import BaseModel
 
-from avito_message_in.models import Message
+from old.avito_message_in.models import Message
 from common.logging_config import setup_logger
 
 # Инициализация FastAPI приложения

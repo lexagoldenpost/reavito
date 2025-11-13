@@ -11,7 +11,7 @@ from common.config import Config
 from common.logging_config import setup_logger
 # Используем booking_objects для точного соответствия объект ↔ файл
 from main_tg_bot.booking_objects import BOOKING_SHEETS, get_booking_sheet, PROJECT_ROOT
-from main_tg_bot.sender.tg_notifier import send_message
+from telega.tg_notifier import send_message
 
 logger = setup_logger("notification_service")
 TELEGRAM_CHAT_IDS = Config.TELEGRAM_CHAT_NOTIFICATION_ID

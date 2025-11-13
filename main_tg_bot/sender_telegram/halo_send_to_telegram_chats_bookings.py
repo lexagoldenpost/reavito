@@ -1,12 +1,10 @@
-import argparse
 import asyncio
 import csv
-from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from main_tg_bot.sender.send_tg_reklama import TelegramSender  # Импортируем класс для отправки
+from telega.send_tg_reklama import TelegramSender  # Импортируем класс для отправки
 from common.config import Config
 from common.logging_config import setup_logger
 from main_tg_bot.booking_objects import PROJECT_ROOT

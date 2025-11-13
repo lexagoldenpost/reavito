@@ -7,8 +7,8 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from common.logging_config import setup_logger
 from new_halo_notification_service import send_to_specific_chat
-from sync_db_google_sheets.channel_monitor import AsyncSessionLocal
-from sync_db_google_sheets.models import Chat
+from old.sync_db_google_sheets.channel_monitor import AsyncSessionLocal
+from old.sync_db_google_sheets.models import Chat
 
 logger = setup_logger("send_bookings")
 

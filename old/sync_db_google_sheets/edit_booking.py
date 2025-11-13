@@ -13,7 +13,7 @@ from telegram.ext import (
 )
 
 from common.logging_config import setup_logger
-from sync_db_google_sheets.models import Booking
+from old.sync_db_google_sheets.models import Booking
 from sync_google_booking import update_single_record_in_google_sheet
 
 logger = setup_logger("edit_booking")

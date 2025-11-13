@@ -5,9 +5,9 @@ from typing import List, Optional, Dict
 from common.database import SessionLocal
 from sqlalchemy.orm import Session
 
-from avito_message_in.models import Message
+from old.avito_message_in.models import Message
 from common.logging_config import setup_logger
-from intent_bot.main import IntentBot  # Предполагаем, что IntentBot уже реализован
+from old.intent_bot.main import IntentBot  # Предполагаем, что IntentBot уже реализован
 
 # Настройка логгера
 logger = setup_logger("scenario_bot")

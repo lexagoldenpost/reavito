@@ -24,8 +24,9 @@ class Config:
     TELEGRAM_API_SEARCH_HASH = os.getenv("TELEGRAM_API_SEARCH_HASH")
     TELEGRAM_SEARCH_PHONE = os.getenv("TELEGRAM_SEARCH_PHONE")
     TARGET_GROUP = os.getenv("TARGET_GROUP")
-    # Сессия для происка в канлах телетон
-    TELEGRAM_STRING_SESSION = "1BVtsOIIBu16GxvlYPPwO8aoDDm7Uzv-UjfCZ1I86o_Z52jargG5FRr05484YFYesxUH15gCJEQRe7d8lBZYxzQOa2Fjmodfehf6ZHvNAw2Y97LxGjwv6J_qfFlvUAbgBWBpGUnQKs-Vgrrg9Km_AeyIvwdiShSd60teV7_bN12w7qYlwZcUtgHYxYLVsg2Ig0aWE1IoM8LvxH3SWa1oMeUO5ubz4iZMdRUR8mb_rcq016K19Bkve7hdfg8R3DM7o_OLCuLwnmxyFYv205t7wQiLZP3USqW-wXEOmne-uCMm1TFGChGYVuxQ0LcB61NzSrISXmiCU6pdrX0c6KvtsewFZzV8BkSI="  # оставьте пустой для первого запуска
+
+    # Сессия для происка в канлах телетон (Используется Леха ПО)
+    TELEGRAM_STRING_SESSION = os.getenv("TELEGRAM_STRING_SESSION")  # оставьте пустой для первого запуска
 
     TELEGRAM_SESSION_NAME = os.getenv("TELEGRAM_SESSION_NAME")
     IMAGES_FOLDER = os.getenv("IMAGES_FOLDER")

@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Dict
 
 from common.logging_config import setup_logger
-from sync_db_google_sheets.notification_service import check_notification_triggers
+from old.sync_db_google_sheets.notification_service import check_notification_triggers
 
 logger = setup_logger("scheduler")
 
