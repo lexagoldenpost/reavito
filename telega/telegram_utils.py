@@ -111,7 +111,7 @@ class TelegramUtils:
             return False
 
     @staticmethod
-    async def resolve_channel_identifier(client: TelegramClient, identifier: Union[str, int]) -> Optional[Tuple]:
+    async def resolve_channel_identifier(client: TelegramClient, identifier: str) -> Optional[Tuple]:
         """Разрешает идентификатор канала в entity и ID"""
         try:
             # Пробуем получить entity
@@ -119,15 +119,20 @@ class TelegramUtils:
             if not entity:
                 return None
 
-            # Получаем ID канала - ВАЖНО: используем реальный ID, а не форматированный
+            # Получаем ID канала
             if hasattr(entity, 'id'):
                 channel_id = entity.id
+                # Для каналов ID обычно отрицательный, преобразуем в строку для удобства
+                if channel_id < 0:
+                    # Преобразуем в формат -100XXXXXXX
+                    full_channel_id = f"-100{abs(channel_id)}"
+                else:
+                    full_channel_id = str(channel_id)
 
                 # Получаем имя канала
                 channel_name = getattr(entity, 'title', None) or getattr(entity, 'username', None) or str(identifier)
 
-                # ВОЗВРАЩАЕМ РЕАЛЬНЫЙ ID (даже если он отрицательный)
-                return entity, channel_id, channel_name
+                return entity, full_channel_id, channel_name
 
             return None
 
@@ -177,7 +182,7 @@ class TelegramUtils:
                 offset_date=None,
                 offset_id=0,
                 offset_peer=InputPeerEmpty(),
-                limit=1000,
+                limit=1000,  # Максимум 1000 диалогов
                 hash=0
             ))
 
@@ -195,8 +200,9 @@ class TelegramUtils:
 
                         # Формируем информацию о канале
                         channel_info = {
-                            'entity': entity,  # Сохраняем полный объект entity
-                            'id': entity.id,  # РЕАЛЬНЫЙ ID (может быть отрицательным)
+                            'entity': entity,
+                            'id': entity.id,
+                            'full_id': f"-100{abs(entity.id)}" if entity.id < 0 else str(entity.id),
                             'title': getattr(entity, 'title', 'N/A'),
                             'username': getattr(entity, 'username', None),
                             'link': f"https://t.me/{entity.username}" if getattr(entity, 'username', None) else 'N/A',
@@ -233,16 +239,15 @@ class TelegramUtils:
 
         if user_info:
             logger.info(f"=== ИНФОРМАЦИЯ О ТЕКУЩЕМ ПОЛЬЗОВАТЕЛЕ ===")
-            logger.info(f"Пользователь='{user_info['full_name']}' "
-                        f"ID={user_info['id']:,} ".replace(',', ' ') +
-                        (f"Username=@{user_info['username']} " if user_info['username'] else "Username=N/A ") +
-                        f"Телефон={user_info['phone']} " +
-                        f"Ссылка={user_info['link']} " +
-                        f"Бот={'Да' if user_info['bot'] else 'Нет'} " +
-                        f"Premium={'Да' if user_info['premium'] else 'Нет'} " +
-                        f"Верифицирован={'Да' if user_info['verified'] else 'Нет'} " +
-                        f"Скам={'Да' if user_info['scam'] else 'Нет'} " +
-                        f"Фейк={'Да' if user_info['fake'] else 'Нет'}")
+            logger.info(f"Пользователь: {user_info['full_name']} (ID: {user_info['id']})")
+            logger.info(f"Username: @{user_info['username']}" if user_info['username'] else f"Username: N/A")
+            logger.info(f"Телефон: {user_info['phone']}")
+            logger.info(f"Ссылка: {user_info['link']}")
+            logger.info(f"Бот: {'Да' if user_info['bot'] else 'Нет'}")
+            logger.info(f"Premium: {'Да' if user_info['premium'] else 'Нет'}")
+            logger.info(f"Верифицирован: {'Да' if user_info['verified'] else 'Нет'}")
+            logger.info(f"Скам: {'Да' if user_info['scam'] else 'Нет'}")
+            logger.info(f"Фейк: {'Да' if user_info['fake'] else 'Нет'}")
             logger.info("==========================================")
 
         logger.info("=== НАЧАЛО СПИСКА ДОСТУПНЫХ КАНАЛОВ И ГРУПП ===")
@@ -256,41 +261,8 @@ class TelegramUtils:
         logger.info(f"Найдено {len(channels)} каналов/групп:")
 
         for i, channel in enumerate(channels, 1):
-            entity = channel['entity']
-            real_id = channel['id']
-
-            # Форматируем реальный ID с пробелами
-            real_id_formatted = f"{real_id:,}".replace(',', ' ')
-
-            # Вычисляем ID для ссылки
-            if isinstance(entity, Channel):
-                # Для каналов: если real_id отрицательный - это уже ID для ссылки
-                # если положительный - преобразуем в формат для ссылки
-                if real_id > 0:
-                    link_id = -1000000000000 + real_id
-                else:
-                    link_id = real_id
-            else:
-                # Для чатов используем реальный ID
-                link_id = real_id
-
-            link_id_formatted = f"{link_id:,}".replace(',', ' ')
-
-            participants_count = f"{channel['participants_count']:,}".replace(',', ' ') if channel[
-                'participants_count'] else 'N/A'
-
             logger.info(
-                f"Канал #{i}: Название='{channel['title']}', Тип='{channel['type']}', "
-                f"RealID={real_id_formatted}, "
-                f"LinkID={link_id_formatted}, "
-                f"Username='{channel['username']}', "
-                f"Ссылка='{channel['link']}', Участников={participants_count}, "
-                f"Доступен={'Да' if channel['accessible'] else 'Нет'}, "
-                f"Не_забанен={'Да' if channel['not_banned'] else 'Нет'}, "
-                f"Можно_отправлять={'Да' if channel['can_send_messages'] else 'Нет'}, "
-                f"Заглушен={'Да' if channel['is_muted'] else 'Нет'}, "
-                f"Архив={'Да' if channel['is_archived'] else 'Нет'}"
-            )
+                f"Канал #{i}: Название='{channel['title']}', Тип='{channel['type']}', ID={channel['id']}, Полный_ID='{channel['full_id']}', Username='{channel['username']}', Ссылка='{channel['link']}', Участников={channel['participants_count']}, Доступен={'Да' if channel['accessible'] else 'Нет'}, Не_забанен={'Да' if channel['not_banned'] else 'Нет'}, Можно_отправлять={'Да' if channel['can_send_messages'] else 'Нет'}, Заглушен={'Да' if channel['is_muted'] else 'Нет'}, Архив={'Да' if channel['is_archived'] else 'Нет'}")
 
         logger.info("=== КОНЕЦ СПИСКА ДОСТУПНЫХ КАНАЛОВ ===")
 
