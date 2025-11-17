@@ -31,7 +31,7 @@ if (!is_array($data)) {
 
 // Генерация имени файла (если нужно)
 $filename = 'form_data.json';
-if (isset($data['filename']) && preg_match('/^[a-zA-Zа-яА-Я0-9_\-\.\s]+\.json$/u', $data['filename'])) {
+if (isset($data['filename']) && preg_match('/^[^\/\\\\:\*\?"<>\|]+\.json$/u', $data['filename'])) {
     $filename = $data['filename'];
 }
 
