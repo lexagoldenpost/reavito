@@ -491,63 +491,117 @@ if (!empty($files)) {
             margin: 15px 0;
         }
 
-        /* Добавляем стили для таблицы цен по месяцам */
-        .price-list-section {
-            background: white;
-            border-radius: 12px;
-            padding: 25px;
-            margin-top: 25px;
-            color: #333;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-        }
-
-        .price-table {
-            width: 100%;
-            border-collapse: collapse;
+        /* Обновленные стили для компактной таблицы цен */
+        .compact-price-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
             margin-top: 15px;
         }
 
-        .price-table th {
+        .month-price-card {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .month-price-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            border-color: #667eea;
+        }
+
+        .month-price-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
             background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            padding: 12px 15px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 14px;
         }
 
-        .price-table td {
-            padding: 12px 15px;
-            border-bottom: 1px solid #e9ecef;
-            font-size: 14px;
+        .month-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid rgba(102, 126, 234, 0.1);
         }
 
-        .price-table tr:hover {
-            background-color: #f8f9fa;
-        }
-
-        .price-table .month-name {
-            font-weight: 600;
+        .month-name {
+            font-weight: 700;
+            font-size: 18px;
             color: #2c3e50;
-            min-width: 150px;
+            margin: 0;
         }
 
-        .price-table .price-value {
-            font-weight: 600;
-            color: #28a745;
-            text-align: right;
+        .month-periods {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
 
-        .price-table .period {
+        .period-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            transition: all 0.2s ease;
+        }
+
+        .period-item:hover {
+            background: #f8f9fa;
+            transform: translateX(5px);
+        }
+
+        .period-range {
+            font-size: 14px;
             color: #6c757d;
-            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .period-price {
+            font-weight: 700;
+            font-size: 16px;
+            color: #28a745;
+            background: rgba(40, 167, 69, 0.1);
+            padding: 4px 10px;
+            border-radius: 6px;
         }
 
         .no-price-data {
             text-align: center;
             color: #6c757d;
             font-style: italic;
-            padding: 20px;
+            padding: 40px 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border: 2px dashed #dee2e6;
+        }
+
+        .no-price-data i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            display: block;
+            color: #adb5bd;
+        }
+
+        .price-card-highlight {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border-color: #ffc107;
+        }
+
+        .price-card-highlight::before {
+            background: linear-gradient(135deg, #ffc107, #e0a800);
         }
 
         .section-header {
@@ -590,44 +644,64 @@ if (!empty($files)) {
             padding: 0;
         }
 
-        /* Адаптивные стили для таблицы цен */
-        .price-table-container {
-            overflow-x: auto;
+        /* Анимации */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
-        .price-table {
-            min-width: 500px;
+        .month-price-card {
+            animation: fadeInUp 0.5s ease-out;
         }
 
-        .price-table .price-value-mobile {
-            display: none;
-            font-weight: 600;
-            color: #28a745;
-            font-size: 12px;
+        .month-price-card:nth-child(odd) {
+            animation-delay: 0.1s;
         }
 
+        .month-price-card:nth-child(even) {
+            animation-delay: 0.2s;
+        }
+
+        /* Адаптивность для мобильных */
         @media (max-width: 768px) {
-            .price-table th:nth-child(3),
-            .price-table td:nth-child(3) {
-                display: none;
+            .compact-price-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
             }
             
-            .price-table .price-value-mobile {
-                display: block;
+            .month-price-card {
+                padding: 15px;
             }
             
-            .price-table .period {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
+            .month-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
             }
             
-            .price-table {
-                min-width: 300px;
+            .month-name {
+                font-size: 16px;
             }
-        }
+            
+            .period-item {
+                padding: 6px 10px;
+            }
+            
+            .period-range {
+                font-size: 13px;
+            }
+            
+            .period-price {
+                font-size: 14px;
+                padding: 3px 8px;
+            }
 
-        @media (max-width: 1024px) {
             .calculator-form-container {
                 grid-template-columns: 1fr 1fr;
             }
@@ -640,7 +714,25 @@ if (!empty($files)) {
             }
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 480px) {
+            .compact-price-grid {
+                gap: 10px;
+            }
+            
+            .month-price-card {
+                padding: 12px;
+            }
+            
+            .period-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+            
+            .period-price {
+                align-self: flex-end;
+            }
+
             .calculator-form-container {
                 grid-template-columns: 1fr;
             }
@@ -758,9 +850,7 @@ if (!empty($files)) {
                         </div>
                         
                         <div id="priceListSection" class="collapsible-section collapsed">
-                            <div class="price-table-container">
-                                <div id="priceListContainer"></div>
-                            </div>
+                            <div id="priceListContainer"></div>
                         </div>
 
                         <div class="section-header" onclick="toggleSection('calendarSection')">
@@ -966,9 +1056,9 @@ if (!empty($files)) {
                 onDayCreate: function(dObj, dStr, fp, dayElem) {
                     const date = new Date(dayElem.dateObj);
                     const dateStr = date.toISOString().split('T')[0];
-                    
+
                     dayElem.classList.remove('booked', 'available-checkin');
-                    
+
                     if (!isDateAvailableForCheckin(dateStr)) {
                         dayElem.classList.add('booked');
                         dayElem.title = 'Занято';
@@ -995,9 +1085,9 @@ if (!empty($files)) {
                 onDayCreate: function(dObj, dStr, fp, dayElem) {
                     const date = new Date(dayElem.dateObj);
                     const dateStr = date.toISOString().split('T')[0];
-                    
+
                     dayElem.classList.remove('booked', 'available-checkout');
-                    
+
                     if (!isDateAvailableForCheckout(dateStr)) {
                         dayElem.classList.add('booked');
                         dayElem.title = 'Занято';
@@ -1060,7 +1150,13 @@ if (!empty($files)) {
             container.innerHTML = '';
 
             if (!pricePeriods || pricePeriods.length === 0) {
-                container.innerHTML = '<div class="no-price-data">Нет данных о ценах</div>';
+                container.innerHTML = `
+                    <div class="no-price-data">
+                        <i>💰</i>
+                        <div>Нет данных о ценах</div>
+                        <small class="text-muted">Загрузите файл с ценами для отображения</small>
+                    </div>
+                `;
                 return;
             }
 
@@ -1071,6 +1167,7 @@ if (!empty($files)) {
                 9: 'Сентябрь', 10: 'Октябрь', 11: 'Ноябрь', 12: 'Декабрь'
             };
 
+            // Группируем периоды по месяцам
             pricePeriods.forEach(period => {
                 const monthKey = period.startMonth;
                 if (!monthlyPrices[monthKey]) {
@@ -1079,57 +1176,54 @@ if (!empty($files)) {
                 monthlyPrices[monthKey].push(period);
             });
 
-            const table = document.createElement('table');
-            table.className = 'price-table';
+            // Создаем сетку карточек
+            const grid = document.createElement('div');
+            grid.className = 'compact-price-grid';
 
-            const thead = document.createElement('thead');
-            thead.innerHTML = `
-                <tr>
-                    <th>Месяц</th>
-                    <th>Период</th>
-                    <th>Стоимость за ночь</th>
-                </tr>
-            `;
-            table.appendChild(thead);
-
-            const tbody = document.createElement('tbody');
+            // Сортируем месяцы по порядку
             const sortedMonths = Object.keys(monthlyPrices).sort((a, b) => a - b);
 
             sortedMonths.forEach(monthNum => {
                 const monthData = monthlyPrices[monthNum];
                 monthData.sort((a, b) => a.startDay - b.startDay);
 
-                monthData.forEach((period, index) => {
-                    const row = document.createElement('tr');
-                    
-                    const monthCell = document.createElement('td');
-                    if (index === 0) {
-                        monthCell.className = 'month-name';
-                        monthCell.textContent = monthNames[monthNum];
-                    } else {
-                        monthCell.innerHTML = '&nbsp;';
-                    }
-                    
-                    const periodCell = document.createElement('td');
-                    periodCell.className = 'period';
-                    periodCell.innerHTML = `
-                        ${period.startDay} - ${period.endDay} число
-                        <span class="price-value-mobile">${period.price.toLocaleString('ru-RU')} ฿</span>
-                    `;
-                    
-                    const priceCell = document.createElement('td');
-                    priceCell.className = 'price-value';
-                    priceCell.textContent = `${period.price.toLocaleString('ru-RU')} ฿`;
+                const monthCard = document.createElement('div');
+                monthCard.className = 'month-price-card';
+                
+                // Добавляем подсветку для текущего месяца
+                const currentMonth = new Date().getMonth() + 1;
+                if (parseInt(monthNum) === currentMonth) {
+                    monthCard.classList.add('price-card-highlight');
+                }
 
-                    row.appendChild(monthCell);
-                    row.appendChild(periodCell);
-                    row.appendChild(priceCell);
-                    tbody.appendChild(row);
+                // Заголовок месяца
+                const monthHeader = document.createElement('div');
+                monthHeader.className = 'month-header';
+                monthHeader.innerHTML = `
+                    <div class="month-name">${monthNames[monthNum]}</div>
+                `;
+
+                // Контейнер для периодов
+                const periodsContainer = document.createElement('div');
+                periodsContainer.className = 'month-periods';
+
+                // Добавляем каждый период
+                monthData.forEach(period => {
+                    const periodItem = document.createElement('div');
+                    periodItem.className = 'period-item';
+                    periodItem.innerHTML = `
+                        <div class="period-range">${period.startDay} - ${period.endDay} число</div>
+                        <div class="period-price">${period.price.toLocaleString('ru-RU')} ฿</div>
+                    `;
+                    periodsContainer.appendChild(periodItem);
                 });
+
+                monthCard.appendChild(monthHeader);
+                monthCard.appendChild(periodsContainer);
+                grid.appendChild(monthCard);
             });
 
-            table.appendChild(tbody);
-            container.appendChild(table);
+            container.appendChild(grid);
         }
 
         function generatePriceCalendar() {
@@ -1350,3 +1444,4 @@ if (!empty($files)) {
         });
     </script>
 </body>
+</html>
