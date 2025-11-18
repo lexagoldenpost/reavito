@@ -8,6 +8,7 @@ from telethon.sessions import StringSession
 
 from common.config import Config
 from common.logging_config import setup_logger
+from main_tg_bot.booking_objects import PROJECT_ROOT
 from telega.telegram_utils import TelegramUtils
 
 logger = setup_logger("send_tg_reklama")
@@ -208,22 +209,50 @@ class TelegramSender:
             self.send_message_async(channel_identifier, message, media_files)
         )
 
+    async def update_channels_csv_async(self) -> bool:
+      """Асинхронное обновление CSV файлов информацией о каналах"""
+      async with self.client:
+        try:
+          if not await TelegramUtils.initialize_client(self.client, self.phone):
+            return False
+
+          await TelegramUtils.update_channels_csv_files_standalone(self.client)
+          return True
+
+        except Exception as e:
+          logger.error(f"Ошибка при обновлении CSV файлов: {str(e)}")
+          return False
+
+    def update_channels_csv(self) -> bool:
+      """Синхронное обновление CSV файлов информацией о каналах"""
+      import asyncio
+      try:
+        loop = asyncio.get_event_loop()
+      except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+      return loop.run_until_complete(self.update_channels_csv_async())
+
 
 async def main():
     """Основная асинхронная функция"""
     sender = TelegramSender()
 
+    # Определяем путь к папке booking относительно корня проекта
+    IMAGE_DATA_DIR = PROJECT_ROOT / "images" / "halo_title"
+
     # Пример: получение и логирование всех доступных каналов
     print("Получение списка всех доступных каналов...")
-    # async with sender.client:
-    #     await TelegramUtils.initialize_client(sender.client, sender.phone)
-    #     available_channels = await TelegramUtils.log_all_available_channels(sender.client)
-    #
-    #     # Теперь вы можете использовать информацию из available_channels
-    #     # ВАЖНО: используйте реальный ID из поля 'id' (может быть отрицательным)
-    #     for channel in available_channels:
-    #         if channel['can_send_messages']:
-    #             print(f"Доступный канал для отправки: {channel['title']} (ID: {channel['id']} , FULL_ID: {channel['full_id']})")
+    async with sender.client:
+        await TelegramUtils.initialize_client(sender.client, sender.phone)
+        available_channels = await TelegramUtils.log_all_available_channels(sender.client)
+
+        # Теперь вы можете использовать информацию из available_channels
+        # ВАЖНО: используйте реальный ID из поля 'id' (может быть отрицательным)
+        for channel in available_channels:
+            if channel['can_send_messages']:
+                print(f"Доступный канал для отправки: {channel['title']} (ID: {channel['id']} , FULL_ID: {channel['full_id']})")
 
     # Пример 1: Только текст
     print("Отправка текстового сообщения:")
@@ -238,7 +267,7 @@ async def main():
     result = await sender.send_message_async(
         -1002679682284,  # channel_identifier в числовом формате
         message="Сообщение с картинкой",
-        media_files="test_image.jpg"
+        media_files= [IMAGE_DATA_DIR / "photo_3.jpg"]
     )
     print("Результат:", "Успешно" if result else "Ошибка")
 
@@ -246,7 +275,7 @@ async def main():
     print("\nОтправка нескольких медиафайлов:")
     result = await sender.send_message_async(
         -1002679682284,  # channel_identifier в числовом формате
-        media_files=["image1.jpg", "test_image.jpg"]
+        media_files=[IMAGE_DATA_DIR / "photo_1.jpg", IMAGE_DATA_DIR / "photo_2.jpg"]
     )
     print("Результат:", "Успешно" if result else "Ошибка")
 

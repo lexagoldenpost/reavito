@@ -1,7 +1,9 @@
 # telegram_utils.py
-from typing import Optional, List, Tuple, Union
+from typing import Optional, List, Tuple, Union, Dict
 from pathlib import Path
 import logging
+
+import pandas as pd
 from telethon import TelegramClient
 from telethon.tl.types import ChatBannedRights, Channel, User, PeerChannel, Chat
 from telethon.errors import ChatWriteForbiddenError, ChannelPrivateError, UsernameNotOccupiedError
@@ -12,9 +14,13 @@ from telethon.tl.types import InputPeerEmpty
 from telethon.tl.functions.users import GetFullUserRequest
 from common.logging_config import setup_logger
 from common.config import Config
+from main_tg_bot.booking_objects import PROJECT_ROOT
+from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
 
 logger = setup_logger("telegram_utils")
 
+project_root = PROJECT_ROOT
+csv_path = project_root / Config.TASK_DATA_DIR
 
 class TelegramUtils:
     """Утилиты для работы с Telegram"""
@@ -238,39 +244,181 @@ class TelegramUtils:
 
     @staticmethod
     async def log_all_available_channels(client: TelegramClient) -> List[dict]:
-        """
-        Выводит в лог все доступные каналы с полной информацией в одну строку
-        """
-        # Сначала получаем информацию о текущем пользователе
-        user_info = await TelegramUtils.get_current_user_info(client)
+      """
+      Выводит в лог все доступные каналы с полной информацией в одну строку
+      и обновляет CSV файлы
+      """
+      # Сначала получаем информацию о текущем пользователе
+      user_info = await TelegramUtils.get_current_user_info(client)
 
-        if user_info:
-            logger.info(f"=== ИНФОРМАЦИЯ О ТЕКУЩЕМ ПОЛЬЗОВАТЕЛЕ ===")
-            logger.info(f"Пользователь: {user_info['full_name']} (ID: {user_info['id']})")
-            logger.info(f"Username: @{user_info['username']}" if user_info['username'] else f"Username: N/A")
-            logger.info(f"Телефон: {user_info['phone']}")
-            logger.info(f"Ссылка: {user_info['link']}")
-            logger.info(f"Бот: {'Да' if user_info['bot'] else 'Нет'}")
-            logger.info(f"Premium: {'Да' if user_info['premium'] else 'Нет'}")
-            logger.info(f"Верифицирован: {'Да' if user_info['verified'] else 'Нет'}")
-            logger.info(f"Скам: {'Да' if user_info['scam'] else 'Нет'}")
-            logger.info(f"Фейк: {'Да' if user_info['fake'] else 'Нет'}")
-            logger.info("==========================================")
+      if user_info:
+        logger.info(f"=== ИНФОРМАЦИЯ О ТЕКУЩЕМ ПОЛЬЗОВАТЕЛЕ ===")
+        logger.info(
+          f"Пользователь: {user_info['full_name']} (ID: {user_info['id']})")
+        logger.info(f"Username: @{user_info['username']}" if user_info[
+          'username'] else f"Username: N/A")
+        logger.info(f"Телефон: {user_info['phone']}")
+        logger.info(f"Ссылка: {user_info['link']}")
+        logger.info(f"Бот: {'Да' if user_info['bot'] else 'Нет'}")
+        logger.info(f"Premium: {'Да' if user_info['premium'] else 'Нет'}")
+        logger.info(
+          f"Верифицирован: {'Да' if user_info['verified'] else 'Нет'}")
+        logger.info(f"Скам: {'Да' if user_info['scam'] else 'Нет'}")
+        logger.info(f"Фейк: {'Да' if user_info['fake'] else 'Нет'}")
+        logger.info("==========================================")
 
-        logger.info("=== НАЧАЛО СПИСКА ДОСТУПНЫХ КАНАЛОВ И ГРУПП ===")
+      logger.info("=== НАЧАЛО СПИСКА ДОСТУПНЫХ КАНАЛОВ И ГРУПП ===")
 
+      channels = await TelegramUtils.get_all_available_channels(client)
+
+      if not channels:
+        logger.info("Не найдено доступных каналов или групп")
+        return []
+
+      logger.info(f"Найдено {len(channels)} каналов/групп:")
+
+      for i, channel in enumerate(channels, 1):
+        logger.info(
+            f"Канал #{i}: Название='{channel['title']}', Тип='{channel['type']}', ID={channel['id']}, Полный_ID='{channel['full_id']}', Username='{channel['username']}', Ссылка='{channel['link']}', Участников={channel['participants_count']}, Доступен={'Да' if channel['accessible'] else 'Нет'}, Не_забанен={'Да' if channel['not_banned'] else 'Нет'}, Можно_отправлять={'Да' if channel['can_send_messages'] else 'Нет'}, Заглушен={'Да' if channel['is_muted'] else 'Нет'}, Архив={'Да' if channel['is_archived'] else 'Нет'}")
+
+      logger.info("=== КОНЕЦ СПИСКА ДОСТУПНЫХ КАНАЛОВ ===")
+
+      # Обновляем CSV файлы
+      await TelegramUtils.update_channels_csv_files(channels)
+
+      return channels
+
+    @staticmethod
+    async def update_channels_csv_files(channels: List[Dict]) -> None:
+      """
+      Обновляет CSV файлы channels.csv и search_channels.csv информацией о каналах
+      """
+      try:
+        # Создаем словарь для быстрого поиска канала по ID
+        channels_dict = {}
+        for channel in channels:
+          # Используем real_id как ключ
+          channels_dict[str(channel['id'])] = channel
+          # Также добавляем по full_id для совместимости
+          channels_dict[channel['full_id']] = channel
+
+        # Инициализируем sync_manager для получения соответствий
+        sync_manager = GoogleSheetsCSVSync()
+
+        # Обновляем channels.csv
+        channels_csv_path = sync_manager.sheet_to_filepath.get(
+          "Отправка бронирований")
+        if channels_csv_path:
+          await TelegramUtils._update_channels_csv(channels_dict,
+                                                   channels_csv_path,
+                                                   sync_manager,
+                                                   "Отправка бронирований")
+        else:
+          logger.warning("Не найден путь для листа 'Отправка бронирований'")
+
+        # Обновляем search_channels.csv
+        search_channels_csv_path = sync_manager.sheet_to_filepath.get(
+          "Поиск в чатах")
+        if search_channels_csv_path:
+          await TelegramUtils._update_channels_csv(channels_dict,
+                                                   search_channels_csv_path,
+                                                   sync_manager,
+                                                   "Поиск в чатах")
+        else:
+          logger.warning("Не найден путь для листа 'Поиск в чатах'")
+
+        logger.info("CSV файлы успешно обновлены")
+
+      except Exception as e:
+        logger.error(f"Ошибка при обновлении CSV файлов: {str(e)}")
+
+    @staticmethod
+    async def _update_channels_csv(channels_dict: Dict, file_path: Path,
+        sync_manager: GoogleSheetsCSVSync, sheet_name: str) -> None:
+      """
+      Внутренний метод для обновления конкретного CSV файла
+
+      Args:
+          channels_dict: Словарь с информацией о каналах
+          file_path: Путь к CSV файлу
+          sync_manager: Экземпляр GoogleSheetsCSVSync
+          sheet_name: Название листа для синхронизации
+      """
+      try:
+        if not file_path.exists():
+          logger.warning(f"Файл {file_path} не найден, пропускаем обновление")
+          return
+
+        # Читаем CSV файл
+        df = pd.read_csv(file_path)
+
+        # Определяем структуру файла по именам колонок
+        if 'Наименование чата' in df.columns and 'Название канала' in df.columns:
+          # Это channels.csv (Отправка бронирований)
+          updated = False
+          for index, row in df.iterrows():
+            channel_id = str(row['Наименование чата']).strip()
+            current_name = str(row['Название канала']).strip() if pd.notna(
+                row['Название канала']) else ""
+
+            # Если название канала не заполнено и есть информация о канале
+            if not current_name and channel_id in channels_dict:
+              channel_info = channels_dict[channel_id]
+              df.at[index, 'Название канала'] = channel_info['title']
+              updated = True
+              logger.info(
+                  f"Обновлен канал {channel_id}: {channel_info['title']}")
+
+        elif 'Каналы и группы' in df.columns and 'Название канала' in df.columns:
+          # Это search_channels.csv (Поиск в чатах)
+          updated = False
+          for index, row in df.iterrows():
+            channel_id = str(row['Каналы и группы']).strip()
+            current_name = str(row['Название канала']).strip() if pd.notna(
+                row['Название канала']) else ""
+
+            # Если название канала не заполнено и есть информация о канале
+            if not current_name and channel_id in channels_dict:
+              channel_info = channels_dict[channel_id]
+              df.at[index, 'Название канала'] = channel_info['title']
+              updated = True
+              logger.info(
+                  f"Обновлен канал {channel_id}: {channel_info['title']}")
+
+        # Сохраняем изменения только если были обновления
+        if updated:
+          df.to_csv(file_path, index=False, encoding='utf-8')
+          # Обновляем в гугл таблице
+          sync_success = sync_manager.sync_sheet(
+              sheet_name=sheet_name, direction='csv_to_google')
+          if not sync_success:
+            raise RuntimeError("Синхронизация завершилась со статусом False")
+          logger.info(f"Файл {file_path} успешно обновлен и синхронизирован")
+        else:
+          logger.info(f"В файле {file_path} не найдено каналов для обновления")
+
+      except Exception as e:
+        logger.error(f"Ошибка при обновлении файла {file_path}: {str(e)}")
+
+
+    @staticmethod
+    async def update_channels_csv_files_standalone(
+        client: TelegramClient) -> None:
+      """
+      Отдельный метод только для обновления CSV файлов информацией о каналах
+      """
+      try:
+        logger.info("Запуск отдельного метода обновления CSV файлов...")
+
+        # Получаем все доступные каналы
         channels = await TelegramUtils.get_all_available_channels(client)
 
         if not channels:
-            logger.info("Не найдено доступных каналов или групп")
-            return []
+          logger.warning("Не найдено доступных каналов для обновления CSV")
+          return
 
-        logger.info(f"Найдено {len(channels)} каналов/групп:")
+        # Обновляем CSV файлы
+        await TelegramUtils.update_channels_csv_files(channels)
 
-        for i, channel in enumerate(channels, 1):
-            logger.info(
-                f"Канал #{i}: Название='{channel['title']}', Тип='{channel['type']}', ID={channel['id']}, Полный_ID='{channel['full_id']}', Username='{channel['username']}', Ссылка='{channel['link']}', Участников={channel['participants_count']}, Доступен={'Да' if channel['accessible'] else 'Нет'}, Не_забанен={'Да' if channel['not_banned'] else 'Нет'}, Можно_отправлять={'Да' if channel['can_send_messages'] else 'Нет'}, Заглушен={'Да' if channel['is_muted'] else 'Нет'}, Архив={'Да' if channel['is_archived'] else 'Нет'}")
-
-        logger.info("=== КОНЕЦ СПИСКА ДОСТУПНЫХ КАНАЛОВ ===")
-
-        return channels
+      except Exception as e:
+        logger.error(f"Ошибка в standalone методе обновления CSV: {str(e)}")
