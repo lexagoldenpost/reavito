@@ -106,56 +106,56 @@ if (!empty($files)) {
         }
 
         .calendar-info {
-    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-    border-radius: 10px;
-}
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 10px;
+        }
 
-.example-booking {
-    font-size: 12px;
-    border: 1px dashed #28a745 !important;
-}
+        .example-booking {
+            font-size: 12px;
+            border: 1px dashed #28a745 !important;
+        }
 
-.calendar-day.selected {
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    color: white;
-    position: relative;
-}
+        .calendar-day.selected {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            position: relative;
+        }
 
-.calendar-day.checkout-day {
-    background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
-    color: #2e7d32;
-    border: 1px dashed #28a745;
-}
+        .calendar-day.checkout-day {
+            background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+            color: #2e7d32;
+            border: 1px dashed #28a745;
+        }
 
-.legend {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    margin-top: 15px;
-    flex-wrap: wrap;
-}
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
 
-.legend-item {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 12px;
-}
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+        }
 
-.legend-color {
-    width: 15px;
-    height: 15px;
-    border-radius: 3px;
-}
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+        }
 
-.legend-color.night {
-    background: linear-gradient(135deg, #667eea, #764ba2);
-}
+        .legend-color.night {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
 
-.legend-color.checkout {
-    background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
-    border: 1px dashed #28a745;
-}
+        .legend-color.checkout {
+            background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+            border: 1px dashed #28a745;
+        }
 
         .flatpickr-day.booked {
             background-color: #ffb347 !important;
@@ -491,6 +491,142 @@ if (!empty($files)) {
             margin: 15px 0;
         }
 
+        /* Добавляем стили для таблицы цен по месяцам */
+        .price-list-section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-top: 25px;
+            color: #333;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .price-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .price-table th {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .price-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e9ecef;
+            font-size: 14px;
+        }
+
+        .price-table tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .price-table .month-name {
+            font-weight: 600;
+            color: #2c3e50;
+            min-width: 150px;
+        }
+
+        .price-table .price-value {
+            font-weight: 600;
+            color: #28a745;
+            text-align: right;
+        }
+
+        .price-table .period {
+            color: #6c757d;
+            font-size: 13px;
+        }
+
+        .no-price-data {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            padding: 20px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            cursor: pointer;
+        }
+
+        .section-header h5 {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toggle-section-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: #667eea;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+
+        .toggle-section-btn.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .collapsible-section {
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .collapsible-section.collapsed {
+            max-height: 0;
+            opacity: 0;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Адаптивные стили для таблицы цен */
+        .price-table-container {
+            overflow-x: auto;
+        }
+
+        .price-table {
+            min-width: 500px;
+        }
+
+        .price-table .price-value-mobile {
+            display: none;
+            font-weight: 600;
+            color: #28a745;
+            font-size: 12px;
+        }
+
+        @media (max-width: 768px) {
+            .price-table th:nth-child(3),
+            .price-table td:nth-child(3) {
+                display: none;
+            }
+            
+            .price-table .price-value-mobile {
+                display: block;
+            }
+            
+            .price-table .period {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            
+            .price-table {
+                min-width: 300px;
+            }
+        }
+
         @media (max-width: 1024px) {
             .calculator-form-container {
                 grid-template-columns: 1fr 1fr;
@@ -616,30 +752,44 @@ if (!empty($files)) {
                     </div>
 
                     <div id="priceCalendar" class="price-calendar-section" style="display: none;">
-    <h5 class="text-center mb-4">📅 Стоимость по ночам</h5>
+                        <div class="section-header" onclick="toggleSection('priceListSection')">
+                            <h5>💰 Стоимость по месяцам</h5>
+                            <button type="button" class="toggle-section-btn collapsed" id="togglePriceListBtn">▼</button>
+                        </div>
+                        
+                        <div id="priceListSection" class="collapsible-section collapsed">
+                            <div class="price-table-container">
+                                <div id="priceListContainer"></div>
+                            </div>
+                        </div>
 
-    <!-- ДОБАВЬТЕ ЭТОТ БЛОК -->
-    <div class="calendar-info mb-4 p-3 bg-light rounded" style="border-left: 4px solid #2980b9;">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <small class="text-muted">
-                    <strong>💡 Расчет стоимости осуществляется по ночам:</strong><br>
-                    • Дата заезда = ночь, за которую платите<br>
-                    • Дата выезда = утренний выезд (не оплачивается)
-                </small>
-            </div>
-            <div class="col-md-4">
-                <div class="example-booking p-2 bg-white rounded border">
-                    <small class="text-muted d-block">Пример:</small>
-                    <small class="text-success fw-bold">15 → 16 ноября = 1 ночь (15 ноября)</small>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- КОНЕЦ ДОБАВЛЕННОГО БЛОКА -->
+                        <div class="section-header" onclick="toggleSection('calendarSection')">
+                            <h5>📅 Календарь стоимости</h5>
+                            <button type="button" class="toggle-section-btn collapsed" id="toggleCalendarBtn">▼</button>
+                        </div>
+                        
+                        <div id="calendarSection" class="collapsible-section collapsed">
+                            <div class="calendar-info mb-4 p-3 bg-light rounded" style="border-left: 4px solid #2980b9;">
+                                <div class="row align-items-center">
+                                    <div class="col-md-8">
+                                        <small class="text-muted">
+                                            <strong>💡 Расчет стоимости осуществляется по ночам:</strong><br>
+                                            • Дата заезда = ночь, за которую платите<br>
+                                            • Дата выезда = утренний выезд (не оплачивается)
+                                        </small>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="example-booking p-2 bg-white rounded border">
+                                            <small class="text-muted d-block">Пример:</small>
+                                            <small class="text-success fw-bold">15 → 16 ноября = 1 ночь (15 ноября)</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
-    <div id="calendarContainer"></div>
-</div>
+                            <div id="calendarContainer"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -667,6 +817,25 @@ if (!empty($files)) {
         let currentObjectName = '';
         let isFormCollapsed = false;
         let originalTotalCost = 0;
+
+        // Состояния свернутости секций - по умолчанию свернуты
+        let isPriceListCollapsed = true;
+        let isCalendarCollapsed = true;
+
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const toggleBtn = document.getElementById('toggle' + sectionId.charAt(0).toUpperCase() + sectionId.slice(1) + 'Btn');
+            
+            if (sectionId === 'priceListSection') {
+                isPriceListCollapsed = !isPriceListCollapsed;
+                section.classList.toggle('collapsed', isPriceListCollapsed);
+                toggleBtn.classList.toggle('collapsed', isPriceListCollapsed);
+            } else if (sectionId === 'calendarSection') {
+                isCalendarCollapsed = !isCalendarCollapsed;
+                section.classList.toggle('collapsed', isCalendarCollapsed);
+                toggleBtn.classList.toggle('collapsed', isCalendarCollapsed);
+            }
+        }
 
         function toggleBookingForm() {
             const formCard = document.getElementById('bookingFormCard');
@@ -713,9 +882,6 @@ if (!empty($files)) {
         }
 
         function isDateAvailableForCheckin(dateStr) {
-            // Дата доступна для заезда если:
-            // 1. Она не занята бронированием
-            // 2. ИЛИ это дата выезда существующей брони и нет заезда в этот же день
             const isBooked = getBookedDatesArray().includes(dateStr);
             const isCheckoutDate = currentCheckoutDates.has(dateStr);
             const isCheckinDate = currentCheckinDates.has(dateStr);
@@ -724,10 +890,6 @@ if (!empty($files)) {
         }
 
         function isDateAvailableForCheckout(dateStr) {
-            // Дата доступна для выезда если:
-            // 1. Она не занята бронированием
-            // 2. ИЛИ это дата заезда существующей брони и нет выезда в этот же день
-            // 3. ИЛИ это дата перед чьим-то заездом
             const isBooked = getBookedDatesArray().includes(dateStr);
             const isCheckoutDate = currentCheckoutDates.has(dateStr);
             const isCheckinDate = currentCheckinDates.has(dateStr);
@@ -735,7 +897,6 @@ if (!empty($files)) {
             if (!isBooked) return true;
             if (isCheckinDate && !isCheckoutDate) return true;
             
-            // Проверяем, есть ли бронирования после этой даты
             const date = parseDate(dateStr);
             const hasBookingAfter = Array.from(currentCheckinDates).some(checkin => {
                 const checkinDate = parseDate(checkin);
@@ -894,141 +1055,219 @@ if (!empty($files)) {
             updateDiscount();
         }
 
+        function generatePriceList() {
+            const container = document.getElementById('priceListContainer');
+            container.innerHTML = '';
+
+            if (!pricePeriods || pricePeriods.length === 0) {
+                container.innerHTML = '<div class="no-price-data">Нет данных о ценах</div>';
+                return;
+            }
+
+            const monthlyPrices = {};
+            const monthNames = {
+                1: 'Январь', 2: 'Февраль', 3: 'Март', 4: 'Апрель',
+                5: 'Май', 6: 'Июнь', 7: 'Июль', 8: 'Август',
+                9: 'Сентябрь', 10: 'Октябрь', 11: 'Ноябрь', 12: 'Декабрь'
+            };
+
+            pricePeriods.forEach(period => {
+                const monthKey = period.startMonth;
+                if (!monthlyPrices[monthKey]) {
+                    monthlyPrices[monthKey] = [];
+                }
+                monthlyPrices[monthKey].push(period);
+            });
+
+            const table = document.createElement('table');
+            table.className = 'price-table';
+
+            const thead = document.createElement('thead');
+            thead.innerHTML = `
+                <tr>
+                    <th>Месяц</th>
+                    <th>Период</th>
+                    <th>Стоимость за ночь</th>
+                </tr>
+            `;
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            const sortedMonths = Object.keys(monthlyPrices).sort((a, b) => a - b);
+
+            sortedMonths.forEach(monthNum => {
+                const monthData = monthlyPrices[monthNum];
+                monthData.sort((a, b) => a.startDay - b.startDay);
+
+                monthData.forEach((period, index) => {
+                    const row = document.createElement('tr');
+                    
+                    const monthCell = document.createElement('td');
+                    if (index === 0) {
+                        monthCell.className = 'month-name';
+                        monthCell.textContent = monthNames[monthNum];
+                    } else {
+                        monthCell.innerHTML = '&nbsp;';
+                    }
+                    
+                    const periodCell = document.createElement('td');
+                    periodCell.className = 'period';
+                    periodCell.innerHTML = `
+                        ${period.startDay} - ${period.endDay} число
+                        <span class="price-value-mobile">${period.price.toLocaleString('ru-RU')} ฿</span>
+                    `;
+                    
+                    const priceCell = document.createElement('td');
+                    priceCell.className = 'price-value';
+                    priceCell.textContent = `${period.price.toLocaleString('ru-RU')} ฿`;
+
+                    row.appendChild(monthCell);
+                    row.appendChild(periodCell);
+                    row.appendChild(priceCell);
+                    tbody.appendChild(row);
+                });
+            });
+
+            table.appendChild(tbody);
+            container.appendChild(table);
+        }
+
         function generatePriceCalendar() {
-    const container = document.getElementById('calendarContainer');
-    container.innerHTML = '';
-    if (!selectedStartDate || !selectedEndDate) return;
+            generatePriceList();
+            
+            const container = document.getElementById('calendarContainer');
+            container.innerHTML = '';
+            if (!selectedStartDate || !selectedEndDate) return;
 
-    const startMonth = new Date(selectedStartDate.getFullYear(), selectedStartDate.getMonth(), 1);
-    const endMonth = new Date(selectedEndDate.getFullYear(), selectedEndDate.getMonth(), 1);
-    let currentMonth = new Date(startMonth);
+            const startMonth = new Date(selectedStartDate.getFullYear(), selectedStartDate.getMonth(), 1);
+            const endMonth = new Date(selectedEndDate.getFullYear(), selectedEndDate.getMonth(), 1);
+            let currentMonth = new Date(startMonth);
 
-    while (currentMonth <= endMonth) {
-        const year = currentMonth.getFullYear();
-        const month = currentMonth.getMonth();
-        const monthName = currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
-        const monthElement = document.createElement('div');
-        monthElement.className = 'calendar-month';
+            while (currentMonth <= endMonth) {
+                const year = currentMonth.getFullYear();
+                const month = currentMonth.getMonth();
+                const monthName = currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+                const monthElement = document.createElement('div');
+                monthElement.className = 'calendar-month';
 
-        const titleElement = document.createElement('div');
-        titleElement.className = 'calendar-month-title';
-        titleElement.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
-        monthElement.appendChild(titleElement);
+                const titleElement = document.createElement('div');
+                titleElement.className = 'calendar-month-title';
+                titleElement.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+                monthElement.appendChild(titleElement);
 
-        const gridElement = document.createElement('div');
-        gridElement.className = 'calendar-grid';
+                const gridElement = document.createElement('div');
+                gridElement.className = 'calendar-grid';
 
-        const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-        weekdays.forEach(day => {
-            const dayHeader = document.createElement('div');
-            dayHeader.className = 'calendar-day-header';
-            dayHeader.textContent = day;
-            gridElement.appendChild(dayHeader);
-        });
+                const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+                weekdays.forEach(day => {
+                    const dayHeader = document.createElement('div');
+                    dayHeader.className = 'calendar-day-header';
+                    dayHeader.textContent = day;
+                    gridElement.appendChild(dayHeader);
+                });
 
-        const firstDayOfMonth = new Date(year, month, 1);
-        const firstWeekday = firstDayOfMonth.getDay();
-        const offset = firstWeekday === 0 ? 6 : firstWeekday - 1;
+                const firstDayOfMonth = new Date(year, month, 1);
+                const firstWeekday = firstDayOfMonth.getDay();
+                const offset = firstWeekday === 0 ? 6 : firstWeekday - 1;
 
-        for (let j = 0; j < offset; j++) {
-            const emptyDay = document.createElement('div');
-            emptyDay.className = 'calendar-day';
-            gridElement.appendChild(emptyDay);
-        }
+                for (let j = 0; j < offset; j++) {
+                    const emptyDay = document.createElement('div');
+                    emptyDay.className = 'calendar-day';
+                    gridElement.appendChild(emptyDay);
+                }
 
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-        for (let day = 1; day <= daysInMonth; day++) {
-            const currentDate = new Date(year, month, day);
-            const isSelected = currentDate >= selectedStartDate && currentDate < selectedEndDate;
-            const isBooked = isDateBooked(currentDate);
-            const price = getPriceForDate(currentDate);
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const currentDate = new Date(year, month, day);
+                    const isSelected = currentDate >= selectedStartDate && currentDate < selectedEndDate;
+                    const isBooked = isDateBooked(currentDate);
+                    const price = getPriceForDate(currentDate);
 
-            const dayElement = document.createElement('div');
-            dayElement.className = 'calendar-day';
+                    const dayElement = document.createElement('div');
+                    dayElement.className = 'calendar-day';
 
-            if (isSelected) dayElement.classList.add('selected');
-            if (isBooked) dayElement.classList.add('booked');
+                    if (isSelected) dayElement.classList.add('selected');
+                    if (isBooked) dayElement.classList.add('booked');
 
-            if (price > 0) {
-                dayElement.innerHTML = `<div>${day}</div><div class="calendar-day-price">${price} ฿</div>`;
-            } else {
-                dayElement.innerHTML = `<div>${day}</div><div class="calendar-day-price"></div>`;
+                    if (price > 0) {
+                        dayElement.innerHTML = `<div>${day}</div><div class="calendar-day-price">${price} ฿</div>`;
+                    } else {
+                        dayElement.innerHTML = `<div>${day}</div><div class="calendar-day-price"></div>`;
+                    }
+
+                    gridElement.appendChild(dayElement);
+                }
+
+                const totalCells = offset + daysInMonth;
+                const remainingCells = 7 - (totalCells % 7);
+                if (remainingCells < 7) {
+                    for (let j = 0; j < remainingCells; j++) {
+                        const emptyDay = document.createElement('div');
+                        emptyDay.className = 'calendar-day';
+                        gridElement.appendChild(emptyDay);
+                    }
+                }
+
+                monthElement.appendChild(gridElement);
+                container.appendChild(monthElement);
+                currentMonth.setMonth(currentMonth.getMonth() + 1);
             }
 
-            gridElement.appendChild(dayElement);
+            const legendElement = document.createElement('div');
+            legendElement.className = 'legend';
+            legendElement.innerHTML = `
+                <div class="legend-item">
+                    <div class="legend-color night"></div>
+                    <span>Ночь проживания (оплачиваемая)</span>
+                </div>
+            `;
+            container.appendChild(legendElement);
+
+            document.getElementById('priceCalendar').style.display = 'block';
         }
-
-        const totalCells = offset + daysInMonth;
-        const remainingCells = 7 - (totalCells % 7);
-        if (remainingCells < 7) {
-            for (let j = 0; j < remainingCells; j++) {
-                const emptyDay = document.createElement('div');
-                emptyDay.className = 'calendar-day';
-                gridElement.appendChild(emptyDay);
-            }
-        }
-
-        monthElement.appendChild(gridElement);
-        container.appendChild(monthElement);
-        currentMonth.setMonth(currentMonth.getMonth() + 1);
-    }
-
-    const legendElement = document.createElement('div');
-    legendElement.className = 'legend';
-    legendElement.innerHTML = `
-        <div class="legend-item">
-            <div class="legend-color night"></div>
-            <span>Ночь проживания (оплачиваемая)</span>
-        </div>
-    `;
-    container.appendChild(legendElement);
-
-    document.getElementById('priceCalendar').style.display = 'block';
-}
 
         function checkDateConflict(startDate, endDate) {
-    const startStr = startDate.toISOString().split('T')[0];
-    const endStr = endDate.toISOString().split('T')[0];
+            const startStr = startDate.toISOString().split('T')[0];
+            const endStr = endDate.toISOString().split('T')[0];
 
-    // Проверяем каждую дату в выбранном периоде
-    let current = new Date(startDate);
-    while (current < endDate) {
-        const currentStr = current.toISOString().split('T')[0];
-
-        // Если дата занята и недоступна для бронирования
-        if (getBookedDatesArray().includes(currentStr) &&
-            !isDateAvailableForBooking(currentStr, current, startDate, endDate)) {
-            return currentStr;
+            let current = new Date(startDate);
+            while (current < endDate) {
+                const currentStr = current.toISOString().split('T')[0];
+                if (getBookedDatesArray().includes(currentStr) &&
+                    !isDateAvailableForBooking(currentStr, current, startDate, endDate)) {
+                    return currentStr;
+                }
+                current.setDate(current.getDate() + 1);
+            }
+            return null;
         }
-        current.setDate(current.getDate() + 1);
-    }
-    return null;
-}
 
-function isDateAvailableForBooking(dateStr, currentDate, startDate, endDate) {
-    // Дата заезда может быть датой выезда существующей брони
-    if (currentDate.getTime() === startDate.getTime() &&
-        currentCheckoutDates.has(dateStr) &&
-        !currentCheckinDates.has(dateStr)) {
-        return true;
-    }
+        function isDateAvailableForBooking(dateStr, currentDate, startDate, endDate) {
+            if (currentDate.getTime() === startDate.getTime() &&
+                currentCheckoutDates.has(dateStr) &&
+                !currentCheckinDates.has(dateStr)) {
+                return true;
+            }
 
-    // Дата выезда может быть датой заезда существующей брони
-    if (currentDate.getTime() === endDate.getTime() - 86400000 && // день перед выездом
-        currentCheckinDates.has(dateStr) &&
-        !currentCheckoutDates.has(dateStr)) {
-        return true;
-    }
+            if (currentDate.getTime() === endDate.getTime() - 86400000 &&
+                currentCheckinDates.has(dateStr) &&
+                !currentCheckoutDates.has(dateStr)) {
+                return true;
+            }
 
-    return false;
-}
+            return false;
+        }
 
         document.getElementById('objectSelect').addEventListener('change', function () {
             const obj = this.value;
             bookedRanges = allBookedData[obj] || [];
             pricePeriods = allPriceData[obj] || [];
             currentObjectName = this.options[this.selectedIndex].text;
+
+            if (pricePeriods.length > 0) {
+                generatePriceList();
+            }
 
             currentCheckoutDates = new Set();
             currentCheckinDates = new Set();
@@ -1066,13 +1305,12 @@ function isDateAvailableForBooking(dateStr, currentDate, startDate, endDate) {
             }
 
             function parseLocalDate(str) {
-    const [y, m, d] = str.split('-').map(Number);
-    return new Date(y, m - 1, d); // локальная дата
-}
+                const [y, m, d] = str.split('-').map(Number);
+                return new Date(y, m - 1, d);
+            }
 
-// В обработчике формы:
-selectedStartDate = parseLocalDate(checkin);
-selectedEndDate = parseLocalDate(checkout);
+            selectedStartDate = parseLocalDate(checkin);
+            selectedEndDate = parseLocalDate(checkout);
             const nights = Math.ceil((selectedEndDate - selectedStartDate) / (1000 * 60 * 60 * 24));
             if (nights <= 0) {
                 alert('Дата выезда должна быть позже даты заезда');
@@ -1099,8 +1337,16 @@ selectedEndDate = parseLocalDate(checkout);
             }, 100);
         });
 
-        initCalendars();
-        updateNights();
+        // Инициализация по умолчанию свернутых секций
+        document.addEventListener('DOMContentLoaded', function() {
+            initCalendars();
+            updateNights();
+            
+            // Устанавливаем секции как свернутые по умолчанию
+            document.getElementById('priceListSection').classList.add('collapsed');
+            document.getElementById('calendarSection').classList.add('collapsed');
+            document.getElementById('togglePriceListBtn').classList.add('collapsed');
+            document.getElementById('toggleCalendarBtn').classList.add('collapsed');
+        });
     </script>
 </body>
-</html>

@@ -24,6 +24,28 @@ function getRentalObjects() {
     }
     return $objects;
 }
+
+// Функция проверки, что дата в будущем или сегодня
+function isFutureOrToday($dateString) {
+    if (empty($dateString)) {
+        return false;
+    }
+    // Предполагаем формат даты DD.MM.YYYY из flatpickr
+    $date = DateTime::createFromFormat('d.m.Y', $dateString);
+    if (!$date) {
+        // Пробуем YYYY-MM-DD, если не подошёл DD.MM.YYYY
+        $date = DateTime::createFromFormat('Y-m-d', $dateString);
+    }
+    if (!$date) {
+        return false;
+    }
+
+    $today = new DateTime();
+    $today->setTime(0, 0, 0); // Установим время на 00:00:00 для корректного сравнения
+
+    return $date >= $today;
+}
+
 $rentalObjects = getRentalObjects();
 ?>
 <!DOCTYPE html>
@@ -487,6 +509,7 @@ $rentalObjects = getRentalObjects();
                 this.tg.expand();
                 this.tg.enableClosingConfirmation();
                 this.currentBookings = [];
+                this.filteredBookings = []; // Новое свойство для отфильтрованных броней
                 this.selectedGuest = null;
                 this.datepickers = {};
                 this.submitTimeout = null;
@@ -799,11 +822,30 @@ $rentalObjects = getRentalObjects();
             async loadBookings(objectName) {
                 try {
                     const res = await fetch(`get_bookings.php?object=${encodeURIComponent(objectName)}`);
-                    this.currentBookings = res.ok ? await res.json() : [];
+                    const allBookings = res.ok ? await res.json() : [];
+                    // Фильтруем бронирования: оставляем только те, у которых check_in >= сегодня
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0); // Установим время на 00:00:00 для корректного сравнения
+
+                    this.currentBookings = allBookings.filter(booking => {
+                        const checkInStr = booking.check_in;
+                        if (!checkInStr) return false; // Пропускаем брони без даты заезда
+
+                        // Предполагаем формат DD.MM.YYYY
+                        const [day, month, year] = checkInStr.split('.').map(Number);
+                        if (isNaN(day) || isNaN(month) || isNaN(year)) return false;
+
+                        const checkInDate = new Date(year, month - 1, day); // month - 1, т.к. в Date месяцы с 0
+
+                        return checkInDate >= today;
+                    });
+
+                    this.filteredBookings = [...this.currentBookings]; // Инициализируем filteredBookings
                 } catch {
                     this.currentBookings = [];
+                    this.filteredBookings = [];
                 }
-                this.renderGuestList(this.currentBookings);
+                this.renderGuestList(this.filteredBookings);
             }
             renderGuestList(bookings) {
                 const el = document.getElementById('guestList');
@@ -947,7 +989,8 @@ $rentalObjects = getRentalObjects();
                 return `+7 (${phone.substring(1, 4)}) ${phone.substring(4, 7)}-${phone.substring(7, 9)}-${phone.substring(9, 11)}`;
             }
             filterGuests(query) {
-                const filtered = this.currentBookings.filter(booking =>
+                // Фильтруем отфильтрованные бронирования (те, что уже не в прошлом)
+                const filtered = this.filteredBookings.filter(booking =>
                     booking.guest?.toLowerCase().includes(query.toLowerCase()) ||
                     booking.phone?.toLowerCase().includes(query.toLowerCase())
                 );

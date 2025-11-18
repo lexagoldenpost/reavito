@@ -95,6 +95,75 @@ while ($current <= $endDate) {
 }
 $todayStr = (new DateTime())->format('Y-m-d');
 $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+// Подготовка данных для таблицы статистики
+$stats = [];
+foreach ($objects as $filename => $obj) {
+    $stats[$filename] = [
+        'name' => $obj['name'],
+        'booked' => [],
+        'free' => []
+    ];
+
+    // Группируем забронированные даты по гостям
+    foreach ($obj['booked'] as $booking) {
+        $stats[$filename]['booked'][] = [
+            'guest' => $booking['guest'],
+            'start' => $booking['start'],
+            'end' => $booking['end'],
+            'amount' => $booking['total_amount']
+        ];
+    }
+
+    // Определяем свободные даты для каждого объекта
+    $bookedDateRanges = [];
+    foreach ($obj['booked'] as $booking) {
+        $start = new DateTime($booking['start']);
+        $end = new DateTime($booking['end']);
+
+        $current = clone $start;
+        while ($current <= $end) {
+            $dateStr = $current->format('Y-m-d');
+            $bookedDateRanges[$dateStr] = true;
+            $current->modify('+1 day');
+        }
+    }
+
+    // Находим все свободные даты в диапазоне
+    $current = clone $startDate;
+    $freeStart = null;
+    $freeEnd = null;
+
+    while ($current <= $endDate) {
+        $dateStr = $current->format('Y-m-d');
+        if (!isset($bookedDateRanges[$dateStr])) {
+            if ($freeStart === null) {
+                $freeStart = clone $current;
+                $freeEnd = clone $current;
+            } else {
+                $freeEnd = clone $current;
+            }
+        } else {
+            if ($freeStart !== null) {
+                $stats[$filename]['free'][] = [
+                    'start' => $freeStart->format('Y-m-d'),
+                    'end' => $freeEnd->format('Y-m-d')
+                ];
+                $freeStart = null;
+                $freeEnd = null;
+            }
+        }
+        $current->modify('+1 day');
+    }
+
+    // Не забываем последний диапазон, если он был
+    if ($freeStart !== null) {
+        $stats[$filename]['free'][] = [
+            'start' => $freeStart->format('Y-m-d'),
+            'end' => $freeEnd->format('Y-m-d')
+        ];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -125,6 +194,22 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
         .table-responsive { overflow: auto; max-height: 80vh; }
         .time-label { visibility: hidden; height: 0; overflow: hidden; font-size: 0; line-height: 0; }
         .cell-booked.checkout-border {border-left: 3px solid #2c3e50; border-right: 3px solid #2c3e50;}
+        .stats-table { margin-top: 2rem; width: 100%; border-collapse: collapse; }
+        .stats-table th, .stats-table td { padding: 8px; border: 1px solid #ddd; text-align: left; }
+        .stats-table th { background-color: #f8f9fa; }
+        .stats-section { margin-top: 2rem; }
+        .stats-tab { margin-bottom: 1rem; }
+        .stats-tab.active { background-color: #007bff; color: white; }
+        .stats-tab {
+            display: inline-block;
+            padding: 8px 16px;
+            background-color: #e9ecef;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-right: 8px;
+        }
+        .stats-content { display: none; }
+        .stats-content.active { display: block; }
     </style>
 </head>
 <body>
@@ -271,6 +356,89 @@ $russianWeekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
             <div class="legend-item"><div class="legend-color" style="background:#fadbd8"></div> Занято</div>
         </div>
     </div>
+
+    <!-- Таблица статистики -->
+    <div class="card p-4 mt-4">
+        <div class="chessboard-header">
+            <h2 class="mb-0">Статистика занятости по объектам</h2>
+        </div>
+
+        <div class="stats-section">
+            <div class="stats-tab active" data-tab="booked">Занятые даты</div>
+            <div class="stats-tab" data-tab="free">Свободные даты</div>
+
+            <div id="booked-content" class="stats-content active">
+                <table class="stats-table">
+                    <thead>
+                        <tr>
+                            <th>Объект</th>
+                            <th>Гость</th>
+                            <th>Дата заезда</th>
+                            <th>Дата выезда</th>
+                            <th>Сумма</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($stats as $obj): ?>
+                            <?php foreach ($obj['booked'] as $booking): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($obj['name']) ?></td>
+                                    <td><?= htmlspecialchars($booking['guest']) ?></td>
+                                    <td><?= (new DateTime($booking['start']))->format('d.m.Y') ?></td>
+                                    <td><?= (new DateTime($booking['end']))->format('d.m.Y') ?></td>
+                                    <td><?= number_format($booking['amount'], 0, '', ' ') ?> ฿</td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="free-content" class="stats-content">
+                <table class="stats-table">
+                    <thead>
+                        <tr>
+                            <th>Объект</th>
+                            <th>Дата начала</th>
+                            <th>Дата окончания</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($stats as $obj): ?>
+                            <?php foreach ($obj['free'] as $freeRange): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($obj['name']) ?></td>
+                                    <td><?= (new DateTime($freeRange['start']))->format('d.m.Y') ?></td>
+                                    <td><?= (new DateTime($freeRange['end']))->format('d.m.Y') ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const tabs = document.querySelectorAll('.stats-tab');
+        const contents = document.querySelectorAll('.stats-content');
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                const tabType = this.getAttribute('data-tab');
+
+                // Убираем активные классы
+                tabs.forEach(t => t.classList.remove('active'));
+                contents.forEach(c => c.classList.remove('active'));
+
+                // Добавляем активные классы
+                this.classList.add('active');
+                document.getElementById(tabType + '-content').classList.add('active');
+            });
+        });
+    });
+</script>
 </body>
 </html>
