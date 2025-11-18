@@ -289,6 +289,51 @@ class TelegramUtils:
       return channels
 
     @staticmethod
+    async def get_message_link(client: TelegramClient, entity,
+        message_id: int) -> str:
+      """
+      Генерирует ссылку на сообщение в канале/чате
+
+      Args:
+          client: TelegramClient
+          entity: Сущность канала/чата
+          message_id: ID сообщения
+
+      Returns:
+          str: Ссылка на сообщение
+      """
+      try:
+        # Получаем информацию о канале/чате
+        if hasattr(entity, 'username') and entity.username:
+          # Для публичных каналов с username
+          return f"https://t.me/{entity.username}/{message_id}"
+        else:
+          # Для приватных каналов/чатов
+          # Получаем реальный ID канала (может быть отрицательным)
+          channel_id = entity.id
+
+          # Преобразуем в положительный формат для ссылки
+          # Telethon использует специальный формат для приватных каналов
+          if hasattr(entity, 'broadcast') and entity.broadcast:
+            # Это канал (broadcast)
+            if channel_id < 0:
+              positive_id = 10 ** 13 - abs(channel_id)
+            else:
+              positive_id = channel_id
+            return f"https://t.me/c/{positive_id}/{message_id}"
+          else:
+            # Это группа/чат
+            if channel_id < 0:
+              positive_id = abs(channel_id)
+            else:
+              positive_id = channel_id
+            return f"https://t.me/c/{positive_id}/{message_id}"
+
+      except Exception as e:
+        logger.error(f"Ошибка генерации ссылки на сообщение: {str(e)}")
+        return ""
+
+    @staticmethod
     async def update_channels_csv_files(channels: List[Dict]) -> None:
       """
       Обновляет CSV файлы channels.csv и search_channels.csv информацией о каналах

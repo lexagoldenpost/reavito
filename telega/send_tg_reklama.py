@@ -1,6 +1,6 @@
 # send_tg_reklama.py
 from pathlib import Path
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Tuple
 
 from telethon import TelegramClient, errors
 from telethon.tl.types import InputMediaUploadedPhoto, InputMediaUploadedDocument
@@ -68,96 +68,141 @@ class TelegramSender:
             return None
 
     async def _send_message_async(
-            self,
-            channel_identifier: Union[str, int],
-            message: Optional[str] = None,
-            media_files: Optional[List[str]] = None
-    ):
-        """Асинхронная отправка сообщения с медиа или без"""
-        try:
-            # Инициализируем клиент
-            if not await TelegramUtils.initialize_client(self.client, self.phone):
-                return False
+        self,
+        channel_identifier: Union[str, int],
+        message: Optional[str] = None,
+        media_files: Optional[List[str]] = None,
+        return_message_link: bool = False
+    ) -> Union[bool, Tuple[bool, str]]:
+      """Асинхронная отправка сообщения с медиа или без"""
+      try:
+        # Инициализируем клиент
+        if not await TelegramUtils.initialize_client(self.client, self.phone):
+          return (False, "") if return_message_link else False
 
-            # Дополнительная отладка
-            logger.info(f"Пытаемся разрешить идентификатор: {channel_identifier} (тип: {type(channel_identifier)})")
+        # Дополнительная отладка
+        logger.info(
+          f"Пытаемся разрешить идентификатор: {channel_identifier} (тип: {type(channel_identifier)})")
 
-            # Разрешаем идентификатор канала
-            result = await TelegramUtils.resolve_channel_identifier(self.client, channel_identifier)
-            logger.info(f"Результат resolve_channel_identifier: {result}")
-            if not result:
-                logger.error(f"Не удалось разрешить идентификатор канала: {channel_identifier}")
-                return False
+        # Разрешаем идентификатор канала
+        result = await TelegramUtils.resolve_channel_identifier(self.client,
+                                                                channel_identifier)
+        logger.info(f"Результат resolve_channel_identifier: {result}")
+        if not result:
+          logger.error(
+            f"Не удалось разрешить идентификатор канала: {channel_identifier}")
+          return (False, "") if return_message_link else False
 
-            entity, channel_id, channel_name = result
-            # Отображаем числовой ID в логах с пробелами как разделителями (реальный ID даже с минусом)
-            channel_id_formatted = f"{channel_id:,}".replace(',', ' ')
-            logger.info(f"Найден канал: {channel_name} (ID: {channel_id_formatted})")
+        entity, channel_id, channel_name = result
+        # Отображаем числовой ID в логах с пробелами как разделителями (реальный ID даже с минусом)
+        channel_id_formatted = f"{channel_id:,}".replace(',', ' ')
+        logger.info(
+          f"Найден канал: {channel_name} (ID: {channel_id_formatted})")
 
-            # Проверяем ограничения
-            if not await TelegramUtils.check_account_restrictions(self.client, entity):
-                logger.error(f"Аккаунт ограничен в {channel_name} (ID: {channel_id_formatted})")
-                return False
+        # Проверяем ограничения
+        if not await TelegramUtils.check_account_restrictions(self.client,
+                                                              entity):
+          logger.error(
+            f"Аккаунт ограничен в {channel_name} (ID: {channel_id_formatted})")
+          return (False, "") if return_message_link else False
 
-            # Проверяем бан
-            if await TelegramUtils.is_user_banned(self.client, entity.id):
-                logger.error(f"Аккаунт забанен в {channel_name} (ID: {channel_id_formatted})")
-                return False
+        # Проверяем бан
+        if await TelegramUtils.is_user_banned(self.client, entity.id):
+          logger.error(
+            f"Аккаунт забанен в {channel_name} (ID: {channel_id_formatted})")
+          return (False, "") if return_message_link else False
 
-            # Если есть медиафайлы
-            if media_files:
-                media_objects = []
-                for file_path in media_files:
-                    # Для первого медиафайла передаем caption, для остальных - None
-                    media_caption = message if not media_objects else None
-                    media = await self._upload_media(file_path)
-                    if media:
-                        media_objects.append(media)
+        sent_message = None
+        message_link = ""
 
-                if not media_objects:
-                    logger.error("Не удалось загрузить медиафайлы")
-                    return False
+        # Если есть медиафайлы
+        if media_files:
+          media_objects = []
+          for file_path in media_files:
+            # Для первого медиафайла передаем caption, для остальных - None
+            media_caption = message if not media_objects else None
+            media = await self._upload_media(file_path)
+            if media:
+              media_objects.append(media)
 
-                if len(media_objects) == 1:
-                    # Для одного файла передаем caption как параметр
-                    await self.client.send_message(entity, message=message, file=media_objects[0])
-                else:
-                    # Для альбома caption передается отдельно
-                    await self.client.send_message(entity, message=message, file=media_objects)
-            # Если только текст
-            elif message:
-                await self.client.send_message(entity, message)
+          if not media_objects:
+            logger.error("Не удалось загрузить медиафайлы")
+            return (False, "") if return_message_link else False
+
+          if len(media_objects) == 1:
+            # Для одного файла передаем caption как параметр
+            sent_message = await self.client.send_message(entity,
+                                                          message=message,
+                                                          file=media_objects[0])
+          else:
+            # Для альбома caption передается отдельно
+            sent_message = await self.client.send_message(entity,
+                                                          message=message,
+                                                          file=media_objects)
+        # Если только текст
+        elif message:
+          sent_message = await self.client.send_message(entity, message)
+        else:
+          logger.error("Не указано ни сообщение, ни медиафайлы")
+          return (False, "") if return_message_link else False
+
+        # Если требуется вернуть ссылку на сообщение
+        if return_message_link and sent_message:
+          # Обрабатываем случай, когда sent_message может быть списком (для альбомов)
+          if isinstance(sent_message, list):
+            # Для альбома берем первое сообщение для генерации ссылки
+            if sent_message:
+              message_link = await TelegramUtils.get_message_link(self.client,
+                                                                  entity,
+                                                                  sent_message[
+                                                                    0].id)
+              logger.info(
+                f"Альбом из {len(sent_message)} сообщений успешно отправлен в {channel_name}. Ссылка на первое сообщение: {message_link}")
             else:
-                logger.error("Не указано ни сообщение, ни медиафайлы")
-                return False
+              message_link = ""
+              logger.warning("Альбом отправлен, но список сообщений пуст")
+          else:
+            # Одиночное сообщение
+            message_link = await TelegramUtils.get_message_link(self.client,
+                                                                entity,
+                                                                sent_message.id)
+            logger.info(
+              f"Сообщение успешно отправлено в {channel_name} с ссылкой: {message_link}")
 
-            logger.info(f"Сообщение успешно отправлено в {channel_name} (ID: {channel_id_formatted})")
-            return True
+          return True, message_link
+        else:
+          if isinstance(sent_message, list):
+            logger.info(
+              f"Альбом из {len(sent_message)} сообщений успешно отправлен в {channel_name} (ID: {channel_id_formatted})")
+          else:
+            logger.info(
+              f"Сообщение успешно отправлено в {channel_name} (ID: {channel_id_formatted})")
+          return True
 
-        except errors.FloodWaitError as e:
-            logger.error(f"Flood wait: нужно подождать {e.seconds} секунд")
-            return False
-        except errors.UserBannedInChannelError:
-            logger.error(f"Аккаунт заблокирован в канале {channel_identifier}")
-            return False
-        except Exception as e:
-            logger.error(f"Ошибка при отправке сообщения: {str(e)}")
-            return False
-
+      except errors.FloodWaitError as e:
+        logger.error(f"Flood wait: нужно подождать {e.seconds} секунд")
+        return (False, "") if return_message_link else False
+      except errors.UserBannedInChannelError:
+        logger.error(f"Аккаунт заблокирован в канале {channel_identifier}")
+        return (False, "") if return_message_link else False
+      except Exception as e:
+        logger.error(f"Ошибка при отправке сообщения: {str(e)}")
+        return (False, "") if return_message_link else False
 
     async def send_message_async(
             self,
             channel_identifier: Union[str, int],
             message: Optional[str] = None,
-            media_files: Optional[Union[str, List[str]]] = None
-    ) -> bool:
+            media_files: Optional[Union[str, List[str]]] = None,
+            return_message_link: bool = False
+    ) -> Union[bool, Tuple[bool, str]]:
         """Асинхронная отправка сообщения в канал/группу"""
         # Нормализуем media_files в список
         if media_files and isinstance(media_files, str):
             media_files = [media_files]
 
         async with self.client:
-            return await self._send_message_async(channel_identifier, message, media_files)
+            return await self._send_message_async(channel_identifier, message, media_files, return_message_link)
 
     async def get_channel_info(self, channel_identifier: Union[str, int]):
         """Получить информацию о канале"""
@@ -192,8 +237,9 @@ class TelegramSender:
             self,
             channel_identifier: Union[str, int],
             message: Optional[str] = None,
-            media_files: Optional[Union[str, List[str]]] = None
-    ) -> bool:
+            media_files: Optional[Union[str, List[str]]] = None,
+            return_message_link: bool = False
+    ) -> Union[bool, Tuple[bool, str]]:
         """Синхронная отправка сообщения в канал/группу"""
         if media_files and isinstance(media_files, str):
             media_files = [media_files]
@@ -206,7 +252,7 @@ class TelegramSender:
             asyncio.set_event_loop(loop)
 
         return loop.run_until_complete(
-            self.send_message_async(channel_identifier, message, media_files)
+            self.send_message_async(channel_identifier, message, media_files, return_message_link)
         )
 
     async def update_channels_csv_async(self) -> bool:
@@ -254,31 +300,47 @@ async def main():
             if channel['can_send_messages']:
                 print(f"Доступный канал для отправки: {channel['title']} (ID: {channel['id']} , FULL_ID: {channel['full_id']})")
 
-    # Пример 1: Только текст
-    print("Отправка текстового сообщения:")
-    result = await sender.send_message_async(
+    # Пример 1: Только текст с возвратом ссылки
+    print("Отправка текстового сообщения с возвратом ссылки:")
+    result, message_link = await sender.send_message_async(
         -1002679682284,
-        message="Тестовое текстовое сообщение"
+        message="Тестовое текстовое сообщение",
+        return_message_link=True
     )
     print("Результат:", "Успешно" if result else "Ошибка")
+    if result:
+        print("Ссылка на сообщение:", message_link)
 
-    # Пример 2: Текст с одним изображением
-    print("\nОтправка сообщения с изображением:")
-    result = await sender.send_message_async(
+    # Пример 2: Текст с одним изображением и возвратом ссылки
+    print("\nОтправка сообщения с изображением и возвратом ссылки:")
+    result, message_link = await sender.send_message_async(
         -1002679682284,  # channel_identifier в числовом формате
         message="Сообщение с картинкой",
-        media_files= [IMAGE_DATA_DIR / "photo_3.jpg"]
+        media_files=[IMAGE_DATA_DIR / "photo_3.jpg"],
+        return_message_link=True
     )
     print("Результат:", "Успешно" if result else "Ошибка")
+    if result:
+        print("Ссылка на сообщение:", message_link)
 
-    # Пример 3: Несколько медиафайлов
-    print("\nОтправка нескольких медиафайлов:")
-    result = await sender.send_message_async(
+    # Пример 3: Несколько медиафайлов с возвратом ссылки
+    print("\nОтправка нескольких медиафайлов с возвратом ссылки:")
+    result, message_link = await sender.send_message_async(
         -1002679682284,  # channel_identifier в числовом формате
-        media_files=[IMAGE_DATA_DIR / "photo_1.jpg", IMAGE_DATA_DIR / "photo_2.jpg"]
+        media_files=[IMAGE_DATA_DIR / "photo_1.jpg", IMAGE_DATA_DIR / "photo_2.jpg"],
+        return_message_link=True
     )
     print("Результат:", "Успешно" if result else "Ошибка")
+    if result:
+        print("Ссылка на сообщение:", message_link)
 
+    # Пример 4: Обычная отправка без возврата ссылки (обратная совместимость)
+    print("\nОбычная отправка без возврата ссылки:")
+    result = await sender.send_message_async(
+        -1002679682284,
+        message="Тестовое сообщение без возврата ссылки"
+    )
+    print("Результат:", "Успешно" if result else "Ошибка")
 
 
 # Обновленные примеры использования:
