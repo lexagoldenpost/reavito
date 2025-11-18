@@ -1,17 +1,15 @@
 # main_tg_bot/handlers/edit_booking_handler.py
 
 import pandas as pd
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 from common.logging_config import setup_logger
 from main_tg_bot.booking_objects import (
-    BOOKING_DIR,
     BOOKING_SHEETS,
     SHEET_TO_FILENAME,
     get_booking_sheet,
 )
-from main_tg_bot.sender.tg_notifier import send_message
+from telega.tg_notifier import send_message
 from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
 import aiohttp
 

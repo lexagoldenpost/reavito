@@ -11,7 +11,7 @@ from sqlalchemy import select, and_, or_
 from channel_monitor import ChannelMonitor
 from common.config import Config
 from common.logging_config import setup_logger
-from sync_db_google_sheets.models import Booking
+from old.sync_db_google_sheets.models import Booking
 
 logger = setup_logger("new_halo_notification_service")
 

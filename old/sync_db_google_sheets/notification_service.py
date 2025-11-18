@@ -7,7 +7,7 @@ from sqlalchemy import select, and_
 
 from common.config import Config
 from common.logging_config import setup_logger
-from sync_db_google_sheets.models import Booking, Notification
+from old.sync_db_google_sheets.models import Booking, Notification
 
 logger = setup_logger("notification_service")
 

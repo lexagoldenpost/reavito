@@ -4,10 +4,10 @@ from datetime import datetime
 from apscheduler.schedulers.blocking import BlockingScheduler
 from common.database import SessionLocal
 
-from avito_message_in.models import Message
-from avito_message_response.main import send_avito_message
+from old.avito_message_in import Message
+from old.avito_message_response import send_avito_message
 from common.logging_config import setup_logger
-from intent_bot.main import create_bot  # Импортируем ScenarioBot
+from old.intent_bot import create_bot  # Импортируем ScenarioBot
 
 # Настройка логгера для микросервиса
 logger = setup_logger("read_avito_msg_to_tg_bot")

@@ -17,6 +17,7 @@ from telethon.errors import AuthKeyUnregisteredError, SessionPasswordNeededError
 
 from common.config import Config
 from common.logging_config import setup_logger
+from telegram_utils import TelegramUtils
 
 # Fix stdout/stderr encoding issues
 if not isinstance(sys.stdout, io.TextIOWrapper):
@@ -50,71 +51,48 @@ class ChannelMonitor:
         self._is_authenticated = False
 
     async def initialize(self) -> bool:
-      """Initialize Telegram client using StringSession."""
-      try:
-        # Получаем строку сессии из конфига
-        string_session = getattr(Config, 'TELEGRAM_STRING_SESSION', '').strip()
+        """Initialize Telegram client with file-based session."""
+        try:
+            # Проверяем наличие файла сессии
+            if SESSION_FILE_PATH.exists():
+                # Используем файл сессии
+                session = str(SESSION_FILE_PATH)
+            else:
+                # Пытаемся создать сессию через авторизацию
+                session = str(SESSION_FILE_PATH)  # Используем файловый путь для новой сессии
 
-        # Создаём клиент с StringSession
-        session = StringSession(string_session)
-        self.client = TelegramClient(
-            session,
-            self.api_id,
-            self.api_hash,
-            system_version='4.16.30-vxCUSTOM',
-            connection_retries=5,
-            request_retries=3,
-            auto_reconnect=True
-        )
+            self.client = TelegramClient(
+                session,
+                self.api_id,
+                self.api_hash,
+                system_version='4.16.30-vxCUSTOM',
+                connection_retries=5,
+                request_retries=3,
+                auto_reconnect=True
+            )
 
-        # Проверяем, авторизованы ли мы уже
-        await self.client.connect()
-        if not await self.client.is_user_authorized():
-          logger.info("No valid session found. Starting new authorization...")
-          # Требуется интерактивный ввод — только при первом запуске!
-          await self.client.start(
-              phone=self.phone,
-              password=getattr(Config, 'TELEGRAM_PASSWORD', None),
-              code_callback=self._get_verification_code
-          )
-          # После входа — выводим строку сессии для сохранения!
-          new_session_str = self.client.session.save()
-          logger.critical("✅ NEW STRING SESSION (SAVE THIS IMMEDIATELY):")
-          logger.critical(new_session_str)
-          raise RuntimeError(
-            "String session generated — update config and restart!")
+            # Используем утилиту для инициализации клиента
+            if not await TelegramUtils.initialize_client(self.client, self.phone):
+                logger.error("Failed to initialize Telegram client")
+                return False
 
-        self._is_authenticated = True
-        me = await self.client.get_me()
-        logger.info(
-          f"Authorized as: {me.first_name or 'Unknown'} (ID: {me.id})")
-        await self._print_connection_info()
+            self._is_authenticated = True
+            me = await self.client.get_me()
+            logger.info(
+                f"Authorized as: {me.first_name or 'Unknown'} (ID: {me.id})")
+            await self._print_connection_info()
 
-        if not await self._load_keywords_from_csv():
-          logger.error("Failed to load keywords from CSV")
-          return False
+            if not await self._load_keywords_from_csv():
+                logger.error("Failed to load keywords from CSV")
+                return False
 
-        self._setup_handlers()
-        logger.info("Channel monitoring initialized with StringSession.")
-        return True
+            self._setup_handlers()
+            logger.info("Channel monitoring initialized with file-based session.")
+            return True
 
-      except Exception as e:
-        logger.error(f"Initialization error: {e}", exc_info=True)
-        return False
-
-    def _get_password(self):
-        """Get password for 2FA."""
-        if hasattr(Config, 'TELEGRAM_PASSWORD') and Config.TELEGRAM_PASSWORD:
-            return Config.TELEGRAM_PASSWORD
-        return input("Enter Telegram 2FA password: ")
-
-    def _get_verification_code(self):
-        """Get verification code from user."""
-        return input("Enter SMS/Telegram verification code: ")
-
-    def get_client(self) -> Optional[TelegramClient]:
-        """Возвращает текущий клиент Telegram."""
-        return self.client if self.client and self.client.is_connected() else None
+        except Exception as e:
+            logger.error(f"Initialization error: {e}", exc_info=True)
+            return False
 
     async def _print_connection_info(self):
         """Print information about the current connection and subscribed channels."""
@@ -190,7 +168,7 @@ class ChannelMonitor:
                 group_id = str(chat.id) if hasattr(chat, 'id') else None
 
                 if matched_keywords := self._find_matching_keywords(
-                    group_name, group_id, message.text
+                        group_name, group_id, message.text
                 ):
                     await self._forward_message(message, group_name or f"ID:{group_id}")
                     logger.info(f"Matched keywords: {matched_keywords}")
@@ -201,10 +179,10 @@ class ChannelMonitor:
     async def _should_process_message(self, event) -> bool:
         """Check if a message should be processed."""
         return (
-            event.is_group
-            and event.message
-            and event.message.text
-            and await event.get_chat()
+                event.is_group
+                and event.message
+                and event.message.text
+                and await event.get_chat()
         )
 
     def _find_matching_keywords(self, group_name: str, group_id: str, text: str) -> Set[str]:
@@ -222,8 +200,8 @@ class ChannelMonitor:
                     words = [w.strip() for w in text_lower.split()]
 
                     if any(
-                        words[i:i + len(phrase_words)] == phrase_words
-                        for i in range(len(words) - len(phrase_words) + 1)
+                            words[i:i + len(phrase_words)] == phrase_words
+                            for i in range(len(words) - len(phrase_words) + 1)
                     ):
                         matched_keywords.add(phrase)
 
@@ -232,7 +210,11 @@ class ChannelMonitor:
     async def _forward_message(self, message: Message, source_name: str):
         """Forward a message to the target group."""
         try:
-            target_entity = await self.client.get_entity(self.target_group)
+            target_entity = await TelegramUtils.get_entity_safe(self.client, self.target_group)
+            if not target_entity:
+                logger.error(f"Target group not found: {self.target_group}")
+                return
+
             chat = await message.get_chat()
             chat_id = chat.id if hasattr(chat, 'id') else 0
 
@@ -265,17 +247,19 @@ class ChannelMonitor:
                 logger.error(f"Invalid chat ID: {chat_id}")
                 return False
 
-            try:
-                entity = await self.client.get_entity(chat_id_int)
-            except ValueError:
-                try:
-                    entity = await self.client.get_entity(int(f"-100{chat_id_int}"))
-                except Exception as e:
-                    logger.error(f"Failed to find chat with ID {chat_id}: {e}")
-                    return False
+            # Используем утилиту для получения entity
+            entity = await TelegramUtils.get_entity_safe(self.client, chat_id_int)
+            if not entity:
+                return False
 
-            if await self._is_user_banned(entity.id):
+            # Используем утилиту для проверки бана
+            if await TelegramUtils.is_user_banned(self.client, entity.id):
                 logger.info(f"User is banned in chat {chat_id}")
+                return False
+
+            # Используем утилиту для проверки ограничений
+            if not await TelegramUtils.check_account_restrictions(self.client, entity):
+                logger.info(f"User has restrictions in chat {chat_id}")
                 return False
 
             if images:
@@ -293,19 +277,7 @@ class ChannelMonitor:
 
     async def _is_user_banned(self, chat_id: int) -> bool:
         """Check if the user is banned in a chat."""
-        try:
-            chat = await self.client.get_entity(chat_id)
-            if isinstance(chat, Channel):
-                participant = await self.client.get_permissions(chat, 'me')
-                if hasattr(participant, 'banned_rights') and participant.banned_rights:
-                    if isinstance(participant.banned_rights, ChatBannedRights):
-                        return participant.banned_rights.view_messages
-                elif hasattr(participant, 'kicked'):
-                    return participant.kicked
-            return False
-        except Exception as e:
-            logger.error(f"Error checking ban status in chat {chat_id}: {e}")
-            return False
+        return await TelegramUtils.is_user_banned(self.client, chat_id)
 
     async def print_user_subscriptions(self):
         """Print all groups and channels the user is subscribed to."""
@@ -386,10 +358,40 @@ class ChannelMonitor:
 
         return entity_type, status
 
+    async def check_channel_accessibility(self, channel_identifier: str) -> Dict[str, bool]:
+        """Проверить доступность канала по всем параметрам."""
+        result = {
+            'exists': False,
+            'accessible': False,
+            'not_banned': False,
+            'can_send_messages': False
+        }
+
+        try:
+            # Получаем entity
+            entity = await TelegramUtils.get_entity_safe(self.client, channel_identifier)
+            if not entity:
+                return result
+
+            result['exists'] = True
+
+            # Проверяем бан
+            result['not_banned'] = not await TelegramUtils.is_user_banned(self.client, entity.id)
+
+            # Проверяем ограничения
+            result['can_send_messages'] = await TelegramUtils.check_account_restrictions(self.client, entity)
+
+            result['accessible'] = result['not_banned'] and result['can_send_messages']
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error checking channel accessibility {channel_identifier}: {e}")
+            return result
+
     async def run(self):
         """Run the channel monitoring."""
         try:
-            # ВАЖНО: НЕ удаляем сессию принудительно — только если она сломана
             if not await self.initialize():
                 raise RuntimeError("Initialization failed")
 

@@ -7,7 +7,7 @@ from sqlalchemy import select
 from telegram import Update
 
 from common.logging_config import setup_logger
-from sync_db_google_sheets.models import Booking
+from old.sync_db_google_sheets.models import Booking
 
 logger = setup_logger("view_dates")
 

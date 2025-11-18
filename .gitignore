@@ -5,6 +5,7 @@ __pycache__/
 
 # C extensions
 *.so
+*.session
 
 # Distribution / packaging
 .Python
@@ -12,7 +13,7 @@ build/
 develop-eggs/
 dist/
 downloads/
-sync_db_google_sheets/lapkabooking-849632d4b8d5.json
+old/sync_db_google_sheets/lapkabooking-849632d4b8d5.json
 eggs/
 .eggs/
 lib/
