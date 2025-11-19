@@ -1,23 +1,18 @@
 # channel_monitor.py
 import asyncio
 import io
-import sqlite3
 import sys
 import csv
-import os
 from pathlib import Path
 from typing import Dict, Set, List, Optional, Tuple
 
 from telethon import TelegramClient, events
-from telethon.sessions import StringSession
-from telethon.tl.functions.messages import ExportChatInviteRequest
-from telethon.tl.types import ChatBannedRights
-from telethon.tl.types import Message, PeerChat, User, Channel, PeerChannel
-from telethon.errors import AuthKeyUnregisteredError, SessionPasswordNeededError
+from telethon.tl.types import Message, User, Channel, PeerChannel, PeerChat
 
 from common.config import Config
 from common.logging_config import setup_logger
-from telegram_utils import TelegramUtils
+from telega.telegram_utils import TelegramUtils
+from telega.telegram_client import telegram_client
 
 # Fix stdout/stderr encoding issues
 if not isinstance(sys.stdout, io.TextIOWrapper):
@@ -27,14 +22,10 @@ if not isinstance(sys.stderr, io.TextIOWrapper):
 
 logger = setup_logger("channel_monitor")
 
-# Telegram session configuration
-TELEGRAM_SESSION_NAME = f"{Config.TELEGRAM_API_SEND_BOOKING_ID}_{Config.TELEGRAM_SESSION_NAME}"
-
 # CSV file configuration
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 TASK_DATA_DIR = PROJECT_ROOT / Config.TASK_DATA_DIR
 CSV_FILE_PATH = TASK_DATA_DIR / "search_channels.csv"
-SESSION_FILE_PATH = PROJECT_ROOT / f"{TELEGRAM_SESSION_NAME}.session"
 
 
 class ChannelMonitor:
@@ -42,37 +33,16 @@ class ChannelMonitor:
 
     def __init__(self):
         """Initialize the channel monitor."""
-        self.api_id = Config.TELEGRAM_API_SEND_BOOKING_ID
-        self.api_hash = Config.TELEGRAM_API_SEND_BOOKING_HASH
-        self.phone = Config.TELEGRAM_SEND_BOOKING_PHONE
         self.target_group = Config.TARGET_GROUP
         self.group_keywords: Dict[str, Set[str]] = {}
-        self.client: Optional[TelegramClient] = None
+        self.client: TelegramClient = telegram_client.client
         self._is_authenticated = False
 
     async def initialize(self) -> bool:
-        """Initialize Telegram client with file-based session."""
+        """Initialize Telegram client with shared session."""
         try:
-            # Проверяем наличие файла сессии
-            if SESSION_FILE_PATH.exists():
-                # Используем файл сессии
-                session = str(SESSION_FILE_PATH)
-            else:
-                # Пытаемся создать сессию через авторизацию
-                session = str(SESSION_FILE_PATH)  # Используем файловый путь для новой сессии
-
-            self.client = TelegramClient(
-                session,
-                self.api_id,
-                self.api_hash,
-                system_version='4.16.30-vxCUSTOM',
-                connection_retries=5,
-                request_retries=3,
-                auto_reconnect=True
-            )
-
-            # Используем утилиту для инициализации клиента
-            if not await TelegramUtils.initialize_client(self.client, self.phone):
+            # Используем единого клиента для аутентификации
+            if not await telegram_client.ensure_authenticated():
                 logger.error("Failed to initialize Telegram client")
                 return False
 
@@ -87,7 +57,7 @@ class ChannelMonitor:
                 return False
 
             self._setup_handlers()
-            logger.info("Channel monitoring initialized with file-based session.")
+            logger.info("Channel monitoring initialized with shared client.")
             return True
 
         except Exception as e:
@@ -275,10 +245,6 @@ class ChannelMonitor:
             logger.error(f"Error sending message to chat {chat_id}: {e}", exc_info=True)
             return False
 
-    async def _is_user_banned(self, chat_id: int) -> bool:
-        """Check if the user is banned in a chat."""
-        return await TelegramUtils.is_user_banned(self.client, chat_id)
-
     async def print_user_subscriptions(self):
         """Print all groups and channels the user is subscribed to."""
         try:
@@ -407,8 +373,8 @@ class ChannelMonitor:
         """Shut down the monitor gracefully."""
         try:
             if self.client and self.client.is_connected():
-                await self.client.disconnect()
-                logger.info("Telegram client disconnected")
+                # Не отключаем клиент, так как он используется другими модулями
+                logger.info("Channel monitor stopped (client remains connected for other modules)")
         except Exception as e:
             logger.error(f"Shutdown error: {e}", exc_info=True)
 
