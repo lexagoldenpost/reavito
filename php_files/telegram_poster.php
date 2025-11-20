@@ -242,23 +242,28 @@ if ($selectedObject && !$messageText && $freeDatesInfo['has_free_dates']) {
 
     // Здесь можно задать разные заголовки под каждый объект
     $objectData = [
-        'halo' => [
-            'title' => 'Halo',
-            'description' => '1BR 36м2, 3й этаж, вид на бассейн'
+        'halo_title' => [ // изменено с 'Halo Title' на 'halo'
+            'line1' => 'Аренда квартиры в новом комплексе Halo Title в 400м от пляжа Най Янг',
+            'line2' => '10 минут езды от аэропорта!',
+            'line3' => '🏡 1BR 36м2, 3й этаж, вид на бассейн'
         ],
-        'dvushka' => [
-            'title' => 'Двушка',
-            'description' => '2BR 54м2, 5й этаж, вид на море'
+        'citygate_p311' => [ // изменено с 'Citygate P311' на 'dvushka' (или другое имя файла)
+            'line1' => 'Аренда квартиры в комплексе Citygate в 700м от пляжа Камала',
+            'line2' => '30 минут езды от аэропорта!',
+            'line3' => '🏡 1BR 38м2, 3й этаж, вид на горы'
         ]
+        // Добавьте другие объекты по аналогии
     ];
 
-    $title = $objectData[$selectedObject]['title'] ?? $objects[$selectedObject] ?? $selectedObject;
-    $description = $objectData[$selectedObject]['description'] ?? 'апартаменты';
+    // Используем $selectedObject (имя файла) как ключ для поиска в $objectData
+    $line1 = $objectData[$selectedObject]['line1'];
+    $line2 = $objectData[$selectedObject]['line2'];
+    $line3 = $objectData[$selectedObject]['line3'];
 
     $messageText = (
-        "Аренда квартиры в новом комплексе {$title} в 400м от пляжа Най Янг\n" .
-        "10 минут езды от аэропорта!\n" .
-        "🏡 {$description}\n\n" .
+        "{$line1}\n" .
+        "{$line2}\n" .
+        "{$line3}\n\n" .
         "🗝️Собственник!\n\n" .
         "СВОБОДНЫЕ ДЛЯ БРОНИРОВАНИЯ ДАТЫ (ближайшие 3 месяца):\n\n" .
         "{$free_dates_message}\n\n" .
@@ -513,9 +518,6 @@ if ($action === 'send' && !empty($selectedChannels) && !empty($messageText)) {
                 <div class="card p-4 mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h2 class="text-center mb-0">Рассылка в Telegram каналы</h2>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
-                            🔄 Новая рассылка
-                        </button>
                     </div>
 
                     <?php if ($sendResult): ?>
