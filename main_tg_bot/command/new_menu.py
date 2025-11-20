@@ -34,6 +34,7 @@ async def show_calculation_menu(update: Update, context: ContextTypes.DEFAULT_TY
         #logger.info(f"✅ show_calculation_menu create_contract_url = '{create_contract_url}'")
         create_booking_url = f"{web_app_url}{Config.REMOTE_WEB_APP_CREATE_BOOKING_URL}?token={Config.PHP_TELEGRAM_BOOKING_BOT_TOKEN}&chat_id={Config.TELEGRAM_DATA_CHANNEL_ID}&init_chat_id={init_chat_id}"
         edit_booking_url = f"{web_app_url}{Config.REMOTE_WEB_APP_EDIT_BOOKING_URL}?token={Config.PHP_TELEGRAM_BOOKING_BOT_TOKEN}&chat_id={Config.TELEGRAM_DATA_CHANNEL_ID}&init_chat_id={init_chat_id}"
+        telegram_poster_url = f"{web_app_url}{Config.REMOTE_WEB_APP_TELEGRAM_POSTER_URL}?token={Config.PHP_TELEGRAM_BOOKING_BOT_TOKEN}&chat_id={Config.TELEGRAM_DATA_CHANNEL_ID}&init_chat_id={init_chat_id}"
         # Кнопки, которые сразу открывают Web App
         keyboard = [
             [InlineKeyboardButton(
@@ -56,6 +57,10 @@ async def show_calculation_menu(update: Update, context: ContextTypes.DEFAULT_TY
                 "5. 📑 Создание договора",
                 web_app=WebAppInfo(url=create_contract_url)
             )],
+          [InlineKeyboardButton(
+              "6. 📢 Рассылка бронирований по чатам",
+              web_app=WebAppInfo(url=telegram_poster_url)
+          )],
             [InlineKeyboardButton("❌ Закрыть меню", callback_data="close_calculation_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)

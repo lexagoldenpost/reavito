@@ -77,6 +77,7 @@ class Config:
     REMOTE_WEB_APP_CREATE_CONTRACT_URL = "/contract_form.php"
     REMOTE_WEB_APP_CREATE_BOOKING_URL = "/add_booking_form.php"
     REMOTE_WEB_APP_EDIT_BOOKING_URL = "/edit_booking_form.php"
+    REMOTE_WEB_APP_TELEGRAM_POSTER_URL = "/telegram_poster.php"
 
     #Канал где будут приниматься данные из форм и обрабатываться
     TELEGRAM_DATA_CHANNEL_ID = "-1002679682284"

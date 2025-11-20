@@ -370,6 +370,32 @@ $rentalObjects = getRentalObjects();
 .form-control.field-error:not(.flatpickr-input) {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23dc3545'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z'/%3E%3C/svg%3E");
 }
+/* Стили для чекбоксов */
+.form-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    cursor: pointer;
+}
+.form-checkbox input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--tg-theme-button-color);
+    cursor: pointer;
+}
+.form-checkbox span {
+    font-size: 14px;
+    color: var(--tg-theme-text-color);
+    font-weight: 500;
+}
+.services-section {
+    background: rgba(36, 129, 204, 0.05);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 12px 0;
+    border: 1px solid rgba(36, 129, 204, 0.2);
+}
     </style>
 </head>
 <body>
@@ -475,6 +501,20 @@ $rentalObjects = getRentalObjects();
                             <div><label class="form-label required">Сумма (баты)</label><input type="number" class="form-control" name="total_amount" required placeholder="10000"></div>
                             <div><label class="form-label required">Предоплата (баты)</label><input type="number" class="form-control" name="prepayment_bath" required placeholder="5000"></div>
                             <div><label class="form-label">Доп. оплата (баты)</label><input type="number" class="form-control" name="extraPaymentBath" placeholder="1500"></div>
+                        </div>
+                    </div>
+                    <!-- Услуги -->
+                    <div class="form-section services-section">
+                        <div class="section-title"><span>🧹 Услуги</span></div>
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            <label class="form-checkbox">
+                                <input type="checkbox" name="interim_cleaning" checked>
+                                <span>Уборка, прачка</span>
+                            </label>
+                            <label class="form-checkbox">
+                                <input type="checkbox" name="electric" checked>
+                                <span>Свет, вода</span>
+                            </label>
                         </div>
                     </div>
                     <!-- Сводка -->
@@ -1119,6 +1159,8 @@ $rentalObjects = getRentalObjects();
                         total_amount: formData.get('total_amount'),
                         prepayment_bath: formData.get('prepayment_bath'),
                         extraPaymentBath: formData.get('extraPaymentBath'),
+                        interim_cleaning: formData.get('interim_cleaning') ? '1' : '0',
+                        electric: formData.get('electric') ? '1' : '0',
                         selected_guest_id: this.selectedGuest?.id || '',
                         selected_guest_name: this.selectedGuest?.guest || '',
                         timestamp: new Date().toLocaleString('ru-RU'),

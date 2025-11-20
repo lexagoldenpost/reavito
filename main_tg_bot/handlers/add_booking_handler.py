@@ -2,15 +2,17 @@
 
 import uuid
 import pandas as pd
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from common.logging_config import setup_logger
 from main_tg_bot.booking_objects import (
+    BOOKING_DIR,
     BOOKING_SHEETS,
     SHEET_TO_FILENAME,
     get_booking_sheet,
 )
-from telega.tg_notifier import send_message
+from main_tg_bot.sender.tg_notifier import send_message
 from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
 import aiohttp
 
@@ -117,13 +119,24 @@ async def handle_add_booking(data: Dict[str, Any], filename: str):
             overlaps = []
             for _, row in existing_df.iterrows():
                 try:
+                    # Пропускаем, если поля пустые
+                    if not row['Заезд'].strip() or not row['Выезд'].strip():
+                        continue
+
                     existing_check_in = parse_date(row['Заезд'])
                     existing_check_out = parse_date(row['Выезд'])
-                except Exception:
-                    continue
 
-                if not (check_out <= existing_check_in or check_in >= existing_check_out):
-                    overlaps.append((row['Гость'], row['Заезд'], row['Выезд']))
+                    # Дополнительная проверка на None (если парсинг провалился)
+                    if existing_check_in is None or existing_check_out is None:
+                        continue
+
+                    # Проверяем пересечение диапазонов дат
+                    if not (check_out <= existing_check_in or check_in >= existing_check_out):
+                        overlaps.append((row['Гость'], row['Заезд'], row['Выезд']))
+
+                except Exception as e:
+                    logger.warning(f"Пропущена строка из-за ошибки парсинга дат: {row.get('Гость', 'N/A')} | {e}")
+                    continue  # Игнорируем повреждённые строки
 
             if overlaps:
                 overlap_list = "\n".join([f" • {g} ({ci} – {co})" for g, ci, co in overlaps])

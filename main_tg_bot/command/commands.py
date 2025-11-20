@@ -14,7 +14,6 @@ COMMANDS = [
     ("view_booking", "Просмотр бронирования"),
     ("view_available_dates", "Просмотр свободных дат"),
     ("calculation", "Расчет, бронирования, договоры"),
-    ("send_bookings", "Рассылка бронирований о чатам"),
     ("help", "Помощь по командам"),
     ("sync_booking", "Синхронизировать Гугл таблицы с локальными данными"),
     ("exit", "Выход")
@@ -42,7 +41,6 @@ def setup_command_handlers(application, bot):
     application.add_handler(CommandHandler("view_booking", view_booking_handler))
     application.add_handler(CommandHandler("view_available_dates", view_dates_handler))
     application.add_handler(CommandHandler("calculation", calculation_command))  # Добавлен обработчик расчета
-    application.add_handler(CommandHandler("sync_booking", sync_handler))
     application.add_handler(CommandHandler("exit", exit_bot))
 
     logger.info("Command handlers setup completed")

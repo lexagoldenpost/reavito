@@ -51,11 +51,13 @@ class GoogleSheetsCSVSync:
             'HALO Title': {
                 'Заезд': {'numberFormat': {'type': 'DATE', 'pattern': 'dd.mm.yyyy'}},
                 'Выезд': {'numberFormat': {'type': 'DATE', 'pattern': 'dd.mm.yyyy'}},
+                'телефон': {'numberFormat': {'type': 'TEXT'}},
                 'СуммаБатты': {'numberFormat': {'type': 'NUMBER', 'pattern': '# ###0'}},
             },
             'Citygate P311': {
                 'Заезд': {'numberFormat': {'type': 'DATE', 'pattern': 'dd.mm.yyyy'}},
                 'Выезд': {'numberFormat': {'type': 'DATE', 'pattern': 'dd.mm.yyyy'}},
+                'телефон': {'numberFormat': {'type': 'TEXT'}},
                 'СуммаБатты': {'numberFormat': {'type': 'NUMBER', 'pattern': '# ###0'}},
             },
         }
@@ -76,6 +78,7 @@ class GoogleSheetsCSVSync:
 
         self.clients = {}
         self._initialize_clients()
+
 
     def _initialize_clients(self):
         try:
@@ -150,12 +153,32 @@ class GoogleSheetsCSVSync:
         try:
             df = pd.read_csv(csv_file, dtype=str)
             df = df.fillna('')
+
+            # --- 🔥 НОВЫЙ КОД: УДАЛЯЕМ ЗНАК "+" В НАЧАЛЕ ТЕЛЕФОННЫХ СТОЛБЦОВ ---
+            phone_columns = ['телефон', 'дополнительный телефон']
+            for col in phone_columns:
+                if col not in df.columns:
+                    continue
+
+                def remove_leading_plus(val):
+                    if pd.isna(val) or str(val).strip() == '':
+                        return ''
+                    val = str(val).strip()
+                    # Удаляем "+" в начале строки, если он есть
+                    if val.startswith('+'):
+                        val = val[1:]
+                    return val
+
+                df[col] = df[col].apply(remove_leading_plus)
+
+            # --- ОСТАЛЬНЫЙ КОД БЕЗ ИЗМЕНЕНИЙ ---
             df = self._ensure_sync_id(df)
             df['_sheet_name'] = sheet_name
             df['_last_sync'] = datetime.now().isoformat()
             df['_hash'] = df.apply(self._generate_row_hash, axis=1)
             logger.info(f"Loaded {len(df)} rows from local CSV: {csv_file}")
             return df
+
         except Exception as e:
             logger.error(f"Error loading local CSV {csv_file}: {e}")
             return pd.DataFrame()
