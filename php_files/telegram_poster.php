@@ -53,15 +53,62 @@ function readChannelsData($filePath, $selectedObject) {
                     $objectMatch = stripos($object, $normalizedSelectedObject) !== false;
                 }
 
-                // Условие по дням: если значение пустое, считаем что оно больше 8
-                $daysValue = intval($daysSinceLastPost);
+                // СТАРАЯ ЛОГИКА: Условие по дням из столбца 'Количество сообщение после последней публикации'
+                $daysCondition = false;
                 if ($daysSinceLastPost === '') {
                     $daysCondition = true; // пустое значение = больше 8
                 } else {
+                    $daysValue = intval($daysSinceLastPost);
                     $daysCondition = $daysValue > 8;
                 }
 
-                if ($objectMatch && $daysCondition) {
+                // НОВАЯ ЛОГИКА: Проверка времени последней отправки
+                $timeCondition = false;
+                $minDaysInt = intval($minDays);
+
+                if (empty($lastPostTime)) {
+                    // Если время последней отправки не указано, считаем что условие выполняется
+                    $timeCondition = true;
+                } else {
+                    // Парсим дату последней отправки - поддерживаем разные форматы
+                    $lastPostDateTime = null;
+
+                    // Пробуем разные форматы дат
+                    $formats = [
+                        'Y-m-d H:i:s', // 2025-11-11 12:40:58
+                        'd.m.Y',       // 21.11.2025
+                        'd.m.Y H:i:s', // 21.11.2025 10:45:07
+                        'Y-m-d',       // 2025-11-11
+                    ];
+
+                    foreach ($formats as $format) {
+                        $lastPostDateTime = DateTime::createFromFormat($format, $lastPostTime);
+                        if ($lastPostDateTime !== false) {
+                            break;
+                        }
+                    }
+
+                    if ($lastPostDateTime) {
+                        $currentDateTime = new DateTime();
+
+                        // Если дата в будущем (например, 21.11.2025), то условие НЕ выполняется
+                        if ($lastPostDateTime > $currentDateTime) {
+                            $timeCondition = false;
+                        } else {
+                            $interval = $currentDateTime->diff($lastPostDateTime);
+                            $daysSinceLast = $interval->days;
+
+                            // Условие: прошло больше минимального количества дней
+                            $timeCondition = $daysSinceLast > $minDaysInt;
+                        }
+                    } else {
+                        // Если не удалось распарсить дату, считаем что условие выполняется
+                        $timeCondition = true;
+                    }
+                }
+
+                // Объединяем условия: совпадение объекта И старая логика И новая логика
+                if ($objectMatch && $daysCondition && $timeCondition) {
                     $displayName = !empty($channelName) ? $channelName : $chatName;
                     $channels[] = [
                         'display_name' => $displayName,
