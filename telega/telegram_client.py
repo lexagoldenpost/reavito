@@ -237,88 +237,164 @@ class TelegramClientManager:
       self.entity_manager._cache_loading = False
 
   async def get_entity_cached(self, channel_identifier: Union[str, int]):
-    """Получение entity с использованием файлового хранилища"""
-    cache_key = str(channel_identifier)
+      """Получение entity с использованием файлового хранилища"""
+      cache_key = str(channel_identifier)
 
-    # Шаг 1: Проверяем в файле
-    entity_data = self.entity_manager.get_entity(cache_key, self.entities)
-    if entity_data:
+      # Шаг 0: Загружаем entity из файла если еще не загружены
+      if not self.entity_manager._cache_loaded:
+        self.entities = self.entity_manager.load_entities()
+        self.entity_manager._cache_loaded = True
+
+      # Шаг 1: Проверяем в файле
+      entity_data = self.entity_manager.get_entity(cache_key, self.entities)
+      if entity_data:
         logger.debug(f"📦 Найдено entity в файле для {channel_identifier}")
-        # Пробуем получить entity по сохраненным данным
-        try:
-            # Используем оригинальный идентификатор для поиска
-            entity = await TelegramUtils.get_entity_safe(self.client, channel_identifier)
-            if entity:
-                logger.debug(f"✅ Entity получено по сохраненным данным для {channel_identifier}")
-                return entity
-            else:
-                logger.debug(f"⚠️ Не удалось получить entity по сохраненным данным для {channel_identifier}")
-        except Exception as e:
-            logger.debug(f"⚠️ Ошибка при получении entity по сохраненным данным: {e}")
 
-    # Шаг 2: Если нет в файле или не удалось получить - пробуем получить напрямую
-    logger.debug(f"🔄 Прямой поиск entity для {channel_identifier}")
-    try:
-        if not await self.ensure_connection():
-            return None
-
-        entity = await TelegramUtils.get_entity_safe(self.client, channel_identifier)
+        # Пробуем создать entity из сохраненных данных
+        entity = await self._create_entity_from_cache(entity_data)
         if entity:
-            # Сохраняем в файл
-            entity_data = {
-                'id': entity.id,
-                'title': getattr(entity, 'title', ''),
-                'username': getattr(entity, 'username', ''),
-                'type': type(entity).__name__,
-                'access_hash': getattr(entity, 'access_hash', '')
-            }
-            self.entity_manager.add_entity(cache_key, entity_data, self.entities)
-            logger.debug(f"✅ Entity для {channel_identifier} найдено и сохранено в файл")
-            return entity
-    except Exception as e:
+          logger.debug(f"✅ Entity создано из кэша для {channel_identifier}")
+          return entity
+        else:
+          logger.debug(
+            f"⚠️ Не удалось создать entity из кэша для {channel_identifier}")
+
+      # Шаг 2: Если нет в файле или не удалось создать - пробуем получить напрямую через API
+      logger.debug(f"🔄 Прямой поиск entity через API для {channel_identifier}")
+      try:
+        if not await self.ensure_connection():
+          return None
+
+        entity = await TelegramUtils.get_entity_safe(self.client,
+                                                     channel_identifier)
+        if entity:
+          # Сохраняем в файл
+          entity_data = {
+            'id': entity.id,
+            'title': getattr(entity, 'title', ''),
+            'username': getattr(entity, 'username', ''),
+            'type': type(entity).__name__,
+            'access_hash': getattr(entity, 'access_hash', ''),
+            'full_id': utils.get_peer_id(entity)
+          }
+          self.entity_manager.add_entity(cache_key, entity_data, self.entities)
+          logger.debug(
+            f"✅ Entity для {channel_identifier} найдено через API и сохранено в файл")
+          return entity
+      except Exception as e:
         logger.debug(
-            f"⚠️ Не удалось получить entity напрямую для {channel_identifier}: {e}")
+          f"⚠️ Не удалось получить entity через API для {channel_identifier}: {e}")
 
-    # Шаг 3: Если не получилось напрямую - перезагружаем все entity
-    logger.info(f"🔍 Entity для {channel_identifier} не найдено, перезагружаем...")
-    await self.force_reload_cache()
+      # Шаг 3: Если не получилось - догружаем все entity
+      logger.info(
+        f"🔍 Entity для {channel_identifier} не найдено, догружаем все каналы...")
+      await self._supplement_cache()
 
-    # Шаг 4: После перезагрузки пробуем снова найти в файле и получить
-    entity_data = self.entity_manager.get_entity(cache_key, self.entities)
-    if entity_data:
-        logger.info(f"✅ Entity для {channel_identifier} найдено в файле после перезагрузки")
-        # Пробуем получить entity разными способами
-        try:
-            # Способ 1: По оригинальному идентификатору
-            entity = await TelegramUtils.get_entity_safe(self.client, channel_identifier)
-            if entity:
-                logger.info(f"✅ Entity получено после перезагрузки для {channel_identifier}")
-                return entity
-        except Exception as e:
-            logger.debug(f"⚠️ Не удалось получить entity после перезагрузки: {e}")
+      # Шаг 4: После догрузки пробуем снова найти в файле
+      entity_data = self.entity_manager.get_entity(cache_key, self.entities)
+      if entity_data:
+        logger.info(
+          f"✅ Entity для {channel_identifier} найдено в файле после догрузки")
+        entity = await self._create_entity_from_cache(entity_data)
+        if entity:
+          logger.info(
+            f"✅ Entity создано после догрузки для {channel_identifier}")
+          return entity
 
-        # Способ 2: По ID из сохраненных данных
-        try:
-            if 'id' in entity_data:
-                entity = await TelegramUtils.get_entity_safe(self.client, entity_data['id'])
-                if entity:
-                    logger.info(f"✅ Entity получено по ID {entity_data['id']} после перезагрузки")
-                    return entity
-        except Exception as e:
-            logger.debug(f"⚠️ Не удалось получить entity по ID: {e}")
+      logger.error(
+        f"❌ Entity для {channel_identifier} не найдено после всех попыток")
+      return None
 
-        # Способ 3: По username если есть
-        try:
-            if entity_data.get('username'):
-                entity = await TelegramUtils.get_entity_safe(self.client, f"@{entity_data['username']}")
-                if entity:
-                    logger.info(f"✅ Entity получено по username @{entity_data['username']} после перезагрузки")
-                    return entity
-        except Exception as e:
-            logger.debug(f"⚠️ Не удалось получить entity по username: {e}")
+  async def _supplement_cache(self) -> bool:
+    """Дополняет кэш entity без очистки существующих данных"""
+    try:
+      logger.info("🔄 Дополняем кэш entity...")
 
-    logger.error(f"❌ Entity для {channel_identifier} не найдено после всех попыток")
-    return None
+      if not await self.ensure_connection():
+        return False
+
+      # Загружаем текущие entity из файла
+      current_entities = self.entity_manager.load_entities()
+
+      # Получаем все доступные каналы
+      channels = await TelegramUtils.get_all_available_channels(self.client)
+
+      if not channels:
+        logger.warning("❌ Не найдено каналов для догрузки")
+        return False
+
+      # Добавляем только новые entity
+      added_count = 0
+      for channel in channels:
+        entity = channel['entity']
+        full_id = channel.get('full_id', '')
+
+        entity_data = {
+          'id': entity.id,
+          'title': getattr(entity, 'title', ''),
+          'username': getattr(entity, 'username', ''),
+          'type': type(entity).__name__,
+          'access_hash': getattr(entity, 'access_hash', ''),
+          'full_id': full_id
+        }
+
+        # Добавляем по разным идентификаторам, но только если их еще нет
+        identifiers = [
+          str(entity.id),  # ID как число
+          full_id,  # Полный ID (с префиксом -100)
+          f"@{entity.username}" if getattr(entity, 'username', None) else None,
+          getattr(entity, 'title', '')
+        ]
+
+        for identifier in identifiers:
+          if identifier and identifier not in current_entities:
+            current_entities[identifier] = entity_data
+            added_count += 1
+            logger.debug(f"➕ Добавлен идентификатор: {identifier}")
+
+      # Сохраняем обновленный кэш
+      self.entity_manager.save_entities(current_entities)
+      self.entities = current_entities
+
+      logger.info(
+        f"✅ Кэш дополнен: добавлено {added_count} записей, всего {len(current_entities)}")
+      return True
+
+    except Exception as e:
+      logger.error(f"❌ Ошибка дополнения кэша entity: {str(e)}")
+      return False
+
+  async def _create_entity_from_cache(self, entity_data: Dict) -> Optional:
+    """Создает entity из данных кэша"""
+    try:
+      from telethon.tl.types import InputPeerChannel, InputPeerChat, \
+        InputPeerUser
+      from telethon.tl.types import Channel, Chat
+
+      entity_type = entity_data.get('type', '')
+      entity_id = entity_data.get('id')
+      access_hash = entity_data.get('access_hash')
+
+      if not entity_id:
+        return None
+
+      # Для Channel
+      if entity_type == 'Channel' and access_hash:
+        return InputPeerChannel(entity_id, access_hash)
+      # Для Chat
+      elif entity_type == 'Chat':
+        return InputPeerChat(entity_id)
+      # Для User (если понадобится)
+      elif entity_type == 'User' and access_hash:
+        return InputPeerUser(entity_id, access_hash)
+      else:
+        logger.warning(
+          f"⚠️ Неизвестный тип entity или отсутствует access_hash: {entity_type}")
+        return None
+
+    except Exception as e:
+      logger.error(f"❌ Ошибка создания entity из кэша: {e}")
+      return None
 
   async def close(self):
     """Корректное закрытие клиента"""
@@ -385,73 +461,109 @@ class TelegramClientManager:
       return None
 
   async def send_message(
-      self,
-      channel_identifier: Union[str, int],
-      message: Optional[str] = None,
-      media_files: Optional[List[str]] = None,
-      return_message_link: bool = False
-  ) -> Union[bool, Tuple[bool, str]]:
-    """Упрощенная отправка сообщения в канал/группу с использованием файлового хранилища"""
-    try:
-      # Убеждаемся, что подключение установлено
-      if not await self.ensure_connection():
-        return (False, "") if return_message_link else False
-
-      # Логируем информацию об аккаунте
+        self,
+        channel_identifier: Union[str, int],
+        message: Optional[str] = None,
+        media_files: Optional[List[str]] = None,
+        return_message_link: bool = False
+    ) -> Union[bool, Tuple[bool, str]]:
+      """Упрощенная отправка сообщения в канал/группу с использованием файлового хранилища"""
       try:
-        me = await self.client.get_me()
-        if me:
-          username = f"@{me.username}" if me.username else "без username"
-          logger.info(
-              f"🆔 Отправка под аккаунтом: {me.first_name} {me.last_name or ''} "
-              f"(ID: {me.id}, {username})")
+        # Убеждаемся, что подключение установлено
+        if not await self.ensure_connection():
+          return (False, "") if return_message_link else False
+
+        # Логируем информацию об аккаунте
+        try:
+          me = await self.client.get_me()
+          if me:
+            username = f"@{me.username}" if me.username else "без username"
+            logger.info(
+                f"🆔 Отправка под аккаунтом: {me.first_name} {me.last_name or ''} "
+                f"(ID: {me.id}, {username})")
+        except Exception as e:
+          logger.warning(f"Не удалось получить информацию об аккаунте: {e}")
+
+        # ✅ ФАЙЛОВОЕ ХРАНИЛИЩЕ: автоматически догружает entity при необходимости
+        entity = await self.get_entity_cached(channel_identifier)
+        if not entity:
+          logger.error(f"❌ Не удалось получить entity для {channel_identifier}")
+          return (False, "") if return_message_link else False
+
+        # Получаем реальный entity для отправки сообщения
+        # Если entity из кэша - это InputPeer, нужно получить полный entity
+        from telethon.tl.types import InputPeerChannel, InputPeerChat, \
+          InputPeerUser
+
+        if isinstance(entity, (InputPeerChannel, InputPeerChat, InputPeerUser)):
+          # Для InputPeer объектов получаем полный entity
+          try:
+            full_entity = await TelegramUtils.get_entity_safe(self.client,
+                                                              channel_identifier)
+            if full_entity:
+              entity = full_entity
+              logger.debug(
+                f"✅ Получен полный entity для отправки: {type(entity).__name__}")
+            else:
+              logger.warning(
+                f"⚠️ Не удалось получить полный entity, используем InputPeer")
+          except Exception as e:
+            logger.warning(
+              f"⚠️ Ошибка получения полного entity: {e}, используем InputPeer")
+
+        # Отправка сообщения
+        sent_message = None
+
+        if media_files:
+          if len(media_files) == 1:
+            sent_message = await self.client.send_message(
+                entity, message=message, file=media_files[0]
+            )
+          else:
+            sent_message = await self.client.send_message(
+                entity, message=message, file=media_files
+            )
+        elif message:
+          sent_message = await self.client.send_message(entity, message)
+        else:
+          logger.error("Не указано ни сообщение, ни медиафайлы")
+          return (False, "") if return_message_link else False
+
+        # Генерация ссылки на сообщение
+        if return_message_link and sent_message:
+          try:
+            if isinstance(sent_message, list) and sent_message:
+              message_link = await TelegramUtils.get_message_link(
+                  self.client, entity, sent_message[0].id
+              )
+            else:
+              message_link = await TelegramUtils.get_message_link(
+                  self.client, entity, sent_message.id
+              )
+            return True, message_link
+          except Exception as e:
+            logger.error(f"❌ Ошибка генерации ссылки на сообщение: {e}")
+            return True, ""  # Возвращаем успех, но без ссылки
+
+        return True
+
+      except errors.FloodWaitError as e:
+        logger.error(f"Flood wait: нужно подождать {e.seconds} секунд")
+        return (False, "") if return_message_link else False
       except Exception as e:
-        logger.warning(f"Не удалось получить информацию об аккаунте: {e}")
-
-      # ✅ ФАЙЛОВОЕ ХРАНИЛИЩЕ: автоматически догружает entity при необходимости
-      entity = await self.get_entity_cached(channel_identifier)
-      if not entity:
-        logger.error(f"❌ Не удалось получить entity для {channel_identifier}")
+        logger.error(f"Ошибка при отправке сообщения: {str(e)}")
         return (False, "") if return_message_link else False
 
-      # Отправка сообщения
-      sent_message = None
-
-      if media_files:
-        if len(media_files) == 1:
-          sent_message = await self.client.send_message(
-              entity, message=message, file=media_files[0]
-          )
-        else:
-          sent_message = await self.client.send_message(
-              entity, message=message, file=media_files
-          )
-      elif message:
-        sent_message = await self.client.send_message(entity, message)
-      else:
-        logger.error("Не указано ни сообщение, ни медиафайлы")
-        return (False, "") if return_message_link else False
-
-      # Генерация ссылки на сообщение
-      if return_message_link and sent_message:
-        if isinstance(sent_message, list) and sent_message:
-          message_link = await TelegramUtils.get_message_link(
-              self.client, entity, sent_message[0].id
-          )
-        else:
-          message_link = await TelegramUtils.get_message_link(
-              self.client, entity, sent_message.id
-          )
-        return True, message_link
-
-      return True
-
-    except errors.FloodWaitError as e:
-      logger.error(f"Flood wait: нужно подождать {e.seconds} секунд")
-      return (False, "") if return_message_link else False
+  # метод для экспорта сессии
+  def get_session_string(self):
+    """Возвращает строку сессии для использования в других процессах"""
+    try:
+        if self._client and self._client.session:
+            return self._client.session.save()
+        return None
     except Exception as e:
-      logger.error(f"Ошибка при отправке сообщения: {str(e)}")
-      return (False, "") if return_message_link else False
+        logger.error(f"Ошибка получения строки сессии: {e}")
+        return None
 
   async def close_connection(self):
     """Закрыть подключение"""

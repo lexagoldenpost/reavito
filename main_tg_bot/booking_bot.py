@@ -48,11 +48,24 @@ class BookingBot:
                                   Config.ALLOWED_TELEGRAM_USERNAMES]
         self.application = None
         self.scheduler_process = None
+        self.scheduler_task = None
         self.remote_web_app_url = Config.REMOTE_WEB_APP_URL
         logger.info("BookingBot initialized")
         logger.info(f"Token: {self.token[:10]}...")
         logger.info(f"Allowed users: {self.allowed_usernames}")
         logger.info(f"Remote web app URL: {self.remote_web_app_url}")
+
+    async def start_scheduler_in_current_process(self):
+      """Запуск планировщика в текущем процессе (асинхронно)"""
+      try:
+        from scheduler.scheduler import AsyncScheduler
+        scheduler = AsyncScheduler()
+
+        # Запускаем планировщик в фоновой задаче
+        self.scheduler_task = asyncio.create_task(scheduler.run())
+        logger.info("Scheduler started in current process")
+      except Exception as e:
+        logger.error(f"Failed to start scheduler: {e}")
 
     async def check_user_permission(self, update):
         """Проверка прав доступа пользователя"""
@@ -278,72 +291,69 @@ class BookingBot:
             raise Exception("Remote web app URL not configured")
 
     def run(self):
-        """Запуск бота"""
-        try:
-            # Проверяем наличие URL удаленного сервера
-            if not self.remote_web_app_url:
-                logger.error("Remote web app URL not configured, bot cannot continue")
-                return
+      """Запуск бота"""
+      try:
+        # Проверяем наличие URL удаленного сервера
+        if not self.remote_web_app_url:
+          logger.error("Remote web app URL not configured, bot cannot continue")
+          return
 
-            # Запускаем планировщик
-            self.start_scheduler()
+        # Настраиваем обработчик завершения
+        def signal_handler(signum, frame):
+          logger.info("Received shutdown signal")
+          # Останавливаем планировщик асинхронно
+          if self.application and self.application.running:
+            self.application.create_task(self.stop_scheduler())
+          # Закрываем Telegram клиент
+          loop = asyncio.get_event_loop()
+          loop.run_until_complete(telegram_client.close())
+          sys.exit(0)
 
-            # Настраиваем обработчик завершения
-            def signal_handler(signum, frame):
-                logger.info("Received shutdown signal")
-                self.stop_scheduler()
-                # Закрываем Telegram клиент
-                loop = asyncio.get_event_loop()
-                loop.run_until_complete(telegram_client.close())
-                sys.exit(0)
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
 
-            signal.signal(signal.SIGINT, signal_handler)
-            signal.signal(signal.SIGTERM, signal_handler)
+        self.setup_handlers()
 
-            self.setup_handlers()
-            logger.info("Starting bot polling...")
-            print("=" * 50)
-            print("🤖 Бот запущен!")
-            print(f"🌐 Удаленный сервер форм: {self.remote_web_app_url}")
-            print("📋 Доступные команды:")
-            for cmd, desc in COMMANDS:
-                print(f"   /{cmd} - {desc}")
-            print("=" * 50)
+        # Запускаем планировщик при старте приложения
+        async def post_init(application):
+          await self.start_scheduler_in_current_process()
 
-            self.application.run_polling(drop_pending_updates=True)
-        except Exception as e:
-            logger.error(f"Bot crashed: {e}", exc_info=True)
-            self.stop_scheduler()
-            raise
+        self.application.post_init = post_init
+
+        logger.info("Starting bot polling...")
+        print("=" * 50)
+        print("🤖 Бот запущен!")
+        print(f"🌐 Удаленный сервер форм: {self.remote_web_app_url}")
+        print("📋 Доступные команды:")
+        for cmd, desc in COMMANDS:
+          print(f"   /{cmd} - {desc}")
+        print("=" * 50)
+
+        self.application.run_polling(drop_pending_updates=True)
+      except Exception as e:
+        logger.error(f"Bot crashed: {e}", exc_info=True)
+        self.stop_scheduler()
+        raise
 
     def start_scheduler(self):
-        """Запуск планировщика в отдельном процессе"""
+      """ЗАМЕНА: Запуск планировщика в текущем процессе вместо отдельного"""
+      try:
+        # Создаем задачу для планировщика
+        #asyncio.create_task(self.start_scheduler_in_current_process())
+        # Задача будет создана позже в асинхронном контексте
+        logger.info("Scheduler will be started in async context")
+      except Exception as e:
+        logger.error(f"Failed to start scheduler: {e}")
+
+    async def stop_scheduler(self):
+      """Остановка планировщика"""
+      if self.scheduler_task:
+        self.scheduler_task.cancel()
         try:
-            from scheduler.scheduler import AsyncScheduler
-            self.scheduler_process = multiprocessing.Process(
-                target=self._run_scheduler,
-                name="SchedulerProcess"
-            )
-            self.scheduler_process.start()
-            logger.info("Scheduler started in separate process")
-        except Exception as e:
-            logger.error(f"Failed to start scheduler: {e}")
-
-    def _run_scheduler(self):
-        """Запуск асинхронного планировщика в отдельном процессе"""
-        try:
-            scheduler = AsyncScheduler()
-            asyncio.run(scheduler.run())
-        except Exception as e:
-            logger.error(f"Scheduler process error: {e}")
-
-    def stop_scheduler(self):
-        """Остановка планировщика"""
-        if self.scheduler_process and self.scheduler_process.is_alive():
-            self.scheduler_process.terminate()
-            self.scheduler_process.join()
-            logger.info("Scheduler stopped")
-
+          await self.scheduler_task
+        except asyncio.CancelledError:
+          pass
+        logger.info("Scheduler stopped")
 
 def sync_google_sheets():
     """Выполняет синхронизацию всех листов Google Sheets с локальными CSV."""

@@ -296,38 +296,56 @@ class TelegramUtils:
 
       Args:
           client: TelegramClient
-          entity: Сущность канала/чата
+          entity: Сущность канала/чата (может быть InputPeerChannel, InputPeerChat, Channel, Chat)
           message_id: ID сообщения
 
       Returns:
           str: Ссылка на сообщение
       """
       try:
-        # Получаем информацию о канале/чате
-        if hasattr(entity, 'username') and entity.username:
-          # Для публичных каналов с username
-          return f"https://t.me/{entity.username}/{message_id}"
-        else:
-          # Для приватных каналов/чатов
-          # Получаем реальный ID канала (может быть отрицательным)
-          channel_id = entity.id
+        # Определяем тип entity и получаем нужные параметры
+        entity_type = type(entity).__name__
 
-          # Преобразуем в положительный формат для ссылки
-          # Telethon использует специальный формат для приватных каналов
-          if hasattr(entity, 'broadcast') and entity.broadcast:
-            # Это канал (broadcast)
+        if entity_type in ['InputPeerChannel', 'Channel']:
+          # Для каналов
+          if hasattr(entity, 'username') and entity.username:
+            # Для публичных каналов с username
+            return f"https://t.me/{entity.username}/{message_id}"
+          else:
+            # Для приватных каналов
+            if hasattr(entity, 'id'):
+              channel_id = entity.id
+            elif hasattr(entity, 'channel_id'):
+              channel_id = entity.channel_id
+            else:
+              logger.error(
+                f"Не удалось получить ID канала для типа {entity_type}")
+              return ""
+
+            # Преобразуем в положительный формат для ссылки
             if channel_id < 0:
               positive_id = 10 ** 13 - abs(channel_id)
             else:
               positive_id = channel_id
             return f"https://t.me/c/{positive_id}/{message_id}"
+
+        elif entity_type in ['InputPeerChat', 'Chat']:
+          # Для чатов/групп
+          if hasattr(entity, 'id'):
+            chat_id = entity.id
+          elif hasattr(entity, 'chat_id'):
+            chat_id = entity.chat_id
           else:
-            # Это группа/чат
-            if channel_id < 0:
-              positive_id = abs(channel_id)
-            else:
-              positive_id = channel_id
-            return f"https://t.me/c/{positive_id}/{message_id}"
+            logger.error(f"Не удалось получить ID чата для типа {entity_type}")
+            return ""
+
+          # Для чатов используем абсолютное значение ID
+          positive_id = abs(chat_id)
+          return f"https://t.me/c/{positive_id}/{message_id}"
+
+        else:
+          logger.error(f"Неизвестный тип entity: {entity_type}")
+          return ""
 
       except Exception as e:
         logger.error(f"Ошибка генерации ссылки на сообщение: {str(e)}")
