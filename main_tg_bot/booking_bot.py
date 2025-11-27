@@ -33,6 +33,7 @@ from main_tg_bot.command.new_menu import (
     calculation_command,
     close_calculation_menu_handler
 )
+from telega.telegram_client import telegram_client
 
 logger = setup_logger("booking_bot")
 
@@ -228,6 +229,7 @@ class BookingBot:
             "удаление_бронь": ("main_tg_bot.handlers.delete_booking_handler", "handle_delete_booking"),
             "изменение_бронь": ("main_tg_bot.handlers.edit_booking_handler", "handle_edit_booking"),
             "бронь": ("main_tg_bot.handlers.add_booking_handler", "handle_add_booking"),
+            "рассылка": ("main_tg_bot.handlers.telegram_poster_handler", "handle_telegram_poster"),
         }
 
         # Определяем, какой обработчик подходит
@@ -371,6 +373,17 @@ if __name__ == "__main__":
     try:
         logger.info("Sync booking start...")
         logger.info("Starting bot initialization...")
+        # Инициализируем Telethon синглтон
+        logger.info("🔄 Initializing Telethon client...")
+        loop = asyncio.get_event_loop()
+        telethon_success = loop.run_until_complete(
+        telegram_client.ensure_connection())
+
+        if not telethon_success:
+          logger.error("❌ Cannot start bot without Telethon client")
+          exit(1)
+
+        logger.info("✅ Telethon client ready")
         #Запускать только если все данные в гугл таблице актальнее чем локально. Напрмиер при первичной загрузке иначе из локала перетрет
         #sync_google_sheets()
         bot = BookingBot()

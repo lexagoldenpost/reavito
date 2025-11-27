@@ -24,61 +24,47 @@ function readChannelsData($filePath, $selectedObject) {
             $headerIndexes[$cleanHeader] = $index;
         }
 
-        // Нормализуем $selectedObject: заменяем подчеркивания на пробелы для сравнения с CSV
         $normalizedSelectedObject = str_replace('_', ' ', $selectedObject);
 
         while (($row = fgetcsv($handle, 1000, ",")) !== false) {
             if (count($row) >= 5) {
-                // Получаем значения из столбцов
                 $chatName = trim($row[$headerIndexes['Наименование чата']] ?? '');
                 $daysSinceLastPost = trim($row[$headerIndexes['Количество сообщение после последней публикации']] ?? '');
                 $channelName = trim($row[$headerIndexes['Название канала']] ?? '');
                 $object = trim($row[$headerIndexes['Объект']] ?? '');
                 $lastPostTime = trim($row[$headerIndexes['Время последней отправки']] ?? '');
                 $acceptsImages = trim($row[$headerIndexes['Картинки принимает (Да/Нет)']] ?? '');
-                $minDays = trim($row[$headerIndexes['Срок в днях меньше которого не отправляем ']] ?? '7'); // Обратите внимание на пробел в конце
+                $minDays = trim($row[$headerIndexes['Срок в днях меньше которого не отправляем']] ?? '7');
 
-                // Определяем ID канала (используем Наименование чата если нет отдельного ID)
                 $channelId = $chatName;
 
-                // Проверяем условия:
-                // 1. Если столбец 'Объект' пустой -> проверяем условие по дням
-                // 2. Если столбец 'Объект' НЕ пустой -> проверяем вхождение $selectedObject (нормализованного) (игнорируя регистр и пробелы) и условие по дням
                 $objectMatch = false;
                 if (empty($object)) {
-                    // Если объект пустой, проверяем только дни
                     $objectMatch = true;
                 } else {
-                    // Если объект НЕ пустой, проверяем вхождение нормализованного $selectedObject
                     $objectMatch = stripos($object, $normalizedSelectedObject) !== false;
                 }
 
-                // СТАРАЯ ЛОГИКА: Условие по дням из столбца 'Количество сообщение после последней публикации'
                 $daysCondition = false;
                 if ($daysSinceLastPost === '') {
-                    $daysCondition = true; // пустое значение = больше 8
+                    $daysCondition = true;
                 } else {
                     $daysValue = intval($daysSinceLastPost);
                     $daysCondition = $daysValue > 8;
                 }
 
-                // НОВАЯ ЛОГИКА: Проверка времени последней отправки
                 $timeCondition = false;
                 $minDaysInt = intval($minDays);
 
                 if (empty($lastPostTime)) {
-                    // Если время последней отправки не указано, считаем что условие выполняется
                     $timeCondition = true;
                 } else {
-                    // Парсим дату последней отправки - поддерживаем разные форматы
                     $lastPostDateTime = null;
-
-                    // Пробуем разные форматы дат
                     $formats = [
-                        'Y-m-d H:i:s', // 2025-11-11 12:40:58
-                        'd.m.Y',       // 21.11.2025
-                        'd.m.Y H:i:s', // 21.11.2025 10:45:07
-                        'Y-m-d',       // 2025-11-11
+                        'Y-m-d H:i:s',
+                        'd.m.Y',
+                        'd.m.Y H:i:s',
+                        'Y-m-d',
                     ];
 
                     foreach ($formats as $format) {
@@ -91,23 +77,18 @@ function readChannelsData($filePath, $selectedObject) {
                     if ($lastPostDateTime) {
                         $currentDateTime = new DateTime();
 
-                        // Если дата в будущем (например, 21.11.2025), то условие НЕ выполняется
                         if ($lastPostDateTime > $currentDateTime) {
                             $timeCondition = false;
                         } else {
                             $interval = $currentDateTime->diff($lastPostDateTime);
                             $daysSinceLast = $interval->days;
-
-                            // Условие: прошло больше минимального количества дней
                             $timeCondition = $daysSinceLast > $minDaysInt;
                         }
                     } else {
-                        // Если не удалось распарсить дату, считаем что условие выполняется
                         $timeCondition = true;
                     }
                 }
 
-                // Объединяем условия: совпадение объекта И старая логика И новая логика
                 if ($objectMatch && $daysCondition && $timeCondition) {
                     $displayName = !empty($channelName) ? $channelName : $chatName;
                     $channels[] = [
@@ -130,7 +111,6 @@ function readChannelsData($filePath, $selectedObject) {
     return $channels;
 }
 
-// Получаем список объектов из booking_files
 $bookingFilesPath = __DIR__ . '/booking_files/*.csv';
 $files = glob($bookingFilesPath);
 $objects = [];
@@ -143,7 +123,6 @@ if (!empty($files)) {
     }
 }
 
-// Функция для получения свободных дат из CSV файла бронирования
 function getFreeDates($object) {
     $filePath = __DIR__ . "/booking_files/{$object}.csv";
     if (!file_exists($filePath)) {
@@ -154,7 +133,6 @@ function getFreeDates($object) {
     $currentDate = new DateTime();
     $threeMonthsFromNow = (new DateTime())->modify('+3 months');
 
-    // Читаем все бронирования
     if (($handle = fopen($filePath, "r")) !== false) {
         $headers = fgetcsv($handle);
         $checkInIndex = array_search('Заезд', $headers);
@@ -174,7 +152,6 @@ function getFreeDates($object) {
                 $checkOutDate = DateTime::createFromFormat('d.m.Y', $checkOut);
 
                 if ($checkInDate && $checkOutDate && $checkOutDate > $checkInDate) {
-                    // Добавляем период бронирования
                     $bookedPeriods[] = [
                         'start' => clone $checkInDate,
                         'end' => clone $checkOutDate
@@ -185,18 +162,15 @@ function getFreeDates($object) {
         fclose($handle);
     }
 
-    // Сортируем бронирования по дате заезда
     usort($bookedPeriods, function($a, $b) {
         return $a['start'] <=> $b['start'];
     });
 
-    // Находим свободные периоды
     $freePeriods = [];
     $current = clone $currentDate;
 
     foreach ($bookedPeriods as $booking) {
         if ($booking['start'] > $current) {
-            // Найден свободный период между current и началом бронирования
             $freeEnd = min($booking['start'], $threeMonthsFromNow);
             if ($current < $freeEnd) {
                 $freePeriods[] = [
@@ -206,7 +180,6 @@ function getFreeDates($object) {
             }
         }
 
-        // Перемещаем current после окончания текущего бронирования
         if ($booking['end'] > $current) {
             $current = clone $booking['end'];
         }
@@ -216,7 +189,6 @@ function getFreeDates($object) {
         }
     }
 
-    // Добавляем оставшийся период до 3 месяцев, если есть
     if ($current < $threeMonthsFromNow) {
         $freePeriods[] = [
             'start' => clone $current,
@@ -224,7 +196,6 @@ function getFreeDates($object) {
         ];
     }
 
-    // Фильтруем периоды: минимальная продолжительность 3 ночи (4 дня)
     $filteredPeriods = [];
     $minNights = 3;
 
@@ -232,13 +203,11 @@ function getFreeDates($object) {
         $interval = $period['start']->diff($period['end']);
         $totalNights = $interval->days;
 
-        // Если период достаточно длинный для минимального бронирования
         if ($totalNights >= $minNights) {
             $filteredPeriods[] = $period;
         }
     }
 
-    // Форматируем результат
     $formattedDates = [];
     foreach ($filteredPeriods as $period) {
         $startStr = $period['start']->format('d.m.Y');
@@ -260,16 +229,12 @@ function getFreeDates($object) {
     ];
 }
 
-// Обработка POST запросов
 $selectedObject = $_POST['object'] ?? '';
 $action = $_POST['action'] ?? '';
 $selectedChannels = $_POST['channels'] ?? [];
 $messageText = $_POST['message_text'] ?? '';
 
-// Чтение данных о каналах
 $channelsData = [];
-
-// Если выбран объект - читаем данные
 if ($selectedObject) {
     $dataFile = __DIR__ . '/task_files/channels.csv';
     if (file_exists($dataFile)) {
@@ -277,87 +242,85 @@ if ($selectedObject) {
     }
 }
 
-// Получаем информацию о свободных датах
 $freeDatesInfo = ['has_free_dates' => false, 'dates' => ''];
 if ($selectedObject) {
     $freeDatesInfo = getFreeDates($selectedObject);
 }
 
-// Если выбран объект и не указан текст сообщения, генерируем его
 if ($selectedObject && !$messageText && $freeDatesInfo['has_free_dates']) {
-    $free_dates_message = $freeDatesInfo['dates'];
-
-    // Здесь можно задать разные заголовки под каждый объект
     $objectData = [
-        'halo_title' => [ // изменено с 'Halo Title' на 'halo'
+        'halo_title' => [
             'line1' => 'Аренда квартиры в новом комплексе Halo Title в 400м от пляжа Най Янг',
             'line2' => '10 минут езды от аэропорта!',
             'line3' => '🏡 1BR 36м2, 3й этаж, вид на бассейн'
         ],
-        'citygate_p311' => [ // изменено с 'Citygate P311' на 'dvushka' (или другое имя файла)
+        'citygate_p311' => [
             'line1' => 'Аренда квартиры в комплексе Citygate в 700м от пляжа Камала',
             'line2' => '30 минут езды от аэропорта!',
             'line3' => '🏡 1BR 38м2, 3й этаж, вид на горы'
         ]
-        // Добавьте другие объекты по аналогии
     ];
 
-    // Используем $selectedObject (имя файла) как ключ для поиска в $objectData
-    $line1 = $objectData[$selectedObject]['line1'];
-    $line2 = $objectData[$selectedObject]['line2'];
-    $line3 = $objectData[$selectedObject]['line3'];
+    if (isset($objectData[$selectedObject])) {
+        $line1 = $objectData[$selectedObject]['line1'];
+        $line2 = $objectData[$selectedObject]['line2'];
+        $line3 = $objectData[$selectedObject]['line3'];
 
-    $messageText = (
-        "{$line1}\n" .
-        "{$line2}\n" .
-        "{$line3}\n\n" .
-        "🗝️Собственник!\n\n" .
-        "СВОБОДНЫЕ ДЛЯ БРОНИРОВАНИЯ ДАТЫ (ближайшие 3 месяца):\n\n" .
-        "{$free_dates_message}\n\n" .
-        "⚠️Есть и другие варианты, спрашивайте в ЛС."
-    );
+        $messageText = (
+            "{$line1}\n" .
+            "{$line2}\n" .
+            "{$line3}\n\n" .
+            "🗝️Собственник!\n\n" .
+            "СВОБОДНЫЕ ДЛЯ БРОНИРОВАНИЯ ДАТЫ (ближайшие 3 месяца):\n\n" .
+            "{$freeDatesInfo['dates']}\n\n" .
+            "⚠️Есть и другие варианты, спрашивайте в ЛС."
+        );
+    } else {
+        // fallback: использовать имя объекта в сообщении
+        $messageText = "Объект: {$objects[$selectedObject]}\n\nСвободные даты:\n{$freeDatesInfo['dates']}";
+    }
 }
 
-// Отправка в Telegram - УПРОЩЕННАЯ ВЕРСИЯ
 $sendResult = null;
 if ($action === 'send' && !empty($selectedChannels) && !empty($messageText)) {
-    // Собираем список ID чатов для отправки
-    $channelIds = [];
-    $channelNames = [];
+    // ✅ ФОРМИРУЕМ ПОЛНЫЙ СПИСОК КАНАЛОВ С МЕТАДАННЫМИ
+    $channelList = [];
 
     foreach ($selectedChannels as $channelIndex) {
         if (isset($channelsData[$channelIndex])) {
             $channel = $channelsData[$channelIndex];
-            $channelIds[] = $channel['channel_id'];
-            $channelNames[] = $channel['display_name'];
+            $channelList[] = [
+                'channel_id' => $channel['channel_id'],
+                'display_name' => $channel['display_name'],
+                'accepts_images' => strtolower(trim($channel['accepts_images'])) === 'да',
+                'object' => $channel['object'],
+                'last_post_time' => $channel['last_post_time'],
+                'min_days' => $channel['min_days']
+            ];
         }
     }
 
-    // Формируем имя файла
     $timestamp = date('Ymd_His');
     $filename = "Рассылка_{$selectedObject}_{$timestamp}.json";
 
-    // Формируем данные для отправки в Telegram
     $postData = [
         'form_type' => 'telegram_poster',
         'init_chat_id' => $INIT_CHAT_ID,
         'object' => $selectedObject,
         'message_text' => $messageText,
-        'include_images' => false,
-        'channel_ids' => $channelIds,
-        'channel_names' => $channelNames,
-        'channels_count' => count($channelIds),
+        'include_images' => false, // может быть обновлено в send_to_telegram.php
+        'channels' => $channelList, // ✅ полный список вместо channel_ids
+        'channels_count' => count($channelList),
         'timestamp' => date('Y-m-d H:i:s'),
         'filename' => $filename
     ];
 
-    // Простая отправка через прямой include файла send_to_telegram.php
     $_GET['token'] = $TELEGRAM_BOT_TOKEN;
     $_GET['chat_id'] = $CHAT_ID;
     $_GET['as_file'] = '1';
 
     ob_start();
-    $_POST = $postData; // Передаем данные как POST
+    $_POST = $postData;
     include __DIR__ . '/send_to_telegram.php';
     $response = ob_get_clean();
 
@@ -368,14 +331,14 @@ if ($action === 'send' && !empty($selectedChannels) && !empty($messageText)) {
             'success' => true,
             'message' => 'Данные успешно отправлены в Telegram',
             'filename' => $filename,
-            'channels_count' => count($channelIds)
+            'channels_count' => count($channelList)
         ];
     } else {
         $sendResult = [
             'success' => false,
             'message' => $result['error'] ?? 'Неизвестная ошибка при отправке',
             'filename' => $filename,
-            'channels_count' => count($channelIds)
+            'channels_count' => count($channelList)
         ];
     }
 }
@@ -390,6 +353,7 @@ if ($action === 'send' && !empty($selectedChannels) && !empty($messageText)) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
+        /* ... (стили без изменений) ... */
         .container { max-width: 1200px; }
         .card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; border-radius: 15px; }
         .channel-item { border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 10px; }
@@ -578,7 +542,6 @@ if ($action === 'send' && !empty($selectedChannels) && !empty($messageText)) {
                         </div>
                     <?php endif; ?>
 
-                    <!-- Отладочная информация -->
                     <?php if ($selectedObject): ?>
                     <div class="debug-info">
                         <strong>Отладочная информация:</strong><br>
@@ -595,19 +558,16 @@ if ($action === 'send' && !empty($selectedChannels) && !empty($messageText)) {
                         <input type="hidden" name="chat_id" value="<?= htmlspecialchars($CHAT_ID) ?>">
                         <input type="hidden" name="init_chat_id" value="<?= htmlspecialchars($INIT_CHAT_ID) ?>">
 
-                        <!-- Выбор объекта -->
                         <div class="row mb-4">
                             <div class="col-md-6">
                                 <label for="objectSelect" class="form-label">Объект недвижимости</label>
-                                <select class="form-select" id="objectSelect" name="object" required
-                                    onchange="this.form.submit()">
+                                <select class="form-select" id="objectSelect" name="object" required onchange="this.form.submit()">
                                     <option value="">Выберите объект...</option>
                                     <?php if (empty($objects)): ?>
                                         <option value="">Объекты не найдены</option>
                                     <?php else: ?>
                                         <?php foreach ($objects as $value => $name): ?>
-                                            <option value="<?= htmlspecialchars($value) ?>"
-                                                <?= $selectedObject === $value ? 'selected' : '' ?>>
+                                            <option value="<?= htmlspecialchars($value) ?>" <?= $selectedObject === $value ? 'selected' : '' ?>>
                                                 <?= htmlspecialchars($name) ?>
                                             </option>
                                         <?php endforeach; ?>
@@ -617,7 +577,6 @@ if ($action === 'send' && !empty($selectedChannels) && !empty($messageText)) {
                         </div>
 
                         <?php if ($selectedObject && !empty($channelsData)): ?>
-                            <!-- Список каналов -->
                             <div class="row mb-4">
                                 <div class="col-12">
                                     <h5>Доступные каналы для рассылки</h5>
@@ -627,10 +586,8 @@ if ($action === 'send' && !empty($selectedChannels) && !empty($messageText)) {
                                     </p>
 
                                     <div class="mb-3">
-                                        <button type="button" class="btn btn-outline-primary btn-sm"
-                                            onclick="selectAllChannels()">Выбрать все</button>
-                                        <button type="button" class="btn btn-outline-secondary btn-sm"
-                                            onclick="deselectAllChannels()">Снять все</button>
+                                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="selectAllChannels()">Выбрать все</button>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="deselectAllChannels()">Снять все</button>
                                         <span class="ms-3 text-muted">Выбрано: <span id="selectedCount"><?= count($channelsData) ?></span> каналов</span>
                                     </div>
 
@@ -638,12 +595,7 @@ if ($action === 'send' && !empty($selectedChannels) && !empty($messageText)) {
                                         <?php foreach ($channelsData as $index => $channel): ?>
                                             <div class="channel-item">
                                                 <div class="form-check">
-                                                    <input class="form-check-input channel-checkbox"
-                                                        type="checkbox"
-                                                        name="channels[]"
-                                                        value="<?= $index ?>"
-                                                        id="channel<?= $index ?>"
-                                                        checked>
+                                                    <input class="form-check-input channel-checkbox" type="checkbox" name="channels[]" value="<?= $index ?>" id="channel<?= $index ?>" checked>
                                                     <label class="form-check-label w-100" for="channel<?= $index ?>">
                                                         <div class="d-flex justify-content-between align-items-center">
                                                             <div>
@@ -660,9 +612,9 @@ if ($action === 'send' && !empty($selectedChannels) && !empty($messageText)) {
                                                                     <div class="collapse" id="info_<?= $index ?>">
                                                                         ID: <?= htmlspecialchars($channel['channel_id']) ?> |
                                                                         Дней с последней публикации: <?= !empty($channel['days_since_last_post']) ? $channel['days_since_last_post'] : 'не указано' ?> |
-                                                                        Картинки: <?= $channel['accepts_images'] ?>
+                                                                        Картинки: <?= htmlspecialchars($channel['accepts_images']) ?>
                                                                         <?php if (!empty($channel['last_post_time'])): ?>
-                                                                            | Последняя отправка: <?= $channel['last_post_time'] ?>
+                                                                            | Последняя отправка: <?= htmlspecialchars($channel['last_post_time']) ?>
                                                                         <?php endif; ?>
                                                                     </div>
                                                                 </div>
@@ -676,20 +628,16 @@ if ($action === 'send' && !empty($selectedChannels) && !empty($messageText)) {
                                 </div>
                             </div>
 
-                            <!-- Текст сообщения -->
                             <div class="row mb-4">
                                 <div class="col-12">
                                     <label for="messageText" class="form-label">Текст сообщения</label>
-                                    <textarea class="form-control" id="messageText" name="message_text"
-                                        rows="6" placeholder="Введите текст для рассылки..."
-                                        required><?= htmlspecialchars($messageText) ?></textarea>
+                                    <textarea class="form-control" id="messageText" name="message_text" rows="6" placeholder="Введите текст для рассылки..." required><?= htmlspecialchars($messageText) ?></textarea>
                                     <div class="form-text">
                                         <small>Свободные даты автоматически добавляются в сообщение. Минимальное бронирование: 3 ночи.</small>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Сообщение о недоступных датах -->
                             <?php if (!$freeDatesInfo['has_free_dates'] && $selectedObject): ?>
                                 <div class="no-free-dates">
                                     <strong>🚫 Нет свободных дат для бронирования от 3 ночей</strong><br>
@@ -697,18 +645,14 @@ if ($action === 'send' && !empty($selectedChannels) && !empty($messageText)) {
                                 </div>
                             <?php endif; ?>
 
-                            <!-- Кнопка отправки -->
                             <div class="row">
                                 <div class="col-12">
-                                    <button type="button" class="btn btn-primary btn-lg w-100"
-                                        id="sendButton"
-                                        <?= !$freeDatesInfo['has_free_dates'] ? 'disabled' : '' ?>>
+                                    <button type="button" class="btn btn-primary btn-lg w-100" id="sendButton" <?= !$freeDatesInfo['has_free_dates'] ? 'disabled' : '' ?>>
                                         📢 Отправить в выбранные каналы (<?= count($channelsData) ?>)
                                     </button>
                                 </div>
                             </div>
 
-                            <!-- Индикатор загрузки -->
                             <div class="loading" id="loading">
                                 <div class="spinner"></div>
                                 <p>Отправка данных в Telegram...</p>
@@ -763,77 +707,67 @@ if ($action === 'send' && !empty($selectedChannels) && !empty($messageText)) {
             }
             async submitForm() {
                 if (this.isSubmitting) return;
-                const form = document.getElementById('telegramForm');
-                const formData = new FormData(form);
-                const selectedChannels = document.querySelectorAll('input[name="channels[]"]:checked');
-                if (selectedChannels.length === 0) {
-                    this.tg.showPopup({
-                        title: 'Ошибка',
-                        message: 'Пожалуйста, выберите хотя бы один канал для отправки',
-                        buttons: [{ type: 'ok' }]
-                    });
+                const selectedCheckboxes = document.querySelectorAll('input[name="channels[]"]:checked');
+                if (selectedCheckboxes.length === 0) {
+                    this.tg.showPopup({ title: 'Ошибка', message: 'Пожалуйста, выберите хотя бы один канал', buttons: [{ type: 'ok' }] });
                     return;
                 }
+
+                const channelsData = <?= json_encode($channelsData) ?>;
+                const selectedIndices = Array.from(selectedCheckboxes).map(cb => cb.value);
+                const channelList = selectedIndices.map(idx => {
+                    const ch = channelsData[idx];
+                    return {
+                        channel_id: ch.channel_id,
+                        display_name: ch.display_name,
+                        accepts_images: (ch.accepts_images || '').toLowerCase() === 'да',
+                        object: ch.object,
+                        last_post_time: ch.last_post_time,
+                        min_days: ch.min_days
+                    };
+                });
+
+                const messageText = document.getElementById('messageText').value.trim();
+                const selectedObject = document.getElementById('objectSelect').value;
+                const timestamp = new Date().toLocaleString('ru-RU');
+                const filename = `Рассылка_${selectedObject}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+
+                const posterData = {
+                    form_type: 'telegram_poster',
+                    init_chat_id: <?= $INIT_CHAT_ID_JS ?>,
+                    object: selectedObject,
+                    message_text: messageText,
+                    include_images: false,
+                    channels: channelList, // ✅ передаём полный список
+                    channels_count: channelList.length,
+                    timestamp: timestamp,
+                    filename: filename
+                };
+
                 this.setSubmitButtonState(true, true);
                 document.getElementById('loading').style.display = 'block';
+
                 try {
-                    const selectedChannels = Array.from(document.querySelectorAll('input[name="channels[]"]:checked')).map(cb => cb.value);
-                    const messageText = document.getElementById('messageText').value;
-                    const selectedObject = document.getElementById('objectSelect').value;
-                    const timestamp = new Date().toLocaleString('ru-RU');
-                    const filename = `Рассылка_${selectedObject}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-                    const posterData = {
-                        form_type: 'telegram_poster',
-                        init_chat_id: <?= $INIT_CHAT_ID_JS ?>,
-                        object: selectedObject,
-                        message_text: messageText,
-                        include_images: false,
-                        channel_ids: selectedChannels.map(index => {
-                            const channel = <?= json_encode($channelsData) ?>;
-                            return channel[index]?.channel_id || '';
-                        }),
-                        channel_names: selectedChannels.map(index => {
-                            const channel = <?= json_encode($channelsData) ?>;
-                            return channel[index]?.display_name || '';
-                        }),
-                        channels_count: selectedChannels.length,
-                        timestamp: timestamp,
-                        filename: filename
-                    };
                     const response = await fetch(`send_to_telegram.php?token=<?= $TELEGRAM_BOT_TOKEN ?>&chat_id=<?= $CHAT_ID ?>&as_file=1`, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(posterData)
                     });
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
+
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const result = await response.json();
+
                     if (result.ok) {
-                        this.tg.showPopup({
-                            title: '✅ Успех',
-                            message: `Данные успешно отправлены в ${selectedChannels.length} каналов!`,
-                            buttons: [{ type: 'ok' }]
-                        });
-                        setTimeout(() => {
-                            this.tg.close();
-                        }, 2000);
+                        this.tg.showPopup({ title: '✅ Успех', message: `Отправлено в ${channelList.length} каналов!`, buttons: [{ type: 'ok' }] });
+                        setTimeout(() => this.tg.close(), 2000);
                     } else {
-                        throw new Error(result.error || 'Неизвестная ошибка отправки');
+                        throw new Error(result.error || 'Ошибка отправки');
                     }
                 } catch (error) {
                     console.error('Submit error:', error);
-                    let errorMessage = 'Не удалось отправить данные. Попробуйте еще раз.';
-                    if (error.name === 'AbortError') {
-                        errorMessage = 'Превышено время ожидания ответа от сервера. Проверьте подключение к интернету.';
-                    } else if (error.message) {
-                        errorMessage = error.message;
-                    }
                     this.tg.showPopup({
                         title: '❌ Ошибка',
-                        message: errorMessage,
+                        message: error.message || 'Не удалось отправить. Проверьте соединение.',
                         buttons: [{ type: 'ok' }]
                     });
                 } finally {
@@ -842,36 +776,30 @@ if ($action === 'send' && !empty($selectedChannels) && !empty($messageText)) {
                 }
             }
         }
+
         document.addEventListener('DOMContentLoaded', () => {
             new TelegramPosterForm();
-        });
 
-        function selectAllChannels() {
-            document.querySelectorAll('.channel-checkbox').forEach(checkbox => {
-                checkbox.checked = true;
-            });
-            updateSelectedCount();
-        }
-
-        function deselectAllChannels() {
-            document.querySelectorAll('.channel-checkbox').forEach(checkbox => {
-                checkbox.checked = false;
-            });
-            updateSelectedCount();
-        }
-
-        function updateSelectedCount() {
-            const selected = document.querySelectorAll('.channel-checkbox:checked').length;
-            document.getElementById('selectedCount').textContent = selected;
-        }
-
-        // Обновляем счетчик при изменении выбора
-        document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.channel-checkbox').forEach(checkbox => {
                 checkbox.addEventListener('change', updateSelectedCount);
             });
             updateSelectedCount();
         });
+
+        function selectAllChannels() {
+            document.querySelectorAll('.channel-checkbox').forEach(cb => cb.checked = true);
+            updateSelectedCount();
+        }
+
+        function deselectAllChannels() {
+            document.querySelectorAll('.channel-checkbox').forEach(cb => cb.checked = false);
+            updateSelectedCount();
+        }
+
+        function updateSelectedCount() {
+            const count = document.querySelectorAll('.channel-checkbox:checked').length;
+            document.getElementById('selectedCount').textContent = count;
+        }
     </script>
 </body>
 </html>

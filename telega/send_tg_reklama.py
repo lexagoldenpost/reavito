@@ -29,6 +29,18 @@ class TelegramSender:
       return_message_link: bool = False
   ) -> Union[bool, Tuple[bool, str]]:
     """Асинхронная отправка сообщения в канал/группу"""
+    # Логируем информацию об аккаунте
+    try:
+      await telegram_client.ensure_connection()
+      me = await self.client.get_me()
+      if me:
+        username = f"@{me.username}" if me.username else "без username"
+        logger.info(
+          f"🆔 Отправка под аккаунтом: {me.first_name} {me.last_name or ''} "
+          f"(ID: {me.id}, {username})")
+    except Exception as e:
+      logger.warning(f"Не удалось получить информацию об аккаунте: {e}")
+
     if media_files and isinstance(media_files, str):
       media_files = [media_files]
 
@@ -111,7 +123,7 @@ async def main():
   # Пример 4: Обычная отправка без возврата ссылки (обратная совместимость)
   print("\nОбычная отправка без возврата ссылки:")
   result = await sender.send_message_async(
-        -1002679682284,
+        -4612514156,
         message="Тестовое сообщение без возврата ссылки"
     )
   print("Результат:", "Успешно" if result else "Ошибка")

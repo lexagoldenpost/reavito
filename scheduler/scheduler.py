@@ -23,6 +23,11 @@ class AsyncScheduler:
                 "script": SCHEDULER_DIR / Config.SCHEDULER_DATA_DIR / "notification_service.py",
                 "daily_at": "14:00"
             },
+          {
+            "name": "update_message_counts",
+            "script": SCHEDULER_DIR / "scheduler" / "update_last_message_info.py",
+            "daily_at": "09:00"  # Запуск каждый день в 9:00 утра
+          },
             # Пример интервальной задачи (раскомментируйте при необходимости):
             # {
             #     "name": "sync",

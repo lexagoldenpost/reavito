@@ -42,7 +42,7 @@ class ChannelMonitor:
         """Initialize Telegram client with shared session."""
         try:
             # Используем единого клиента для аутентификации
-            if not await telegram_client.ensure_authenticated():
+            if not await telegram_client.ensure_connection():
                 logger.error("Failed to initialize Telegram client")
                 return False
 

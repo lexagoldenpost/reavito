@@ -12,7 +12,7 @@ from main_tg_bot.booking_objects import (
     SHEET_TO_FILENAME,
     get_booking_sheet,
 )
-from main_tg_bot.sender.tg_notifier import send_message
+from telega.tg_notifier import send_message
 from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
 import aiohttp
 
