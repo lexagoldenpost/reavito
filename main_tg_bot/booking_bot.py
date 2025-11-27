@@ -33,6 +33,7 @@ from main_tg_bot.command.new_menu import (
     calculation_command,
     close_calculation_menu_handler
 )
+from telega.channel_monitor import ChannelMonitor
 from telega.telegram_client import telegram_client
 
 logger = setup_logger("booking_bot")
@@ -49,6 +50,7 @@ class BookingBot:
         self.application = None
         self.scheduler_process = None
         self.scheduler_task = None
+        self.channel_monitor = None
         self.remote_web_app_url = Config.REMOTE_WEB_APP_URL
         logger.info("BookingBot initialized")
         logger.info(f"Token: {self.token[:10]}...")
@@ -66,6 +68,31 @@ class BookingBot:
         logger.info("Scheduler started in current process")
       except Exception as e:
         logger.error(f"Failed to start scheduler: {e}")
+
+    async def start_channel_monitor(self):
+        """Запуск мониторинга каналов в текущем процессе"""
+        try:
+          if not Config.TARGET_GROUP:
+            logger.warning(
+              "TARGET_GROUP not configured - channel monitor disabled")
+            return
+
+          self.channel_monitor = ChannelMonitor()
+          success = await self.channel_monitor.start_monitoring()
+
+          if success:
+            logger.info("Channel monitor started successfully")
+          else:
+            logger.error("Failed to start channel monitor")
+
+        except Exception as e:
+          logger.error(f"Error starting channel monitor: {e}")
+
+    async def stop_channel_monitor(self):
+      """Остановка мониторинга каналов"""
+      if self.channel_monitor:
+        await self.channel_monitor.stop_monitoring()
+        logger.info("Channel monitor stopped")
 
     async def check_user_permission(self, update):
         """Проверка прав доступа пользователя"""
@@ -301,9 +328,10 @@ class BookingBot:
         # Настраиваем обработчик завершения
         def signal_handler(signum, frame):
           logger.info("Received shutdown signal")
-          # Останавливаем планировщик асинхронно
+          # Останавливаем планировщик и мониторинг асинхронно
           if self.application and self.application.running:
             self.application.create_task(self.stop_scheduler())
+            self.application.create_task(self.stop_channel_monitor())
           # Закрываем Telegram клиент
           loop = asyncio.get_event_loop()
           loop.run_until_complete(telegram_client.close())
@@ -314,9 +342,10 @@ class BookingBot:
 
         self.setup_handlers()
 
-        # Запускаем планировщик при старте приложения
+        # Запускаем планировщик и мониторинг при старте приложения
         async def post_init(application):
           await self.start_scheduler_in_current_process()
+          await self.start_channel_monitor()  # Запускаем мониторинг каналов
 
         self.application.post_init = post_init
 
@@ -324,6 +353,10 @@ class BookingBot:
         print("=" * 50)
         print("🤖 Бот запущен!")
         print(f"🌐 Удаленный сервер форм: {self.remote_web_app_url}")
+        if Config.TARGET_GROUP:
+          print("📊 Мониторинг каналов: АКТИВЕН")
+        else:
+          print("📊 Мониторинг каналов: ОТКЛЮЧЕН (TARGET_GROUP не настроен)")
         print("📋 Доступные команды:")
         for cmd, desc in COMMANDS:
           print(f"   /{cmd} - {desc}")
@@ -333,6 +366,7 @@ class BookingBot:
       except Exception as e:
         logger.error(f"Bot crashed: {e}", exc_info=True)
         self.stop_scheduler()
+        self.stop_channel_monitor()
         raise
 
     def start_scheduler(self):
@@ -393,8 +427,8 @@ if __name__ == "__main__":
         telegram_client.ensure_connection())
 
         if not telethon_success:
-          logger.error("❌ Cannot start bot without Telethon client")
-          exit(1)
+            logger.error("❌ Cannot start bot without Telethon client")
+            exit(1)
 
         logger.info("✅ Telethon client ready")
         #Запускать только если все данные в гугл таблице актальнее чем локально. Напрмиер при первичной загрузке иначе из локала перетрет
@@ -403,7 +437,11 @@ if __name__ == "__main__":
         bot.run()
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
+        # Останавливаем мониторинг каналов при прерывании
+        loop.run_until_complete(bot.stop_channel_monitor())
         bot.stop_scheduler()
     except Exception as e:
         logger.critical(f"Failed to start bot: {e}", exc_info=True)
+        # Останавливаем мониторинг каналов при ошибке
+        loop.run_until_complete(bot.stop_channel_monitor())
         bot.stop_scheduler()

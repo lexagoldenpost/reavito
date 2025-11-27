@@ -64,6 +64,41 @@ class ChannelMonitor:
             logger.error(f"Initialization error: {e}", exc_info=True)
             return False
 
+    async def start_monitoring(self):
+      """Запуск мониторинга в фоновом режиме"""
+      try:
+        if not await self.initialize():
+          logger.error("Failed to initialize channel monitor")
+          return False
+
+        # Запускаем мониторинг в фоне
+        asyncio.create_task(self._run_monitoring())
+        logger.info("Channel monitoring started in background")
+        return True
+
+      except Exception as e:
+        logger.error(f"Error starting channel monitor: {e}")
+        return False
+
+    async def _run_monitoring(self):
+        """Фоновая задача для мониторинга"""
+        try:
+          logger.info("Channel monitor background task started")
+          await self.client.run_until_disconnected()
+        except Exception as e:
+          logger.error(f"Channel monitor background task error: {e}")
+        finally:
+          await self.shutdown()
+
+    async def stop_monitoring(self):
+      """Остановка мониторинга"""
+      try:
+        if self.client and self.client.is_connected():
+          await self.client.disconnect()
+          logger.info("Channel monitor stopped")
+      except Exception as e:
+        logger.error(f"Error stopping channel monitor: {e}")
+
     async def _print_connection_info(self):
         """Print information about the current connection and subscribed channels."""
         try:

@@ -27,7 +27,7 @@ class AsyncScheduler:
         "module": "scheduler.update_last_message_tg_info",
         # Используем модуль вместо файла
         "function": "main",
-        "daily_at": "16:21"
+        "daily_at": "03:00"
       },
     ]
     self.running = True
