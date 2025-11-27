@@ -292,6 +292,9 @@ class BookingBot:
             def signal_handler(signum, frame):
                 logger.info("Received shutdown signal")
                 self.stop_scheduler()
+                # Закрываем Telegram клиент
+                loop = asyncio.get_event_loop()
+                loop.run_until_complete(telegram_client.close())
                 sys.exit(0)
 
             signal.signal(signal.SIGINT, signal_handler)

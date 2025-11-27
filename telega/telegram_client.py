@@ -320,6 +320,29 @@ class TelegramClientManager:
     logger.error(f"❌ Entity для {channel_identifier} не найдено после всех попыток")
     return None
 
+  async def close(self):
+    """Корректное закрытие клиента"""
+    await self.close_connection()
+
+  async def check_existing_session(self) -> bool:
+    """Проверяет и использует существующую сессию без полной аутентификации"""
+    try:
+      if not self._connection_open:
+        await self.client.connect()
+        self._connection_open = True
+
+      # Быстрая проверка авторизации без полного цикла ensure_connection
+      if await self.client.is_user_authorized():
+        logger.info("✅ Using existing authorized session")
+        return True
+      else:
+        logger.warning("❌ No valid session found")
+        return False
+
+    except Exception as e:
+      logger.error(f"Error checking existing session: {str(e)}")
+      return False
+
   async def force_reload_cache(self) -> bool:
     """Принудительная перезагрузка entity"""
     logger.info("🔄 Принудительная перезагрузка entity...")

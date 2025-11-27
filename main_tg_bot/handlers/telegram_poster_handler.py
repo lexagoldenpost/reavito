@@ -245,8 +245,6 @@ async def handle_telegram_poster(data: dict, filename: str) -> None:
     logger.info(
       f"📢 [handle_telegram_poster] Обработка рассылки для {len(channels)} каналов")
     logger.info(f"📢 [handle_telegram_poster] Объект: {object_name}")
-    logger.info(
-      f"📢 [handle_telegram_poster] Включить изображения: {include_images}")
 
     # Отправляем начальное уведомление
     await _send_notification(

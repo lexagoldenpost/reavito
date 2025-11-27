@@ -319,11 +319,6 @@ async def main():
 
   except Exception as e:
     logger.error(f"Error in main scheduled task: {e}", exc_info=True)
-  finally:
-    # Закрываем клиент правильно - используем client.close() вместо telegram_client.close()
-    if telegram_client.client:
-      await telegram_client.close()
-      logger.info("Telegram client disconnected")
 
 
 if __name__ == "__main__":
