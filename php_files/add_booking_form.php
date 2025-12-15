@@ -10,6 +10,7 @@ if (empty($TELEGRAM_BOT_TOKEN) || empty($CHAT_ID) || empty($INIT_CHAT_ID)) {
 }
 
 $INIT_CHAT_ID_JS = json_encode($INIT_CHAT_ID); // для безопасной вставки в JS
+$EXCLUDED_FILE = 'booking_other'; // ЗАМЕНИТЕ на имя файла, которое нужно исключить
 
 
 function getRentalObjects() {
@@ -26,7 +27,48 @@ function getRentalObjects() {
     return $objects;
 }
 
+// Функция для получения списка хозяев из booking_other.csv
+function getOwnersList() {
+    $filePath = __DIR__ . '/booking_files/booking_other.csv';
+    $owners = [];
+    
+    if (file_exists($filePath)) {
+        $handle = fopen($filePath, 'r');
+        $headers = fgetcsv($handle, 1000, ',');
+        
+        if ($headers) {
+            // Находим индексы нужных колонок
+            $idx_name = array_search('Название кондо', $headers);
+            $idx_apartment = array_search('Номер апарта', $headers);
+            $idx_owner = array_search('Хозяин', $headers);
+            
+            if ($idx_name !== false && $idx_apartment !== false && $idx_owner !== false) {
+                // Пропускаем заголовок
+                fgetcsv($handle, 1000, ',');
+                
+                while (($row = fgetcsv($handle, 1000, ',')) !== false) {
+                    $name = isset($row[$idx_name]) ? trim($row[$idx_name]) : '';
+                    $apartment = isset($row[$idx_apartment]) ? trim($row[$idx_apartment]) : '';
+                    $owner = isset($row[$idx_owner]) ? trim($row[$idx_owner]) : '';
+                    
+                    if ($name || $apartment || $owner) {
+                        $key = $name . '|' . $apartment . '|' . $owner;
+                        $display = trim("$name ($apartment) - $owner");
+                        $owners[$key] = $display;
+                    }
+                }
+            }
+            fclose($handle);
+        }
+    }
+    
+    // Удаляем дубликаты и сохраняем порядок
+    $owners = array_unique($owners);
+    return $owners;
+}
+
 $rentalObjects = getRentalObjects();
+$ownersList = getOwnersList();
 $today = date('d.m.Y');
 ?>
 <!DOCTYPE html>
@@ -120,6 +162,11 @@ $today = date('d.m.Y');
             grid-template-columns: 1fr 1fr;
             gap: 10px;
         }
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+        }
         .payment-buttons, .source-buttons {
             display: flex;
             flex-wrap: wrap;
@@ -180,6 +227,12 @@ $today = date('d.m.Y');
             content: " *";
             color: #dc3545;
         }
+        .optional::after {
+            content: " (опционально)";
+            color: #6c757d;
+            font-weight: normal;
+            font-size: 12px;
+        }
         .field-hint {
             font-size: 11px;
             color: #666;
@@ -208,10 +261,33 @@ $today = date('d.m.Y');
         .form-control.field-error:not(.flatpickr-input) {
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23dc3545'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z'/%3E%3C/svg%3E");
         }
+        .hidden {
+            display: none !important;
+        }
+        .owner-info-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+            border-left: 4px solid var(--tg-theme-button-color);
+        }
+        .owner-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .owner-info-item {
+            font-size: 13px;
+        }
+        .owner-info-label {
+            font-weight: 600;
+            color: #666;
+        }
         @media (max-width: 480px) {
             .container { padding: 8px; }
             .form-container { padding: 12px; }
-            .grid-2 { grid-template-columns: 1fr; gap: 8px; }
+            .grid-2, .grid-3 { grid-template-columns: 1fr; gap: 8px; }
             .form-control { padding: 12px; font-size: 16px; }
             .btn-tg-success { padding: 16px 20px; font-size: 16px; }
         }
@@ -235,6 +311,17 @@ $today = date('d.m.Y');
                         <option value="">Выберите объект...</option>
                         <?php foreach ($rentalObjects as $value => $name): ?>
                             <option value="<?= htmlspecialchars($value) ?>"><?= htmlspecialchars($name) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <!-- Секция для хозяина (только для booking_other) -->
+                <div id="ownerSection" class="form-section hidden">
+                    <label class="form-label required">Хозяин</label>
+                    <select class="form-control" id="ownerSelect" name="owner">
+                        <option value="">Выберите хозяина...</option>
+                        <?php foreach ($ownersList as $key => $display): ?>
+                            <option value="<?= htmlspecialchars($key) ?>"><?= htmlspecialchars($display) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -274,6 +361,13 @@ $today = date('d.m.Y');
                 <div class="form-section">
                     <label class="form-label required">Сумма (баты)</label>
                     <input type="number" class="form-control" name="total_sum" required placeholder="10000">
+                </div>
+
+                <!-- Комиссия (только для booking_other) -->
+                <div id="commissionSection" class="form-section hidden">
+                    <label class="form-label">Комиссия (баты)</label>
+                    <input type="number" class="form-control" id="commission" name="commission" placeholder="0">
+                    <span class="field-hint">Комиссия в батах (только для booking_other)</span>
                 </div>
 
                 <div class="form-section">
@@ -327,7 +421,7 @@ $today = date('d.m.Y');
 
                 <!-- Контакты -->
                 <div class="form-section">
-                    <label class="form-label required">Телефон</label>
+                    <label class="form-label required" id="phoneLabel">Телефон</label>
                     <input type="text" class="form-control" name="phone" required placeholder="Иван +7999...">
                 </div>
 
@@ -379,6 +473,7 @@ $today = date('d.m.Y');
                 this.tg.enableClosingConfirmation();
                 this.datepickers = {};
                 this.isSubmitting = false;
+                this.isBookingOther = false;
                 this.init();
             }
 
@@ -388,6 +483,53 @@ $today = date('d.m.Y');
                 this.initPaymentButtons();
                 this.initSourceButtons();
                 this.highlightRequiredFields();
+                this.setupObjectChangeHandler();
+            }
+
+            setupObjectChangeHandler() {
+                const objectSelect = document.getElementById('objectSelect');
+                objectSelect.addEventListener('change', () => {
+                    this.handleObjectChange();
+                });
+                // Проверяем начальное значение
+                if (objectSelect.value) {
+                    this.handleObjectChange();
+                }
+            }
+
+            handleObjectChange() {
+                const selectedObject = document.getElementById('objectSelect').value;
+                this.isBookingOther = selectedObject === 'booking_other';
+                
+                const ownerSection = document.getElementById('ownerSection');
+                const commissionSection = document.getElementById('commissionSection');
+                const phoneField = document.querySelector('input[name="phone"]');
+                const phoneLabel = document.getElementById('phoneLabel');
+                
+                if (this.isBookingOther) {
+                    // Показываем дополнительные поля для booking_other
+                    ownerSection.classList.remove('hidden');
+                    commissionSection.classList.remove('hidden');
+                    
+                    // Делаем телефон необязательным
+                    phoneField.removeAttribute('required');
+                    phoneLabel.classList.remove('required');
+                    phoneLabel.classList.add('optional');
+                    phoneLabel.innerHTML = 'Телефон <span style="color:#6c757d;font-weight:normal;font-size:12px;">(опционально)</span>';
+                } else {
+                    // Скрываем дополнительные поля
+                    ownerSection.classList.add('hidden');
+                    commissionSection.classList.add('hidden');
+                    
+                    // Делаем телефон обязательным
+                    phoneField.setAttribute('required', 'required');
+                    phoneLabel.classList.add('required');
+                    phoneLabel.classList.remove('optional');
+                    phoneLabel.textContent = 'Телефон';
+                }
+                
+                // Обновляем валидацию
+                this.updateFieldHighlight(phoneField);
             }
 
             initDatepickers() {
@@ -495,6 +637,18 @@ $today = date('d.m.Y');
 
                 this.hideFieldError(field);
 
+                // Для booking_other телефон необязателен
+                if (fieldName === 'phone' && this.isBookingOther) {
+                    if (value) {
+                        const isValid = value.length >= 2;
+                        if (!isValid) {
+                            field.classList.add('field-error');
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+
                 if (!value) {
                     if (field.hasAttribute('required')) {
                         field.classList.add('field-error');
@@ -521,10 +675,14 @@ $today = date('d.m.Y');
                         break;
                     case 'additional_bath':
                     case 'additional_rub':
+                    case 'commission':
                         isValid = /^\d*$/.test(value);
                         break;
                     case 'phone':
                         isValid = value.length >= 2;
+                        break;
+                    case 'owner':
+                        isValid = value.length > 0;
                         break;
                 }
 
@@ -574,7 +732,18 @@ $today = date('d.m.Y');
             async submitForm() {
                 if (this.isSubmitting) return;
 
-                const requiredFields = ['object', 'guest', 'booking_date', 'check_in', 'check_out', 'total_sum', 'advance_bath', 'advance_rub', 'phone'];
+                let requiredFields = ['object', 'guest', 'booking_date', 'check_in', 'check_out', 'total_sum', 'advance_bath', 'advance_rub'];
+                
+                // Добавляем телефон в обязательные, если не booking_other
+                if (!this.isBookingOther) {
+                    requiredFields.push('phone');
+                }
+                
+                // Добавляем владельца в обязательные, если booking_other
+                if (this.isBookingOther) {
+                    requiredFields.push('owner');
+                }
+
                 let valid = true;
                 for (const name of requiredFields) {
                     const field = document.querySelector(`[name="${name}"], #${name}`);
@@ -607,6 +776,7 @@ $today = date('d.m.Y');
                     const advanceRub = document.getElementById('advance_rub').value;
                     const additionalBath = document.getElementById('additional_bath').value;
                     const additionalRub = document.getElementById('additional_rub').value;
+                    const commission = document.getElementById('commission') ? document.getElementById('commission').value : '';
 
                     const advance = advanceBath + '/' + advanceRub;
                     const additional_payment = (additionalBath || '0') + '/' + (additionalRub || '0');
@@ -626,7 +796,7 @@ $today = date('d.m.Y');
                         extra_charges: formData.get('extra_charges') || '',
                         expenses: formData.get('expenses') || '',
                         payment_method: formData.get('payment_method') || '',
-                        phone: formData.get('phone'),
+                        phone: formData.get('phone') || '',
                         extra_phone: formData.get('extra_phone') || '',
                         source: formData.get('source') || '',
                         comment: formData.get('comment') || '',
@@ -634,6 +804,20 @@ $today = date('d.m.Y');
                         timestamp: new Date().toLocaleString('ru-RU'),
                         filename: filename
                     };
+
+                    // Добавляем дополнительные поля для booking_other
+                    if (this.isBookingOther) {
+                        const ownerValue = formData.get('owner');
+                        if (ownerValue) {
+                            // Разбиваем значение на три части
+                            const parts = ownerValue.split('|');
+                            bookingData.condo_name = parts[0] || '';
+                            bookingData.apartment_number = parts[1] || '';
+                            bookingData.owner_name = parts[2] || '';
+                            bookingData.owner_full = ownerValue; // Сохраняем полное значение
+                        }
+                        bookingData.commission = commission || '0';
+                    }
 
                     const response = await fetch(`send_to_telegram.php?token=<?= $TELEGRAM_BOT_TOKEN ?>&chat_id=<?= $CHAT_ID ?>&as_file=1`, {
                         method: 'POST',

@@ -117,6 +117,11 @@ $today = date('d.m.Y');
             grid-template-columns: 1fr 1fr;
             gap: 10px;
         }
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+        }
         .payment-buttons, .source-buttons {
             display: flex;
             flex-wrap: wrap;
@@ -189,6 +194,9 @@ $today = date('d.m.Y');
             border-color: #28a745 !important;
             background-color: rgba(40, 167, 69, 0.05) !important;
         }
+        .hidden {
+            display: none !important;
+        }
 
         /* Список бронирований */
         .booking-list {
@@ -223,7 +231,7 @@ $today = date('d.m.Y');
         @media (max-width: 480px) {
             .container { padding: 8px; }
             .form-container { padding: 12px; }
-            .grid-2 { grid-template-columns: 1fr; gap: 8px; }
+            .grid-2, .grid-3 { grid-template-columns: 1fr; gap: 8px; }
             .form-control { padding: 12px; font-size: 16px; }
             .btn-tg-success, .btn-tg-danger { padding: 16px 20px; font-size: 16px; }
         }
@@ -262,6 +270,24 @@ $today = date('d.m.Y');
             <input type="hidden" id="currentSyncId" name="sync_id">
 
             <div class="form-container">
+                <!-- Дополнительные поля для booking_other -->
+                <div id="ownerSection" class="form-section hidden">
+                    <div class="grid-3">
+                        <div>
+                            <label class="form-label required">Название кондо</label>
+                            <input type="text" class="form-control" id="condo_name" name="condo_name" required>
+                        </div>
+                        <div>
+                            <label class="form-label required">Номер апарта</label>
+                            <input type="text" class="form-control" id="apartment_number" name="apartment_number" required>
+                        </div>
+                        <div>
+                            <label class="form-label required">Хозяин</label>
+                            <input type="text" class="form-control" id="owner_name" name="owner_name" required>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="form-section">
                     <label class="form-label required">Имя гостя</label>
                     <input type="text" class="form-control" name="guest" required placeholder="Иванов Иван">
@@ -292,6 +318,12 @@ $today = date('d.m.Y');
                 <div class="form-section">
                     <label class="form-label required">Сумма (баты)</label>
                     <input type="number" class="form-control" name="total_sum" required placeholder="10000">
+                </div>
+
+                <!-- Поле комиссии для booking_other -->
+                <div id="commissionSection" class="form-section hidden">
+                    <label class="form-label">Комиссия (баты)</label>
+                    <input type="number" class="form-control" id="commission" name="commission" placeholder="0">
                 </div>
 
                 <div class="form-section">
@@ -342,8 +374,9 @@ $today = date('d.m.Y');
                     </div>
                 </div>
 
+                <!-- Для booking_other телефон не обязательный -->
                 <div class="form-section">
-                    <label class="form-label required">Телефон</label>
+                    <label class="form-label required" id="phoneLabel">Телефон</label>
                     <input type="text" class="form-control" name="phone" required placeholder="Иван +7999...">
                 </div>
 
@@ -402,6 +435,7 @@ $today = date('d.m.Y');
                 this.fpBookingDate = null;
                 this.fpCheckIn = null;
                 this.fpCheckOut = null;
+                this.isBookingOther = false;
                 this.init();
             }
 
@@ -419,6 +453,9 @@ $today = date('d.m.Y');
 
                 objectSelect.addEventListener('change', async () => {
                     const object = objectSelect.value;
+                    this.isBookingOther = object === 'booking_other';
+                    this.toggleBookingOtherFields();
+                    
                     if (!object) {
                         bookingList.innerHTML = '<div class="booking-placeholder">Сначала выберите объект</div>';
                         return;
@@ -455,6 +492,39 @@ $today = date('d.m.Y');
                 });
             }
 
+            toggleBookingOtherFields() {
+                const ownerSection = document.getElementById('ownerSection');
+                const commissionSection = document.getElementById('commissionSection');
+                const phoneField = document.querySelector('input[name="phone"]');
+                const phoneLabel = document.getElementById('phoneLabel');
+                
+                if (this.isBookingOther) {
+                    ownerSection.classList.remove('hidden');
+                    commissionSection.classList.remove('hidden');
+                    
+                    // Делаем телефон необязательным
+                    phoneField.removeAttribute('required');
+                    phoneLabel.classList.remove('required');
+                    
+                    // Делаем поля хозяина обязательными
+                    document.getElementById('condo_name').setAttribute('required', 'required');
+                    document.getElementById('apartment_number').setAttribute('required', 'required');
+                    document.getElementById('owner_name').setAttribute('required', 'required');
+                } else {
+                    ownerSection.classList.add('hidden');
+                    commissionSection.classList.add('hidden');
+                    
+                    // Делаем телефон обязательным
+                    phoneField.setAttribute('required', 'required');
+                    phoneLabel.classList.add('required');
+                    
+                    // Убираем обязательность полей хозяина
+                    document.getElementById('condo_name').removeAttribute('required');
+                    document.getElementById('apartment_number').removeAttribute('required');
+                    document.getElementById('owner_name').removeAttribute('required');
+                }
+            }
+
             async loadBooking(object, sync_id) {
                 try {
                     document.getElementById('loading').style.display = 'block';
@@ -479,6 +549,20 @@ $today = date('d.m.Y');
                     document.querySelector('[name="source"]').value = data.source || '';
                     document.querySelector('[name="comment"]').value = data.comment || '';
                     document.querySelector('[name="flights"]').value = data.flights || '';
+
+                    // Загружаем комиссию для booking_other
+                    if (this.isBookingOther && data.Комиссия !== undefined) {
+                        document.getElementById('commission').value = data.Комиссия || '';
+                    } else if (this.isBookingOther) {
+                        document.getElementById('commission').value = '';
+                    }
+
+                    // Загружаем данные хозяина для booking_other
+                    if (this.isBookingOther) {
+                        document.getElementById('condo_name').value = data['Название кондо'] || '';
+                        document.getElementById('apartment_number').value = data['Номер апарта'] || '';
+                        document.getElementById('owner_name').value = data['Хозяин'] || '';
+                    }
 
                     // Разбор аванса и доплаты
                     const parseAmount = (str) => {
@@ -582,6 +666,7 @@ $today = date('d.m.Y');
                     el.classList.remove('field-error', 'field-valid');
                 });
 
+                // Базовые обязательные поля для всех объектов
                 const requiredFields = [
                     { selector: '[name="guest"]', label: 'Имя гостя' },
                     { selector: '[name="booking_date"]', label: 'Дата бронирования' },
@@ -589,9 +674,19 @@ $today = date('d.m.Y');
                     { selector: '[name="check_out"]', label: 'Выезд' },
                     { selector: '[name="total_sum"]', label: 'Сумма (баты)' },
                     { selector: '#advance_bath', label: 'Аванс (баты)' },
-                    { selector: '#advance_rub', label: 'Аванс (рубли)' },
-                    { selector: '[name="phone"]', label: 'Телефон' }
+                    { selector: '#advance_rub', label: 'Аванс (рубли)' }
                 ];
+
+                // Для booking_other телефон не обязателен, а поля хозяина обязательны
+                if (!this.isBookingOther) {
+                    requiredFields.push({ selector: '[name="phone"]', label: 'Телефон' });
+                } else {
+                    requiredFields.push(
+                        { selector: '#condo_name', label: 'Название кондо' },
+                        { selector: '#apartment_number', label: 'Номер апарта' },
+                        { selector: '#owner_name', label: 'Хозяин' }
+                    );
+                }
 
                 let isValid = true;
                 for (const field of requiredFields) {
@@ -632,19 +727,20 @@ $today = date('d.m.Y');
                     const shortName = guest.split(' ')[0] || 'Гость';
                     const checkIn = formData.get('check_in');
                     const checkOut = formData.get('check_out');
+                    const object = document.getElementById('objectSelect').value;
 
                     const formatDateShort = (d) => {
                         const [dd, mm, yyyy] = d.split('.');
                         return `${yyyy.slice(-2)}${mm}${dd}`;
                     };
 
-                    const filename = `Изменение_Бронь_${document.getElementById('objectSelect').value}_${shortName}_${formatDateShort(checkIn)}_${formatDateShort(checkOut)}.json`;
+                    const filename = `Изменение_Бронь_${object}_${shortName}_${formatDateShort(checkIn)}_${formatDateShort(checkOut)}.json`;
 
                     const payload = {
                         form_type: 'edit_booking',
                         init_chat_id: <?= $INIT_CHAT_ID_JS ?>,
                         _sync_id: document.getElementById('currentSyncId').value,
-                        object: document.getElementById('objectSelect').value,
+                        object: object,
                         guest: formData.get('guest'),
                         booking_date: formData.get('booking_date'),
                         check_in: formData.get('check_in'),
@@ -656,7 +752,7 @@ $today = date('d.m.Y');
                         extra_charges: formData.get('extra_charges') || '',
                         expenses: formData.get('expenses') || '',
                         payment_method: formData.get('payment_method') || '',
-                        phone: formData.get('phone'),
+                        phone: formData.get('phone') || '',
                         extra_phone: formData.get('extra_phone') || '',
                         source: formData.get('source') || '',
                         comment: formData.get('comment') || '',
@@ -664,6 +760,14 @@ $today = date('d.m.Y');
                         timestamp: new Date().toLocaleString('ru-RU'),
                         filename: filename
                     };
+
+                    // Добавляем дополнительные поля для booking_other
+                    if (this.isBookingOther) {
+                        payload.condo_name = document.getElementById('condo_name').value;
+                        payload.apartment_number = document.getElementById('apartment_number').value;
+                        payload.owner_name = document.getElementById('owner_name').value;
+                        payload.commission = document.getElementById('commission').value || '0';
+                    }
 
                     const response = await fetch(`send_to_telegram.php?token=<?= $TELEGRAM_BOT_TOKEN ?>&chat_id=<?= $CHAT_ID ?>&as_file=1`, {
                         method: 'POST',
@@ -688,53 +792,54 @@ $today = date('d.m.Y');
             }
 
             async deleteBooking() {
-    if (!confirm('Вы уверены, что хотите удалить эту бронь?')) return;
+                if (!confirm('Вы уверены, что хотите удалить эту бронь?')) return;
 
-    this.setButtonsState(true, false, true);
+                this.setButtonsState(true, false, true);
 
-    try {
-        const guest = this.currentBooking.guest || 'Гость';
-        const shortName = guest.split(' ')[0] || 'Гость';
-        const checkIn = this.currentBooking.check_in;
-        const checkOut = this.currentBooking.check_out;
+                try {
+                    const guest = this.currentBooking.guest || 'Гость';
+                    const shortName = guest.split(' ')[0] || 'Гость';
+                    const checkIn = this.currentBooking.check_in;
+                    const checkOut = this.currentBooking.check_out;
+                    const object = document.getElementById('objectSelect').value;
 
-        const formatDateShort = (d) => {
-            const [dd, mm, yyyy] = d.split('.');
-            return `${yyyy.slice(-2)}${mm}${dd}`;
-        };
+                    const formatDateShort = (d) => {
+                        const [dd, mm, yyyy] = d.split('.');
+                        return `${yyyy.slice(-2)}${mm}${dd}`;
+                    };
 
-        const filename = `Удаление_Бронь_${document.getElementById('objectSelect').value}_${shortName}_${formatDateShort(checkIn)}_${formatDateShort(checkOut)}.json`;
+                    const filename = `Удаление_Бронь_${object}_${shortName}_${formatDateShort(checkIn)}_${formatDateShort(checkOut)}.json`;
 
-        const payload = {
-            form_type: 'delete_booking',
-            _sync_id: this.currentBooking.sync_id,
-            guest: this.currentBooking.guest,
-            object: document.getElementById('objectSelect').value,
-            init_chat_id: <?= $INIT_CHAT_ID_JS ?>,
-            filename: filename
-        };
+                    const payload = {
+                        form_type: 'delete_booking',
+                        _sync_id: this.currentBooking.sync_id,
+                        guest: this.currentBooking.guest,
+                        object: object,
+                        init_chat_id: <?= $INIT_CHAT_ID_JS ?>,
+                        filename: filename
+                    };
 
-        const response = await fetch(`send_to_telegram.php?token=<?= $TELEGRAM_BOT_TOKEN ?>&chat_id=<?= $CHAT_ID ?>&as_file=1`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+                    const response = await fetch(`send_to_telegram.php?token=<?= $TELEGRAM_BOT_TOKEN ?>&chat_id=<?= $CHAT_ID ?>&as_file=1`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
 
-        const result = await response.json();
-        if (result.ok) {
-            this.tg.showPopup({ title: '🗑️ Удалено', message: 'Бронь отправлена на удаление!', buttons: [{type:'ok'}] });
-            setTimeout(() => this.tg.close(), 1500);
-        } else {
-            throw new Error(result.error || 'Ошибка удаления');
-        }
+                    const result = await response.json();
+                    if (result.ok) {
+                        this.tg.showPopup({ title: '🗑️ Удалено', message: 'Бронь отправлена на удаление!', buttons: [{type:'ok'}] });
+                        setTimeout(() => this.tg.close(), 1500);
+                    } else {
+                        throw new Error(result.error || 'Ошибка удаления');
+                    }
 
-    } catch (error) {
-        console.error(error);
-        this.tg.showPopup({ title: '❌ Ошибка', message: error.message, buttons: [{type:'ok'}] });
-    } finally {
-        this.setButtonsState(false, false, false);
-    }
-}
+                } catch (error) {
+                    console.error(error);
+                    this.tg.showPopup({ title: '❌ Ошибка', message: error.message, buttons: [{type:'ok'}] });
+                } finally {
+                    this.setButtonsState(false, false, false);
+                }
+            }
 
             setButtonsState(disabled, saving = false, deleting = false) {
                 const saveBtn = document.getElementById('saveButton');

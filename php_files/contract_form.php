@@ -1,5 +1,7 @@
 <?php
 // contract_form.php — форма договора аренды для Telegram Mini App
+// Файл, который нужно исключить (укажите здесь имя файла без расширения)
+$EXCLUDED_FILE = 'booking_other'; // ЗАМЕНИТЕ на имя файла, которое нужно исключить
 // Получаем параметры из URL
 $TELEGRAM_BOT_TOKEN = $_GET['token'] ?? '';
 $CHAT_ID = $_GET['chat_id'] ?? '';
@@ -18,6 +20,10 @@ function getRentalObjects() {
     if (!empty($files)) {
         foreach ($files as $file) {
             $filename = pathinfo($file, PATHINFO_FILENAME);
+            // Исключаем указанный файл
+            if ($filename === $EXCLUDED_FILE) {
+                continue;
+            }
             $displayName = ucwords(str_replace('_', ' ', $filename));
             $objects[$filename] = $displayName;
         }
@@ -411,10 +417,12 @@ $rentalObjects = getRentalObjects();
                     <div class="section-title"><span>🏢 Выбор объекта</span></div>
                     <label class="form-label required">Объект недвижимости</label>
                     <select class="form-control" id="objectSelect" name="contract_object" required>
-                        <option value="">Выберите объект...</option>
-                        <?php foreach ($rentalObjects as $value => $name): ?>
-                            <option value="<?= htmlspecialchars($value) ?>"><?= htmlspecialchars($name) ?></option>
-                        <?php endforeach; ?>
+                      <option value="">Выберите объект...</option>
+                      <?php foreach ($rentalObjects as $value => $name): ?>
+                        <?php if ($value !== 'booking_other'): ?>
+                          <option value="<?= htmlspecialchars($value) ?>"><?= htmlspecialchars($name) ?></option>
+                        <?php endif; ?>
+                      <?php endforeach; ?>
                     </select>
                 </div>
                 <!-- Шаг 2: Выбор гостя -->

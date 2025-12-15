@@ -138,36 +138,44 @@ def load_bookings_from_csv(file_name: str):
 
 
 async def show_bookings(update, context, file_name: str):
-    try:
-        csv_files = get_all_booking_files()
-        if file_name not in csv_files:
-            await send_reply(update, f"❌ Файл {file_name} не найден в папке `booking/`")
-            return
+  try:
+    csv_files = get_all_booking_files()
+    if file_name not in csv_files:
+      await send_reply(update,
+                       f"❌ Файл {file_name} не найден в папке `booking/`")
+      return
 
-        df = load_bookings_from_csv(file_name)
-        if df is None:
-            await send_reply(update, f"❌ Не удалось загрузить данные из файла {file_name}")
-            return
+    df = load_bookings_from_csv(file_name)
+    if df is None:
+      await send_reply(update,
+                       f"❌ Не удалось загрузить данные из файла {file_name}")
+      return
 
-        if df.empty:
-            await send_reply(update, f"📭 Файл {file_name} не содержит данных")
-            return
+    if df.empty:
+      await send_reply(update, f"📭 Файл {file_name} не содержит данных")
+      return
 
-        today = date.today()
-        active_bookings = df[df['Выезд'].dt.date >= today].copy()
-        active_bookings = active_bookings.sort_values('Заезд')
+    today = date.today()
+    active_bookings = df[df['Выезд'].dt.date >= today].copy()
+    active_bookings = active_bookings.sort_values('Заезд')
 
-        if active_bookings.empty:
-            await send_reply(update, f"📭 Нет активных бронирований в файле {format_file_name(file_name)}")
-            return
+    if active_bookings.empty:
+      await send_reply(update,
+                       f"📭 Нет активных бронирований в файле {format_file_name(file_name)}")
+      return
 
-        messages = prepare_booking_messages(file_name, active_bookings)
-        for msg in messages:
-            await send_reply(update, msg, parse_mode='HTML')
+    messages = prepare_booking_messages(file_name, active_bookings)
+    for msg in messages:
+      await send_reply(update, msg, parse_mode='HTML')
 
-    except Exception as e:
-        logger.error(f"Error in show_bookings: {e}", exc_info=True)
-        await send_reply(update, "❌ Ошибка при получении данных о бронированиях")
+    # Информация о типе файла
+    if "booking_other" in file_name.lower():
+      await send_reply(update,
+                       "ℹ️ Для этого файла не показываются свободные периоды между бронированиями.")
+
+  except Exception as e:
+    logger.error(f"Error in show_bookings: {e}", exc_info=True)
+    await send_reply(update, "❌ Ошибка при получении данных о бронированиях")
 
 
 def format_date(dt):
@@ -177,52 +185,76 @@ def format_date(dt):
 
 
 def prepare_booking_messages(file_name: str, bookings_df):
-    messages = []
-    display_file_name = format_file_name(file_name)
-    current_message = f"<b>📅 Бронирования из файла {display_file_name}:</b>\n\n"
+  messages = []
+  display_file_name = format_file_name(file_name)
+  current_message = f"<b>📅 Бронирования из файла {display_file_name}:</b>\n\n"
 
-    bookings = bookings_df.to_dict('records')
-    for i, booking in enumerate(bookings):
-        guest = booking.get('Гость', 'Не указан')
-        check_in = booking.get('Заезд')
-        check_out = booking.get('Выезд')
+  # Флаг для определения, нужно ли показывать свободные периоды
+  show_free_periods = "booking_other" not in file_name.lower()
 
-        nights = (check_out - check_in).days if check_in and check_out else 0
+  # Проверяем наличие дополнительных колонок для booking_other
+  additional_columns = []
+  if "booking_other" in file_name.lower():
+    for col in ["Название кондо", "Номер апарта", "Хозяин"]:
+      if col in bookings_df.columns:
+        additional_columns.append(col)
 
-        booking_info = (
-            f"<b>🏠 Бронь #{i + 1}</b>\n"
-            f"<b>{guest}</b>\n"
-            f"📅 {format_date(check_in)} - {format_date(check_out)}\n"
-            f"🌙 Ночей: {nights}\n"
-            f"💵 Сумма: {booking.get('СуммаБатты', 'Не указана')} батт\n\n"
-        )
+  bookings = bookings_df.to_dict('records')
+  for i, booking in enumerate(bookings):
+    guest = booking.get('Гость', 'Не указан')
+    check_in = booking.get('Заезд')
+    check_out = booking.get('Выезд')
 
-        if len(current_message + booking_info) > 4000:
+    nights = (check_out - check_in).days if check_in and check_out else 0
+
+    # Формируем основную информацию о брони
+    booking_info = (
+      f"<b>🏠 Бронь #{i + 1}</b>\n"
+    )
+
+    # Добавляем дополнительные поля для booking_other
+    if additional_columns:
+      extra_info = []
+      for col in additional_columns:
+        value = booking.get(col, '')
+        if value:
+          extra_info.append(str(value))
+
+      if extra_info:
+        booking_info += f"<b>📍 Хозяин ({', '.join(extra_info)})</b>\n"
+
+    booking_info += (
+      f"<b>{guest}</b>\n"
+      f"📅 {format_date(check_in)} - {format_date(check_out)}\n"
+      f"🌙 Ночей: {nights}\n"
+      f"💵 Сумма: {booking.get('СуммаБатты', 'Не указана')} батт\n\n"
+    )
+
+    if len(current_message + booking_info) > 4000:
+      messages.append(current_message)
+      current_message = booking_info
+    else:
+      current_message += booking_info
+
+    # Свободные периоды (только если нужно показывать)
+    if show_free_periods and i < len(bookings) - 1:
+      next_check_in = bookings[i + 1].get('Заезд')
+      if check_out and next_check_in and check_out != next_check_in:
+        free_nights = (next_check_in - check_out).days
+        if free_nights > 0:
+          free_period = (
+            f"🆓 Свободно:\n"
+            f"📅 С {format_date(check_out)} - По {format_date(next_check_in)}\n"
+            f"🌙 {free_nights} ночей\n\n"
+          )
+          if len(current_message + free_period) > 4000:
             messages.append(current_message)
-            current_message = booking_info
-        else:
-            current_message += booking_info
+            current_message = free_period
+          else:
+            current_message += free_period
 
-        # Свободные периоды
-        if i < len(bookings) - 1:
-            next_check_in = bookings[i + 1].get('Заезд')
-            if check_out and next_check_in and check_out != next_check_in:
-                free_nights = (next_check_in - check_out).days
-                if free_nights > 0:
-                    free_period = (
-                        f"🆓 Свободно:\n"
-                        f"📅 С {format_date(check_out)} - По {format_date(next_check_in)}\n"
-                        f"🌙 {free_nights} ночей\n\n"
-                    )
-                    if len(current_message + free_period) > 4000:
-                        messages.append(current_message)
-                        current_message = free_period
-                    else:
-                        current_message += free_period
-
-    messages.append(current_message)
-    return messages
-
+  messages.append(current_message)
+  return messages
 
 async def send_reply(update, text, reply_markup=None, parse_mode=None):
     try:

@@ -1,6 +1,7 @@
 <?php
 // telegram_poster.php
-
+// Файл, который нужно исключить (укажите здесь имя файла без расширения)
+$EXCLUDED_FILE = 'booking_other'; // ЗАМЕНИТЕ на имя файла, которое нужно исключить
 $TELEGRAM_BOT_TOKEN = $_GET['token'] ?? '';
 $CHAT_ID = $_GET['chat_id'] ?? '';
 $INIT_CHAT_ID = $_GET['init_chat_id'] ?? '';
@@ -118,6 +119,10 @@ $objects = [];
 if (!empty($files)) {
     foreach ($files as $file) {
         $filename = pathinfo($file, PATHINFO_FILENAME);
+        // Исключаем указанный файл
+        if ($filename === $EXCLUDED_FILE) {
+            continue;
+        }
         $displayName = ucwords(str_replace('_', ' ', $filename));
         $objects[$filename] = $displayName;
     }
@@ -562,17 +567,19 @@ if ($action === 'send' && !empty($selectedChannels) && !empty($messageText)) {
                             <div class="col-md-6">
                                 <label for="objectSelect" class="form-label">Объект недвижимости</label>
                                 <select class="form-select" id="objectSelect" name="object" required onchange="this.form.submit()">
-                                    <option value="">Выберите объект...</option>
-                                    <?php if (empty($objects)): ?>
-                                        <option value="">Объекты не найдены</option>
-                                    <?php else: ?>
-                                        <?php foreach ($objects as $value => $name): ?>
-                                            <option value="<?= htmlspecialchars($value) ?>" <?= $selectedObject === $value ? 'selected' : '' ?>>
-                                                <?= htmlspecialchars($name) ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
-                                </select>
+    <option value="">Выберите объект...</option>
+    <?php if (empty($objects)): ?>
+        <option value="">Объекты не найдены</option>
+    <?php else: ?>
+        <?php foreach ($objects as $value => $name): ?>
+            <?php if ($value !== 'booking_other'): ?>
+                <option value="<?= htmlspecialchars($value) ?>" <?= $selectedObject === $value ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($name) ?>
+                </option>
+            <?php endif; ?>
+        <?php endforeach; ?>
+    <?php endif; ?>
+</select>
                             </div>
                         </div>
 

@@ -1,4 +1,7 @@
 <?php
+// Файл, который нужно исключить (укажите здесь имя файла без расширения)
+$EXCLUDED_FILE = 'booking_other'; // ЗАМЕНИТЕ на имя файла, которое нужно исключить
+
 function readBookedDates($filePath) {
     $booked = [];
     if (!file_exists($filePath)) return $booked;
@@ -66,6 +69,10 @@ $priceData = [];
 if (!empty($files)) {
     foreach ($files as $file) {
         $filename = pathinfo($file, PATHINFO_FILENAME);
+        // Исключаем указанный файл
+        if ($filename === $EXCLUDED_FILE) {
+            continue;
+        }
         $bookings = readBookedDates($file);
         $bookedData[$filename] = $bookings;
 
@@ -770,6 +777,10 @@ if (!empty($files)) {
                                         <?php foreach ($files as $file): ?>
                                             <?php
                                             $filename = pathinfo($file, PATHINFO_FILENAME);
+                                            // Исключаем указанный файл
+                                            if ($filename === $EXCLUDED_FILE) {
+                                              continue;
+                                            }
                                             $displayName = ucwords(str_replace('_', ' ', $filename));
                                             ?>
                                             <option value="<?= htmlspecialchars($filename) ?>"><?= htmlspecialchars($displayName) ?></option>

@@ -73,6 +73,13 @@ async def view_dates_handler(update: Update, context):
             await update.message.reply_text(f"📭 Файл {file_name} не содержит данных")
             continue
 
+        # Проверяем, является ли файл booking_other
+        is_booking_other = "booking_other" in file_name.lower()
+
+        # Если это booking_other, пропускаем показ свободных дат
+        if is_booking_other:
+          continue  # просто пропускаем этот файл
+
         # Формируем список занятых периодов
         booked_periods = []
         for _, row in df.iterrows():
