@@ -467,7 +467,7 @@ async def _send_notification(chat_id: str, message: str) -> None:
   """
   try:
     async with aiohttp.ClientSession() as session:
-      await send_message(session, chat_id, message)
+      await send_message(session, chat_id, message, timeout_sec=30)
   except Exception as e:
     logger.error(f"❌ Не удалось отправить уведомление в {chat_id}: {str(e)}")
 
