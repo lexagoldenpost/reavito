@@ -370,16 +370,16 @@ $today = date('d.m.Y');
                     <span class="field-hint">Комиссия в батах (только для booking_other)</span>
                 </div>
 
-                <div class="form-section">
+                <div class="form-section hidden" id="advanceSection">
                     <div class="section-title">Аванс</div>
                     <div class="grid-2">
                         <div>
                             <label class="form-label required">Баты</label>
-                            <input type="number" class="form-control" id="advance_bath" required placeholder="5000">
+                            <input type="number" class="form-control" id="advance_bath" required placeholder="5000" value="0">
                         </div>
                         <div>
                             <label class="form-label required">Рубли</label>
-                            <input type="number" class="form-control" id="advance_rub" required placeholder="15000">
+                            <input type="number" class="form-control" id="advance_rub" required placeholder="15000" value="0">
                         </div>
                     </div>
                 </div>
@@ -389,11 +389,11 @@ $today = date('d.m.Y');
                     <div class="grid-2">
                         <div>
                             <label class="form-label">Баты</label>
-                            <input type="number" class="form-control" id="additional_bath" placeholder="0">
+                            <input type="number" class="form-control" id="additional_bath" placeholder="0" value="0">
                         </div>
-                        <div>
+                        <div id="additionalRubSection" class="hidden">
                             <label class="form-label">Рубли</label>
-                            <input type="number" class="form-control" id="additional_rub" placeholder="0">
+                            <input type="number" class="form-control" id="additional_rub" placeholder="0" value="0">
                         </div>
                     </div>
                 </div>
@@ -482,8 +482,21 @@ $today = date('d.m.Y');
                 this.bindEvents();
                 this.initPaymentButtons();
                 this.initSourceButtons();
+                this.hideRubFields(); // Скрываем поля рублей и аванса
                 this.highlightRequiredFields();
                 this.setupObjectChangeHandler();
+            }
+
+            // Метод для скрытия полей аванса и доплаты
+            hideRubFields() {
+                // Скрываем всю секцию аванса
+                document.getElementById('advanceSection').classList.add('hidden');
+                document.getElementById('additionalRubSection').classList.add('hidden');
+
+                // Устанавливаем значения по умолчанию
+                document.getElementById('advance_bath').value = '0';
+                document.getElementById('advance_rub').value = '0';
+                document.getElementById('additional_rub').value = '0';
             }
 
             setupObjectChangeHandler() {
@@ -500,17 +513,17 @@ $today = date('d.m.Y');
             handleObjectChange() {
                 const selectedObject = document.getElementById('objectSelect').value;
                 this.isBookingOther = selectedObject === 'booking_other';
-                
+
                 const ownerSection = document.getElementById('ownerSection');
                 const commissionSection = document.getElementById('commissionSection');
                 const phoneField = document.querySelector('input[name="phone"]');
                 const phoneLabel = document.getElementById('phoneLabel');
-                
+
                 if (this.isBookingOther) {
                     // Показываем дополнительные поля для booking_other
                     ownerSection.classList.remove('hidden');
                     commissionSection.classList.remove('hidden');
-                    
+
                     // Делаем телефон необязательным
                     phoneField.removeAttribute('required');
                     phoneLabel.classList.remove('required');
@@ -520,14 +533,14 @@ $today = date('d.m.Y');
                     // Скрываем дополнительные поля
                     ownerSection.classList.add('hidden');
                     commissionSection.classList.add('hidden');
-                    
+
                     // Делаем телефон обязательным
                     phoneField.setAttribute('required', 'required');
                     phoneLabel.classList.add('required');
                     phoneLabel.classList.remove('optional');
                     phoneLabel.textContent = 'Телефон';
                 }
-                
+
                 // Обновляем валидацию
                 this.updateFieldHighlight(phoneField);
             }
@@ -671,7 +684,8 @@ $today = date('d.m.Y');
                     case 'total_sum':
                     case 'advance_bath':
                     case 'advance_rub':
-                        isValid = /^\d+$/.test(value) && parseInt(value) > 0;
+                        //isValid = /^\d+$/.test(value) && parseInt(value) > 0;
+                        isValid = /^\d*$/.test(value);
                         break;
                     case 'additional_bath':
                     case 'additional_rub':
@@ -733,12 +747,12 @@ $today = date('d.m.Y');
                 if (this.isSubmitting) return;
 
                 let requiredFields = ['object', 'guest', 'booking_date', 'check_in', 'check_out', 'total_sum', 'advance_bath', 'advance_rub'];
-                
+
                 // Добавляем телефон в обязательные, если не booking_other
                 if (!this.isBookingOther) {
                     requiredFields.push('phone');
                 }
-                
+
                 // Добавляем владельца в обязательные, если booking_other
                 if (this.isBookingOther) {
                     requiredFields.push('owner');
@@ -773,13 +787,13 @@ $today = date('d.m.Y');
                     const filename = `Бронь_${formData.get('object')}_${shortName}_${formatDateShort(checkIn)}_${formatDateShort(checkOut)}.json`;
 
                     const advanceBath = document.getElementById('advance_bath').value;
-                    const advanceRub = document.getElementById('advance_rub').value;
-                    const additionalBath = document.getElementById('additional_bath').value;
-                    const additionalRub = document.getElementById('additional_rub').value;
+                    const advanceRub = document.getElementById('advance_rub').value || '0'; // По умолчанию 0
+                    const additionalBath = document.getElementById('additional_bath').value || '0';
+                    const additionalRub = document.getElementById('additional_rub').value || '0'; // По умолчанию 0
                     const commission = document.getElementById('commission') ? document.getElementById('commission').value : '';
 
                     const advance = advanceBath + '/' + advanceRub;
-                    const additional_payment = (additionalBath || '0') + '/' + (additionalRub || '0');
+                    const additional_payment = additionalBath + '/' + additionalRub;
 
                     const bookingData = {
                         form_type: 'booking',
