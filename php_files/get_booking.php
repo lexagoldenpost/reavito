@@ -57,7 +57,12 @@ while (($row = fgetcsv($handle, 1000, ',')) !== false) {
         $booking = [];
         foreach ($headers as $i => $key) {
             $engKey = $map[$key] ?? $key;
-            $booking[$engKey] = isset($row[$i]) ? $row[$i] : '';
+            $value = isset($row[$i]) ? trim($row[$i]) : '';
+// Удаляем все пробелы для числовых полей
+if (in_array($engKey, ['total_sum', 'advance', 'additional_payment', 'commission'])) {
+    $value = preg_replace('/\s+/', '', $value);
+}
+$booking[$engKey] = $value;
         }
 
         echo json_encode($booking, JSON_UNESCAPED_UNICODE);

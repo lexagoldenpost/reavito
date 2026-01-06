@@ -52,13 +52,13 @@ class GoogleSheetsCSVSync:
                 'Заезд': {'numberFormat': {'type': 'DATE', 'pattern': 'dd.mm.yyyy'}},
                 'Выезд': {'numberFormat': {'type': 'DATE', 'pattern': 'dd.mm.yyyy'}},
                 'телефон': {'numberFormat': {'type': 'TEXT'}},
-                'СуммаБатты': {'numberFormat': {'type': 'NUMBER', 'pattern': '# ###0'}},
+                'СуммаБатты': {'numberFormat': {'type': 'NUMBER', 'pattern': '0'}},
             },
             'Citygate P311': {
                 'Заезд': {'numberFormat': {'type': 'DATE', 'pattern': 'dd.mm.yyyy'}},
                 'Выезд': {'numberFormat': {'type': 'DATE', 'pattern': 'dd.mm.yyyy'}},
                 'телефон': {'numberFormat': {'type': 'TEXT'}},
-                'СуммаБатты': {'numberFormat': {'type': 'NUMBER', 'pattern': '# ###0'}},
+                'СуммаБатты': {'numberFormat': {'type': 'NUMBER', 'pattern': '0'}},
             },
         }
 
