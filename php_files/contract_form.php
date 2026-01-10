@@ -507,24 +507,34 @@ $rentalObjects = getRentalObjects();
                         <div class="section-title"><span>💰 Финансовые условия</span></div>
                         <div class="grid-3">
                             <div><label class="form-label required">Сумма (баты)</label><input type="number" class="form-control" name="total_amount" required placeholder="10000"></div>
-                            <div><label class="form-label required">Предоплата (баты)</label><input type="number" class="form-control" name="prepayment_bath" required placeholder="5000"></div>
+                            <div style="display: none;"><label class="form-label required">Предоплата (баты)</label>
+                                <div class="prepayment-wrapper" style="display: none;">
+                                    <input type="number" class="form-control" name="prepayment_bath" value="0" required>
+                                </div>
+                                <input type="hidden" name="prepayment_bath" value="0">
+                            </div>
                             <div><label class="form-label">Доп. оплата (баты)</label><input type="number" class="form-control" name="extraPaymentBath" placeholder="1500"></div>
                         </div>
                     </div>
                     <!-- Услуги -->
                     <div class="form-section services-section">
-                        <div class="section-title"><span>🧹 Услуги</span></div>
-                        <div style="display: flex; flex-direction: column; gap: 12px;">
-                            <label class="form-checkbox">
-                                <input type="checkbox" name="interim_cleaning" checked>
-                                <span>Уборка, прачка</span>
-                            </label>
-                            <label class="form-checkbox">
-                                <input type="checkbox" name="electric" checked>
-                                <span>Свет, вода</span>
-                            </label>
-                        </div>
-                    </div>
+    <div class="section-title"><span>🧹 Включено</span></div>
+   <!-- <div class="field-hint" style="margin-bottom: 12px;">
+        ✓ Если галка стоит — услуга включена в договор<br>
+        ✗ Если галки нет — услуга не включена
+    </div>
+-->
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+        <label class="form-checkbox">
+            <input type="checkbox" name="interim_cleaning" checked>
+            <span>Уборка, прачка</span>
+        </label>
+        <label class="form-checkbox">
+            <input type="checkbox" name="electric" checked>
+            <span>Свет, вода</span>
+        </label>
+    </div>
+</div>
                     <!-- Сводка -->
                     <div class="summary-card" id="summarySection" style="display:none;">
                         <div style="text-align:center;font-weight:600;margin-bottom:12px;font-size:14px;">📋 Сводка</div>
@@ -651,7 +661,7 @@ $rentalObjects = getRentalObjects();
                     case 'prepayment_bath':
                     case 'extraPaymentBath':
                         const num = Number(value);
-                        return !isNaN(num) && num > 0 && Number.isInteger(num);
+                        return !isNaN(num) && num >= 0 && Number.isInteger(num);
                     default:
                         return true;
                 }
@@ -966,20 +976,14 @@ $rentalObjects = getRentalObjects();
                     totalAmountInput.value = '';
                     this.autoFilledFields.delete('total_amount');
                 }
+                // Предоплата всегда 0 и не видима
                 const prepaymentBathInput = document.querySelector('input[name="prepayment_bath"]');
-                let prepaymentBath = '';
-                if (guest.prepayment) {
-                    const parts = guest.prepayment.split('/');
-                    prepaymentBath = parts[0].trim().replace(/\s/g, '');
-                }
-                if (prepaymentBath && /^\d+$/.test(prepaymentBath)) {
-                    prepaymentBathInput.value = prepaymentBath;
-                    this.autoFilledFields.add('prepayment_bath');
-                    this.updateFieldHighlight(prepaymentBathInput, true);
-                } else {
-                    prepaymentBathInput.value = '';
-                    this.autoFilledFields.delete('prepayment_bath');
-                }
+                prepaymentBathInput.value = '0';
+                this.autoFilledFields.add('prepayment_bath');
+                this.updateFieldHighlight(prepaymentBathInput, true);
+                // Скрываем поле предоплаты
+                document.querySelector('.prepayment-wrapper').style.display = 'none';
+
                 // === Доп. оплата (баты) из "Дополнительные доплаты" ===
                 const extraPaymentBathInput = document.querySelector('input[name="extraPaymentBath"]');
                 let extraValue = '';
