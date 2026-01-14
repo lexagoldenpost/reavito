@@ -171,12 +171,21 @@ class ChannelMonitor:
                 message = event.message
                 group_name = getattr(chat, 'title', None)
                 group_id = str(chat.id) if hasattr(chat, 'id') else None
+                username = getattr(chat, 'username', None)
+
+                # Логируем для отладки
+                logger.debug(f"New message from: name='{group_name}', id={group_id}, username={username}")
+                logger.debug(f"Message text: {message.text[:100]}...")
 
                 if matched_keywords := self._find_matching_keywords(
-                        group_name, group_id, message.text
+                        group_name, group_id, username, message.text
                 ):
                     await self._forward_message(message, group_name or f"ID:{group_id}")
                     logger.info(f"Matched keywords: {matched_keywords}")
+                else:
+                    # Логируем, если канал в списке, но нет совпадений
+                    if self._is_channel_in_list(group_name, group_id, username):
+                        logger.debug(f"Channel in list but no keyword matches: {group_name or group_id}")
 
             except Exception as e:
                 logger.error(f"Message handling error: {e}", exc_info=True)
@@ -190,7 +199,16 @@ class ChannelMonitor:
                 and await event.get_chat()
         )
 
-    def _find_matching_keywords(self, group_name: str, group_id: str, text: str) -> Set[str]:
+    def _is_channel_in_list(self, group_name: str, group_id: str, username: str) -> bool:
+        """Check if channel is in monitoring list."""
+        identifiers = [group_name, group_id, username]
+        for identifier in identifiers:
+            if identifier and identifier in self.group_keywords:
+                logger.debug(f"Channel found by identifier: {identifier}")
+                return True
+        return False
+
+    def _find_matching_keywords(self, group_name: str, group_id: str, username: str, text: str) -> Set[str]:
         """Find keywords that match the message text."""
         if not text:
             return set()
@@ -198,19 +216,100 @@ class ChannelMonitor:
         text_lower = text.lower()
         matched_keywords = set()
 
-        for identifier, keywords in self.group_keywords.items():
-            if (group_name and identifier == group_name) or (group_id and identifier == group_id):
-                for phrase in keywords:
-                    phrase_words = [w.strip() for w in phrase.split()]
-                    words = [w.strip() for w in text_lower.split()]
+        # Создаем список всех возможных идентификаторов канала
+        identifiers = [group_name, group_id, username]
 
-                    if any(
-                            words[i:i + len(phrase_words)] == phrase_words
-                            for i in range(len(words) - len(phrase_words) + 1)
-                    ):
+        # Ищем по всем идентификаторам
+        for identifier in identifiers:
+            if not identifier:
+                continue
+
+            keywords = self.group_keywords.get(identifier)
+            if keywords:
+                logger.debug(f"Found keywords for identifier '{identifier}': {keywords}")
+
+                for phrase in keywords:
+                    if not phrase:
+                        continue
+
+                    # Упрощенная проверка вхождения фразы
+                    if phrase in text_lower:
                         matched_keywords.add(phrase)
+                        logger.debug(f"Phrase '{phrase}' found in text")
+                    else:
+                        # Дополнительная проверка для фраз из нескольких слов
+                        phrase_words = phrase.split()
+                        if len(phrase_words) > 1:
+                            # Проверяем, что все слова фразы есть в тексте (не обязательно подряд)
+                            if all(word in text_lower for word in phrase_words):
+                                matched_keywords.add(phrase)
+                                logger.debug(f"Multi-word phrase '{phrase}' found in text")
 
         return matched_keywords
+
+    async def print_monitoring_status(self):
+        """Print current monitoring status for debugging."""
+        try:
+            logger.info("=== MONITORING STATUS ===")
+            logger.info(f"Loaded channels: {len(self.group_keywords)}")
+
+            for identifier, keywords in self.group_keywords.items():
+                logger.info(f"  - {identifier}: {keywords}")
+
+            # Проверяем подписки на эти каналы
+            dialogs = await self.client.get_dialogs()
+            monitored_channels = []
+            not_monitored_channels = []
+
+            for dialog in dialogs:
+                if not hasattr(dialog, "entity"):
+                    continue
+
+                entity = dialog.entity
+                name = self._get_entity_name(dialog, entity)
+                entity_id = str(getattr(entity, 'id', ''))
+                username = getattr(entity, 'username', '')
+
+                # Проверяем по всем идентификаторам
+                is_monitored = any(
+                    identifier in [name, entity_id, f"@{username}"]
+                    for identifier in self.group_keywords.keys()
+                )
+
+                if is_monitored:
+                    monitored_channels.append(f"{name} (ID: {entity_id})")
+                else:
+                    not_monitored_channels.append(f"{name} (ID: {entity_id})")
+
+            logger.info(f"\nMonitored channels ({len(monitored_channels)}):")
+            for channel in monitored_channels:
+                logger.info(f"  ✓ {channel}")
+
+            logger.info(f"\nNot monitored channels ({len(not_monitored_channels)}):")
+            for channel in not_monitored_channels[:10]:  # Показываем первые 10
+                logger.info(f"  ✗ {channel}")
+            if len(not_monitored_channels) > 10:
+                logger.info(f"  ... and {len(not_monitored_channels) - 10} more")
+
+            logger.info("=== END STATUS ===")
+
+        except Exception as e:
+            logger.error(f"Error printing monitoring status: {e}", exc_info=True)
+
+    async def reload_keywords(self):
+        """Reload keywords from CSV file."""
+        try:
+            logger.info("Reloading keywords from CSV...")
+            if await self._load_keywords_from_csv():
+                logger.info(f"Successfully reloaded {len(self.group_keywords)} keyword groups")
+                await self.print_monitoring_status()
+                return True
+            else:
+                logger.error("Failed to reload keywords")
+                return False
+        except Exception as e:
+            logger.error(f"Error reloading keywords: {e}", exc_info=True)
+            return False
 
     async def _forward_message(self, message: Message, source_name: str):
         """Forward a message to the target group."""
