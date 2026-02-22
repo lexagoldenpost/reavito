@@ -5,7 +5,7 @@ import asyncio
 import json
 import time
 
-from telethon import TelegramClient
+from telethon import TelegramClient, utils
 from telethon.tl.types import InputMediaUploadedPhoto, \
   InputMediaUploadedDocument
 from telethon import errors
@@ -63,15 +63,28 @@ class EntityFileManager:
     except Exception as e:
       logger.error(f"❌ Ошибка сохранения entity в файл: {e}")
 
-  def get_entity(self, identifier: str, entities: Dict[str, Dict]) -> Optional[
-    Dict]:
+  def get_entity(self, identifier: str, entities: Dict[str, Dict]) -> Optional[Dict]:
     """Получение entity по идентификатору"""
     return entities.get(str(identifier))
 
-  def add_entity(self, identifier: str, entity_data: Dict,
-      entities: Dict[str, Dict]):
-    """Добавление entity в файл"""
+  def add_entity(self, identifier: str, entity_data: Dict, entities: Dict[str, Dict]):
+    """Добавление entity в файл с сохранением обоих вариантов ID"""
     entities[str(identifier)] = entity_data
+
+    # Если это канал с префиксом -100, сохраняем также без префикса
+    if str(identifier).startswith('-100') and str(identifier)[4:].isdigit():
+        base_id = str(identifier)[4:]
+        if base_id not in entities:
+            entities[base_id] = entity_data
+            logger.debug(f"➕ Добавлен базовый ID {base_id} для канала {identifier}")
+
+    # Если это ID без префикса, проверяем нужно ли сохранить с префиксом
+    elif str(identifier).isdigit() and entity_data.get('type') == 'Channel':
+        full_id = f"-100{identifier}"
+        if full_id not in entities:
+            entities[full_id] = entity_data
+            logger.debug(f"➕ Добавлен полный ID {full_id} для канала {identifier}")
+
     self.save_entities(entities)
     logger.debug(f"✅ Entity для {identifier} добавлено в файл")
 
@@ -207,7 +220,7 @@ class TelegramClientManager:
           'full_id': channel.get('full_id', '')
         }
 
-        # Добавляем по разным идентификаторам, но только если их еще нет
+        # Добавляем по разным идентификаторам
         identifiers = [
           str(channel['id']),
           channel['full_id'],
@@ -217,13 +230,11 @@ class TelegramClientManager:
 
         for identifier in identifiers:
           if identifier and identifier not in self.entities:
-            self.entity_manager.add_entity(identifier, entity_data,
-                                           self.entities)
+            self.entity_manager.add_entity(identifier, entity_data, self.entities)
             loaded_count += 1
           elif identifier and identifier in self.entities:
-            # Обновляем существующую запись если нужно
-            self.entity_manager.add_entity(identifier, entity_data,
-                                           self.entities)
+            # Обновляем существующую запись
+            self.entity_manager.add_entity(identifier, entity_data, self.entities)
 
       self.entity_manager._cache_loaded = True
       logger.info(
@@ -237,73 +248,96 @@ class TelegramClientManager:
       self.entity_manager._cache_loading = False
 
   async def get_entity_cached(self, channel_identifier: Union[str, int]):
-      """Получение entity с использованием файлового хранилища"""
-      cache_key = str(channel_identifier)
+    """Получение entity с использованием файлового хранилища"""
+    cache_key = str(channel_identifier)
 
-      # Шаг 0: Загружаем entity из файла если еще не загружены
-      if not self.entity_manager._cache_loaded:
-        self.entities = self.entity_manager.load_entities()
-        self.entity_manager._cache_loaded = True
+    # Шаг 0: Загружаем entity из файла если еще не загружены
+    if not self.entity_manager._cache_loaded:
+      self.entities = self.entity_manager.load_entities()
+      self.entity_manager._cache_loaded = True
 
-      # Шаг 1: Проверяем в файле
-      entity_data = self.entity_manager.get_entity(cache_key, self.entities)
+    # Шаг 1: Прямой поиск по ключу
+    entity_data = self.entity_manager.get_entity(cache_key, self.entities)
+    if entity_data:
+      logger.debug(f"📦 Найдено entity в файле для {channel_identifier}")
+      entity = await self._create_entity_from_cache(entity_data)
+      if entity:
+        logger.debug(f"✅ Entity создано из кэша для {channel_identifier}")
+        return entity
+      else:
+        logger.debug(f"⚠️ Не удалось создать entity из кэша для {channel_identifier}")
+
+    # Шаг 1.1: Если это ID с префиксом -100, пробуем найти без префикса
+    if str(channel_identifier).startswith('-100'):
+      base_id = str(channel_identifier)[4:]  # Убираем префикс -100
+      entity_data = self.entity_manager.get_entity(base_id, self.entities)
       if entity_data:
-        logger.debug(f"📦 Найдено entity в файле для {channel_identifier}")
-
-        # Пробуем создать entity из сохраненных данных
+        logger.debug(f"📦 Найдено entity по базовому ID {base_id} для {channel_identifier}")
         entity = await self._create_entity_from_cache(entity_data)
         if entity:
-          logger.debug(f"✅ Entity создано из кэша для {channel_identifier}")
-          return entity
-        else:
-          logger.debug(
-            f"⚠️ Не удалось создать entity из кэша для {channel_identifier}")
-
-      # Шаг 2: Если нет в файле или не удалось создать - пробуем получить напрямую через API
-      logger.debug(f"🔄 Прямой поиск entity через API для {channel_identifier}")
-      try:
-        if not await self.ensure_connection():
-          return None
-
-        entity = await TelegramUtils.get_entity_safe(self.client,
-                                                     channel_identifier)
-        if entity:
-          # Сохраняем в файл
-          entity_data = {
-            'id': entity.id,
-            'title': getattr(entity, 'title', ''),
-            'username': getattr(entity, 'username', ''),
-            'type': type(entity).__name__,
-            'access_hash': getattr(entity, 'access_hash', ''),
-            'full_id': utils.get_peer_id(entity)
-          }
+          logger.debug(f"✅ Entity создано из кэша по базовому ID для {channel_identifier}")
+          # Сохраняем также и для полного ID на будущее
           self.entity_manager.add_entity(cache_key, entity_data, self.entities)
-          logger.debug(
-            f"✅ Entity для {channel_identifier} найдено через API и сохранено в файл")
           return entity
-      except Exception as e:
-        logger.debug(
-          f"⚠️ Не удалось получить entity через API для {channel_identifier}: {e}")
 
-      # Шаг 3: Если не получилось - догружаем все entity
-      logger.info(
-        f"🔍 Entity для {channel_identifier} не найдено, догружаем все каналы...")
-      await self._supplement_cache()
-
-      # Шаг 4: После догрузки пробуем снова найти в файле
-      entity_data = self.entity_manager.get_entity(cache_key, self.entities)
+    # Шаг 1.2: Если это ID без префикса, пробуем найти с префиксом -100
+    elif str(channel_identifier).isdigit():
+      full_id = f"-100{channel_identifier}"
+      entity_data = self.entity_manager.get_entity(full_id, self.entities)
       if entity_data:
-        logger.info(
-          f"✅ Entity для {channel_identifier} найдено в файле после догрузки")
+        logger.debug(f"📦 Найдено entity по полному ID {full_id} для {channel_identifier}")
         entity = await self._create_entity_from_cache(entity_data)
         if entity:
-          logger.info(
-            f"✅ Entity создано после догрузки для {channel_identifier}")
+          logger.debug(f"✅ Entity создано из кэша по полному ID для {channel_identifier}")
+          # Сохраняем также и для базового ID на будущее
+          self.entity_manager.add_entity(cache_key, entity_data, self.entities)
           return entity
 
-      logger.error(
-        f"❌ Entity для {channel_identifier} не найдено после всех попыток")
-      return None
+    # Шаг 2: Если нет в файле или не удалось создать - пробуем получить напрямую через API
+    logger.debug(f"🔄 Прямой поиск entity через API для {channel_identifier}")
+    try:
+      if not await self.ensure_connection():
+        return None
+
+      entity = await TelegramUtils.get_entity_safe(self.client,
+                                                   channel_identifier)
+      if entity:
+        # Сохраняем в файл
+        entity_data = {
+          'id': entity.id,
+          'title': getattr(entity, 'title', ''),
+          'username': getattr(entity, 'username', ''),
+          'type': type(entity).__name__,
+          'access_hash': getattr(entity, 'access_hash', ''),
+          'full_id': utils.get_peer_id(entity)
+        }
+        self.entity_manager.add_entity(cache_key, entity_data, self.entities)
+        logger.debug(
+          f"✅ Entity для {channel_identifier} найдено через API и сохранено в файл")
+        return entity
+    except Exception as e:
+      logger.debug(
+        f"⚠️ Не удалось получить entity через API для {channel_identifier}: {e}")
+
+    # Шаг 3: Если не получилось - догружаем все entity
+    logger.info(
+      f"🔍 Entity для {channel_identifier} не найдено, догружаем все каналы...")
+    await self._supplement_cache()
+
+    # Шаг 4: После догрузки пробуем снова найти в файле
+    entity_data = self.entity_manager.get_entity(cache_key, self.entities)
+    if entity_data:
+      logger.info(
+        f"✅ Entity для {channel_identifier} найдено в файле после догрузки")
+      entity = await self._create_entity_from_cache(entity_data)
+      if entity:
+        logger.info(
+          f"✅ Entity создано после догрузки для {channel_identifier}")
+        return entity
+
+    logger.error(
+      f"❌ Entity для {channel_identifier} не найдено после всех попыток")
+    return None
 
   async def _supplement_cache(self) -> bool:
     """Дополняет кэш entity без очистки существующих данных"""
@@ -338,7 +372,7 @@ class TelegramClientManager:
           'full_id': full_id
         }
 
-        # Добавляем по разным идентификаторам, но только если их еще нет
+        # Добавляем по разным идентификаторам
         identifiers = [
           str(entity.id),  # ID как число
           full_id,  # Полный ID (с префиксом -100)
@@ -348,7 +382,7 @@ class TelegramClientManager:
 
         for identifier in identifiers:
           if identifier and identifier not in current_entities:
-            current_entities[identifier] = entity_data
+            self.entity_manager.add_entity(identifier, entity_data, current_entities)
             added_count += 1
             logger.debug(f"➕ Добавлен идентификатор: {identifier}")
 
@@ -369,7 +403,6 @@ class TelegramClientManager:
     try:
       from telethon.tl.types import InputPeerChannel, InputPeerChat, \
         InputPeerUser
-      from telethon.tl.types import Channel, Chat
 
       entity_type = entity_data.get('type', '')
       entity_id = entity_data.get('id')
@@ -592,8 +625,7 @@ class TelegramClientManager:
       logger.error(f"Ошибка загрузки медиа: {str(e)}")
       return None
 
-  async def get_channel_info(self, channel_identifier: Union[str, int]) -> \
-      Optional[Dict]:
+  async def get_channel_info(self, channel_identifier: Union[str, int]) -> Optional[Dict]:
     """Получить информацию о канале"""
     try:
       if not await self.ensure_connection():

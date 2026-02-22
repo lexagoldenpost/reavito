@@ -433,6 +433,16 @@ if __name__ == "__main__":
         logger.info("✅ Telethon client ready")
         #Запускать только если все данные в гугл таблице актальнее чем локально. Напрмиер при первичной загрузке иначе из локала перетрет
         #sync_google_sheets()
+        # ЯВНО ЗАГРУЗИТЬ КЭШ ENTITY
+        logger.info("🔄 Preloading entity cache...")
+        cache_loaded = loop.run_until_complete(
+            telegram_client.preload_entity_cache()
+        )
+        if cache_loaded:
+            logger.info("✅ Entity cache preloaded successfully")
+        else:
+            logger.warning("⚠️ Entity cache preload failed, but continuing...")
+
         bot = BookingBot()
         bot.run()
     except KeyboardInterrupt:
