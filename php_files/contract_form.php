@@ -13,7 +13,7 @@ if (empty($TELEGRAM_BOT_TOKEN) || empty($CHAT_ID )  || empty($INIT_CHAT_ID )) {
     die('❌ Отсутствуют параметры в URL.');
 }
 // Функция получения списка объектов
-function getRentalObjects() {
+function getRentalObjects($excludedFile) {
     $bookingFilesPath = __DIR__ . '/booking_files/*.csv';
     $files = glob($bookingFilesPath);
     $objects = [];
@@ -21,7 +21,7 @@ function getRentalObjects() {
         foreach ($files as $file) {
             $filename = pathinfo($file, PATHINFO_FILENAME);
             // Исключаем указанный файл
-            if ($filename === $EXCLUDED_FILE) {
+            if ($filename === $excludedFile) {
                 continue;
             }
             $displayName = ucwords(str_replace('_', ' ', $filename));
@@ -52,7 +52,7 @@ function isFutureOrToday($dateString) {
     return $date >= $today;
 }
 
-$rentalObjects = getRentalObjects();
+$rentalObjects = getRentalObjects($EXCLUDED_FILE);
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -419,9 +419,7 @@ $rentalObjects = getRentalObjects();
                     <select class="form-control" id="objectSelect" name="contract_object" required>
                       <option value="">Выберите объект...</option>
                       <?php foreach ($rentalObjects as $value => $name): ?>
-                        <?php if ($value !== 'booking_other'): ?>
-                          <option value="<?= htmlspecialchars($value) ?>"><?= htmlspecialchars($name) ?></option>
-                        <?php endif; ?>
+                        <option value="<?= htmlspecialchars($value) ?>"><?= htmlspecialchars($name) ?></option>
                       <?php endforeach; ?>
                     </select>
                 </div>
@@ -741,12 +739,15 @@ $rentalObjects = getRentalObjects();
                     e.target.value = formattedValue;
                 });
                 const fullnameInput = document.querySelector('input[name="fullname"]');
-                fullnameInput.addEventListener('input', (e) => {
-                    let value = e.target.value;
-                    value = value.replace(/[^a-zA-Zа-яА-ЯёЁ\s\-]/g, '');
-                    value = value.replace(/\s+/g, ' ').trim();
-                    e.target.value = value;
-                });
+fullnameInput.addEventListener('input', (e) => {
+    let value = e.target.value;
+    // Разрешаем буквы (русские и английские), пробелы, дефисы
+    value = value.replace(/[^a-zA-Zа-яА-ЯёЁ\s\-]/g, '');
+    // Заменяем несколько пробелов подряд на один, но НЕ удаляем пробелы полностью
+    value = value.replace(/\s+/g, ' ');
+    // НЕ используем .trim() здесь, иначе нельзя будет ввести пробел между словами
+    e.target.value = value;
+});
                 const passportIssuedInput = document.querySelector('input[name="passport_issued"]');
                 passportIssuedInput.addEventListener('input', (e) => {
                     let value = e.target.value;
@@ -982,7 +983,8 @@ $rentalObjects = getRentalObjects();
                 this.autoFilledFields.add('prepayment_bath');
                 this.updateFieldHighlight(prepaymentBathInput, true);
                 // Скрываем поле предоплаты
-                document.querySelector('.prepayment-wrapper').style.display = 'none';
+                const prepaymentWrapper = document.querySelector('.prepayment-wrapper');
+                if (prepaymentWrapper) prepaymentWrapper.style.display = 'none';
 
                 // === Доп. оплата (баты) из "Дополнительные доплаты" ===
                 const extraPaymentBathInput = document.querySelector('input[name="extraPaymentBath"]');

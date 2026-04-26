@@ -3,7 +3,7 @@ from ast import literal_eval
 
 from dotenv import load_dotenv
 
-# Загружаем переменные окружения из файла .env
+# Загружаем переменные окружения из файла .env_test
 load_dotenv()
 
 
@@ -69,8 +69,10 @@ class Config:
     LOG_RETENTION = 3  # Хранение 3 архивов
 
     # Урл сайта где формы
-    REMOTE_FILE_PATH="booking_bot/public_html"
-    REMOTE_WEB_APP_URL= "https://ci84606-wordpress-rdeld.tw1.ru"
+    #REMOTE_FILE_PATH="booking_bot/public_html"
+    REMOTE_FILE_PATH="lapkabookingbot.site"
+    #REMOTE_WEB_APP_URL= "https://ci84606-wordpress-rdeld.tw1.ru"
+    REMOTE_WEB_APP_URL= "https://lapkabookingbot.site"
     # Файл
     REMOTE_WEB_APP_BOOKING_CALCULATE_URL = "/booking_calculator.php"
     REMOTE_WEB_APP_BOOKING_CHESS_URL = "/booking_chess.php"

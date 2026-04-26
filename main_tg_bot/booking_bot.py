@@ -416,12 +416,13 @@ if __name__ == "__main__":
         load_dotenv()
     except Exception as e:
         print(f"Error loading .env file: {e}")
-        exit(1)
+        exit(1) 
     try:
         logger.info("Sync booking start...")
         logger.info("Starting bot initialization...")
         # Инициализируем Telethon синглтон
         logger.info("🔄 Initializing Telethon client...")
+
         loop = asyncio.get_event_loop()
         telethon_success = loop.run_until_complete(
         telegram_client.ensure_connection())

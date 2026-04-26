@@ -68,14 +68,36 @@ class FTPClient:
         try:
             # Пробуем перейти в директорию
             self.ftp.cwd(remote_path)
-        except ftplib.error_perm:
-            # Если не удалось, создаем директорию рекурсивно
-            parent_path = os.path.dirname(remote_path.rstrip('/'))
-            if parent_path and parent_path != '/':
-                self._create_remote_directory(parent_path)
+            logger.debug(f"Директория уже существует: {remote_path}")
+            return  # Папка существует - выходим
+        except ftplib.error_perm as e:
+            error_msg = str(e)
 
-            self.ftp.mkd(remote_path)
-            logger.info(f"Создана директория на FTP: {remote_path}")
+            # Проверяем тип ошибки
+            # 550 - файл/директория не существует или нет прав
+            if "550" in error_msg:
+                # Папки нет - создаем рекурсивно
+                logger.info(f"Директория не найдена, создаем: {remote_path}")
+
+                # Создаем родительскую директорию
+                parent_path = os.path.dirname(remote_path.rstrip('/'))
+                if parent_path and parent_path != '/' and parent_path != remote_path:
+                    self._create_remote_directory(parent_path)
+
+                # Создаем текущую директорию
+                try:
+                    self.ftp.mkd(remote_path)
+                    logger.info(f"Создана директория: {remote_path}")
+                except ftplib.error_perm as mkd_error:
+                    # Если ошибка "directory already exists" - игнорируем
+                    if "550" in str(mkd_error) and "exists" in str(mkd_error).lower():
+                        logger.debug(f"Директория уже существует (проигнорировано): {remote_path}")
+                    else:
+                        raise
+            else:
+                # Другая ошибка (например, 5xx - права доступа)
+                logger.warning(f"Не удалось перейти в {remote_path}: {error_msg}")
+                raise
 
     def upload_file(self, local_file_path: Path, remote_filename: str = None, remote_path: str = "/") -> bool:
         """
