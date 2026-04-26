@@ -73,6 +73,7 @@ class Config:
     REMOTE_FILE_PATH="lapkabookingbot.site"
     #REMOTE_WEB_APP_URL= "https://ci84606-wordpress-rdeld.tw1.ru"
     REMOTE_WEB_APP_URL= "https://lapkabookingbot.site"
+
     # Файл
     REMOTE_WEB_APP_BOOKING_CALCULATE_URL = "/booking_calculator.php"
     REMOTE_WEB_APP_BOOKING_CHESS_URL = "/booking_chess.php"
