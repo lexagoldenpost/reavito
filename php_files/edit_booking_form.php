@@ -179,6 +179,12 @@ $today = date('d.m.Y');
             content: " *";
             color: #dc3545;
         }
+        .optional::after {
+            content: " (опционально)";
+            color: #6c757d;
+            font-weight: normal;
+            font-size: 12px;
+        }
         .field-hint {
             font-size: 11px;
             color: #666;
@@ -291,6 +297,7 @@ $today = date('d.m.Y');
                 <div class="form-section">
                     <label class="form-label required">Имя гостя</label>
                     <input type="text" class="form-control" name="guest" required placeholder="Иванов Иван">
+                    <span class="field-hint">Минимум 2 символа</span>
                 </div>
 
                 <div class="form-section">
@@ -324,32 +331,35 @@ $today = date('d.m.Y');
                 <div id="commissionSection" class="form-section hidden">
                     <label class="form-label">Комиссия (баты)</label>
                     <input type="number" class="form-control" id="commission" name="commission" placeholder="0">
+                    <span class="field-hint">Комиссия в батах (только для booking_other)</span>
                 </div>
 
-                <div class="form-section">
+                <!-- Секция аванса (скрыта по умолчанию) -->
+                <div class="form-section hidden" id="advanceSection">
                     <div class="section-title">Аванс</div>
                     <div class="grid-2">
                         <div>
                             <label class="form-label required">Баты</label>
-                            <input type="text" class="form-control" id="advance_bath" required placeholder="5000">
+                            <input type="text" class="form-control" id="advance_bath" required placeholder="5000" value="0">
                         </div>
                         <div>
                             <label class="form-label required">Рубли</label>
-                            <input type="text" class="form-control" id="advance_rub" required placeholder="15000">
+                            <input type="text" class="form-control" id="advance_rub" required placeholder="15000" value="0">
                         </div>
                     </div>
                 </div>
 
+                <!-- Секция доплаты (рубли скрыты) -->
                 <div class="form-section">
                     <div class="section-title">Доплата</div>
                     <div class="grid-2">
                         <div>
                             <label class="form-label">Баты</label>
-                            <input type="text" class="form-control" id="additional_bath" placeholder="0">
+                            <input type="text" class="form-control" id="additional_bath" placeholder="0" value="0">
                         </div>
-                        <div>
+                        <div id="additionalRubSection" class="hidden">
                             <label class="form-label">Рубли</label>
-                            <input type="text" class="form-control" id="additional_rub" placeholder="0">
+                            <input type="text" class="form-control" id="additional_rub" placeholder="0" value="0">
                         </div>
                     </div>
                 </div>
@@ -445,6 +455,31 @@ $today = date('d.m.Y');
                 this.bindFormEvents();
                 this.initPaymentButtons();
                 this.initSourceButtons();
+                this.hideRubFields(); // Скрываем поля рублей
+            }
+
+            // Метод для скрытия полей аванса и доплаты
+            hideRubFields() {
+                // Скрываем всю секцию аванса
+                const advanceSection = document.getElementById('advanceSection');
+                if (advanceSection) {
+                    advanceSection.classList.add('hidden');
+                }
+
+                // Скрываем секцию доплаты в рублях
+                const additionalRubSection = document.getElementById('additionalRubSection');
+                if (additionalRubSection) {
+                    additionalRubSection.classList.add('hidden');
+                }
+
+                // Устанавливаем значения по умолчанию
+                const advanceBath = document.getElementById('advance_bath');
+                const advanceRub = document.getElementById('advance_rub');
+                const additionalRub = document.getElementById('additional_rub');
+
+                if (advanceBath) advanceBath.value = '0';
+                if (advanceRub) advanceRub.value = '0';
+                if (additionalRub) additionalRub.value = '0';
             }
 
             bindObjectSelect() {
@@ -455,7 +490,7 @@ $today = date('d.m.Y');
                     const object = objectSelect.value;
                     this.isBookingOther = object === 'booking_other';
                     this.toggleBookingOtherFields();
-                    
+
                     if (!object) {
                         bookingList.innerHTML = '<div class="booking-placeholder">Сначала выберите объект</div>';
                         return;
@@ -497,15 +532,17 @@ $today = date('d.m.Y');
                 const commissionSection = document.getElementById('commissionSection');
                 const phoneField = document.querySelector('input[name="phone"]');
                 const phoneLabel = document.getElementById('phoneLabel');
-                
+
                 if (this.isBookingOther) {
                     ownerSection.classList.remove('hidden');
                     commissionSection.classList.remove('hidden');
-                    
+
                     // Делаем телефон необязательным
                     phoneField.removeAttribute('required');
                     phoneLabel.classList.remove('required');
-                    
+                    phoneLabel.classList.add('optional');
+                    phoneLabel.innerHTML = 'Телефон <span style="color:#6c757d;font-weight:normal;font-size:12px;">(опционально)</span>';
+
                     // Делаем поля хозяина обязательными
                     document.getElementById('condo_name').setAttribute('required', 'required');
                     document.getElementById('apartment_number').setAttribute('required', 'required');
@@ -513,11 +550,13 @@ $today = date('d.m.Y');
                 } else {
                     ownerSection.classList.add('hidden');
                     commissionSection.classList.add('hidden');
-                    
+
                     // Делаем телефон обязательным
                     phoneField.setAttribute('required', 'required');
                     phoneLabel.classList.add('required');
-                    
+                    phoneLabel.classList.remove('optional');
+                    phoneLabel.textContent = 'Телефон';
+
                     // Убираем обязательность полей хозяина
                     document.getElementById('condo_name').removeAttribute('required');
                     document.getElementById('apartment_number').removeAttribute('required');
@@ -579,11 +618,13 @@ $today = date('d.m.Y');
 
                     const adv = parseAmount(data.advance);
                     document.getElementById('advance_bath').value = adv[0] || '0';
-                    document.getElementById('advance_rub').value = adv[1] || '0';
+                    const advanceRubField = document.getElementById('advance_rub');
+                    if (advanceRubField) advanceRubField.value = adv[1] || '0';
 
                     const add = parseAmount(data.additional_payment);
                     document.getElementById('additional_bath').value = add[0] || '0';
-                    document.getElementById('additional_rub').value = add[1] || '0';
+                    const additionalRubField = document.getElementById('additional_rub');
+                    if (additionalRubField) additionalRubField.value = add[1] || '0';
 
                     document.getElementById('bookingForm').style.display = 'block';
                     this.calculateNights();
@@ -607,12 +648,25 @@ $today = date('d.m.Y');
                 this.fpCheckIn = flatpickr('input[name="check_in"]', {
                     ...commonConfig,
                     minDate: 'today',
-                    onChange: () => this.calculateNights()
+                    onChange: () => this.calculateNights(),
+                    onValueUpdate: (dates) => {
+                        if (this.fpCheckOut && dates[0]) {
+                            this.fpCheckOut.set('minDate', dates[0]);
+                        }
+                    }
                 });
                 this.fpCheckOut = flatpickr('input[name="check_out"]', {
                     ...commonConfig,
                     minDate: 'today',
-                    onChange: () => this.calculateNights()
+                    onChange: () => this.calculateNights(),
+                    onValueUpdate: (dates) => {
+                        if (this.fpCheckIn && dates[0]) {
+                            const checkIn = this.fpCheckIn.selectedDates[0];
+                            if (checkIn && dates[0] <= checkIn) {
+                                this.fpCheckOut.setDate(new Date(checkIn.getTime() + 86400000));
+                            }
+                        }
+                    }
                 });
             }
 
@@ -634,6 +688,7 @@ $today = date('d.m.Y');
                         input.value = btn.dataset.value;
                         document.querySelectorAll('.payment-btn').forEach(b => b.classList.remove('active'));
                         btn.classList.add('active');
+                        this.updateFieldHighlight(input);
                     });
                 });
             }
@@ -645,6 +700,7 @@ $today = date('d.m.Y');
                         input.value = btn.dataset.value;
                         document.querySelectorAll('.source-btn').forEach(b => b.classList.remove('active'));
                         btn.classList.add('active');
+                        this.updateFieldHighlight(input);
                     });
                 });
             }
@@ -658,6 +714,96 @@ $today = date('d.m.Y');
                 document.getElementById('deleteButton').addEventListener('click', () => {
                     this.deleteBooking();
                 });
+
+                // Только цифры в числовых полях
+                document.querySelectorAll('input[type="number"], #advance_bath, #advance_rub, #additional_bath, #additional_rub, #commission').forEach(input => {
+                    input.addEventListener('input', (e) => {
+                        e.target.value = e.target.value.replace(/[^\d]/g, '');
+                    });
+                });
+
+                // Валидация полей
+                const inputs = document.querySelectorAll('input[required], select[required]');
+                inputs.forEach(input => {
+                    input.addEventListener('blur', () => this.validateField(input));
+                    input.addEventListener('focus', () => this.hideFieldError(input));
+                    input.addEventListener('input', () => this.updateFieldHighlight(input));
+                });
+            }
+
+            validateField(field) {
+                const value = field.value.trim();
+                const fieldName = field.name || field.id;
+
+                this.hideFieldError(field);
+
+                // Для booking_other телефон необязателен
+                if (fieldName === 'phone' && this.isBookingOther) {
+                    if (value && value.length < 2) {
+                        field.classList.add('field-error');
+                        return false;
+                    }
+                    return true;
+                }
+
+                if (!value) {
+                    if (field.hasAttribute('required')) {
+                        field.classList.add('field-error');
+                        return false;
+                    }
+                    return true;
+                }
+
+                let isValid = true;
+
+                switch(fieldName) {
+                    case 'guest':
+                        isValid = value.length >= 2;
+                        break;
+                    case 'booking_date':
+                    case 'check_in':
+                    case 'check_out':
+                        isValid = this.isValidDate(value);
+                        break;
+                    case 'total_sum':
+                    case 'advance_bath':
+                    case 'advance_rub':
+                    case 'additional_bath':
+                    case 'additional_rub':
+                    case 'commission':
+                        isValid = /^\d*$/.test(value);
+                        break;
+                    case 'phone':
+                        isValid = value.length >= 2;
+                        break;
+                }
+
+                if (!isValid) {
+                    field.classList.add('field-error');
+                    return false;
+                }
+
+                field.classList.add('field-valid');
+                return true;
+            }
+
+            hideFieldError(field) {
+                field.classList.remove('field-error', 'field-valid');
+            }
+
+            updateFieldHighlight(field) {
+                this.validateField(field);
+            }
+
+            isValidDate(dateString) {
+                if (!dateString) return false;
+                const parts = dateString.split('.');
+                if (parts.length !== 3) return false;
+                const day = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10);
+                const year = parseInt(parts[2], 10);
+                const date = new Date(year, month - 1, day);
+                return date.getDate() === day && date.getMonth() === month - 1 && date.getFullYear() === year;
             }
 
             validateForm() {
@@ -672,9 +818,7 @@ $today = date('d.m.Y');
                     { selector: '[name="booking_date"]', label: 'Дата бронирования' },
                     { selector: '[name="check_in"]', label: 'Заезд' },
                     { selector: '[name="check_out"]', label: 'Выезд' },
-                    { selector: '[name="total_sum"]', label: 'Сумма (баты)' },
-                    { selector: '#advance_bath', label: 'Аванс (баты)' },
-                    { selector: '#advance_rub', label: 'Аванс (рубли)' }
+                    { selector: '[name="total_sum"]', label: 'Сумма (баты)' }
                 ];
 
                 // Для booking_other телефон не обязателен, а поля хозяина обязательны
@@ -692,24 +836,66 @@ $today = date('d.m.Y');
                 for (const field of requiredFields) {
                     const el = document.querySelector(field.selector);
                     if (!el || el.value.trim() === '') {
-                        el?.classList.add('field-error');
+                        if (el) el.classList.add('field-error');
                         isValid = false;
                     } else {
-                        el?.classList.add('field-valid');
+                        if (el) el.classList.add('field-valid');
                     }
+                }
+
+                // Проверка на цифры для дополнительных полей (не обязательных)
+                const advanceBath = document.getElementById('advance_bath');
+                const advanceRub = document.getElementById('advance_rub');
+                const additionalBath = document.getElementById('additional_bath');
+                const additionalRub = document.getElementById('additional_rub');
+                const commission = document.getElementById('commission');
+
+                if (advanceBath && !/^\d*$/.test(advanceBath.value)) {
+                    advanceBath.classList.add('field-error');
+                    isValid = false;
+                } else if (advanceBath && advanceBath.value !== '') {
+                    advanceBath.classList.add('field-valid');
+                }
+
+                if (advanceRub && !/^\d*$/.test(advanceRub.value)) {
+                    advanceRub.classList.add('field-error');
+                    isValid = false;
+                } else if (advanceRub && advanceRub.value !== '') {
+                    advanceRub.classList.add('field-valid');
+                }
+
+                if (additionalBath && !/^\d*$/.test(additionalBath.value)) {
+                    additionalBath.classList.add('field-error');
+                    isValid = false;
+                } else if (additionalBath && additionalBath.value !== '') {
+                    additionalBath.classList.add('field-valid');
+                }
+
+                if (additionalRub && !/^\d*$/.test(additionalRub.value)) {
+                    additionalRub.classList.add('field-error');
+                    isValid = false;
+                } else if (additionalRub && additionalRub.value !== '') {
+                    additionalRub.classList.add('field-valid');
+                }
+
+                if (commission && !/^\d*$/.test(commission.value)) {
+                    commission.classList.add('field-error');
+                    isValid = false;
+                } else if (commission && commission.value !== '') {
+                    commission.classList.add('field-valid');
                 }
 
                 const checkIn = this.fpCheckIn.selectedDates[0];
                 const checkOut = this.fpCheckOut.selectedDates[0];
                 if (checkIn && checkOut && checkOut <= checkIn) {
-                    document.querySelector('[name="check_in"]').classList.add('field-error');
-                    document.querySelector('[name="check_out"]').classList.add('field-error');
+                    document.querySelector('[name="check_in"]')?.classList.add('field-error');
+                    document.querySelector('[name="check_out"]')?.classList.add('field-error');
                     this.tg.showPopup({ title: 'Ошибка', message: 'Дата выезда должна быть позже даты заезда', buttons: [{type:'ok'}] });
                     return false;
                 }
 
                 if (!isValid) {
-                    this.tg.showPopup({ title: 'Ошибка', message: 'Заполните все обязательные поля', buttons: [{type:'ok'}] });
+                    this.tg.showPopup({ title: 'Ошибка', message: 'Проверьте правильность заполнения полей', buttons: [{type:'ok'}] });
                     return false;
                 }
 
@@ -729,6 +915,12 @@ $today = date('d.m.Y');
                     const checkOut = formData.get('check_out');
                     const object = document.getElementById('objectSelect').value;
 
+                    // Получаем значения с обработкой пустых
+                    const advanceBath = document.getElementById('advance_bath').value || '0';
+                    const advanceRub = document.getElementById('advance_rub').value || '0';
+                    const additionalBath = document.getElementById('additional_bath').value || '0';
+                    const additionalRub = document.getElementById('additional_rub').value || '0';
+
                     const formatDateShort = (d) => {
                         const [dd, mm, yyyy] = d.split('.');
                         return `${yyyy.slice(-2)}${mm}${dd}`;
@@ -747,8 +939,8 @@ $today = date('d.m.Y');
                         check_out: formData.get('check_out'),
                         nights: document.getElementById('nights').value,
                         total_sum: formData.get('total_sum'),
-                        advance: document.getElementById('advance_bath').value + '/' + document.getElementById('advance_rub').value,
-                        additional_payment: (document.getElementById('additional_bath').value || '0') + '/' + (document.getElementById('additional_rub').value || '0'),
+                        advance: advanceBath + '/' + advanceRub,
+                        additional_payment: additionalBath + '/' + additionalRub,
                         extra_charges: formData.get('extra_charges') || '',
                         expenses: formData.get('expenses') || '',
                         payment_method: formData.get('payment_method') || '',
