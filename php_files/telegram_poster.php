@@ -258,11 +258,13 @@ if ($selectedObject && !$messageText && $freeDatesInfo['has_free_dates']) {
             'line1' => 'Аренда квартиры в новом комплексе Halo Title в 400м от пляжа Най Янг',
             'line2' => '10 минут езды от аэропорта!',
             'line3' => '🏡 1BR 36м2, 3й этаж, вид на бассейн'
+            'line4' => 'В квартире есть всё для комфортного проживания и даже больше кофемашина, удобный топпер на кровать, Wi-Fi, стиральная машина и пр.'
         ],
         'citygate_p311' => [
             'line1' => 'Аренда квартиры в комплексе Citygate в 700м от пляжа Камала',
             'line2' => '30 минут езды от аэропорта!',
             'line3' => '🏡 1BR 38м2, 3й этаж, вид на горы'
+            'line4' => 'В квартире есть всё для комфортного проживания и даже больше кофемашина, удобный топпер на кровать, Wi-Fi, стиральная машина и пр.'
         ]
     ];
 
@@ -270,14 +272,17 @@ if ($selectedObject && !$messageText && $freeDatesInfo['has_free_dates']) {
         $line1 = $objectData[$selectedObject]['line1'];
         $line2 = $objectData[$selectedObject]['line2'];
         $line3 = $objectData[$selectedObject]['line3'];
+        $line4 = $objectData[$selectedObject]['line4'];
 
         $messageText = (
             "{$line1}\n" .
             "{$line2}\n" .
             "{$line3}\n\n" .
+            "{$line4}\n\n" .
             "🗝️Собственник!\n\n" .
-            "СВОБОДНЫЕ ДЛЯ БРОНИРОВАНИЯ ДАТЫ (ближайшие 3 месяца):\n\n" .
-            "{$freeDatesInfo['dates']}\n\n" .
+//             "СВОБОДНЫЕ ДЛЯ БРОНИРОВАНИЯ ДАТЫ (ближайшие 3 месяца):\n\n" .
+             "Свободна.\n\n" .
+//            "{$freeDatesInfo['dates']}\n\n" .
             "⚠️Пишите свои даты в ЛС."
         );
     } else {
