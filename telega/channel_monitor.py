@@ -161,6 +161,12 @@ class ChannelMonitor:
     def _setup_handlers(self):
         """Setup message handlers for monitoring."""
 
+        # Проверяем, используем ли мы бот-токен для мониторинга
+        if hasattr(self.client, 'is_bot') and self.client.is_bot:
+            logger.warning("Channel monitor is using bot account! This will conflict with polling.")
+            logger.warning("Consider using a user account for channel monitoring.")
+            return  # Не добавляем handlers, если это бот
+
         @self.client.on(events.NewMessage())
         async def message_handler(event):
             try:
