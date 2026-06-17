@@ -1,4 +1,5 @@
-# booking_bot.py
+# booking_bot.py - исправленная версия (убраны channel_monitor)
+
 import asyncio
 import json
 import multiprocessing
@@ -27,13 +28,10 @@ from main_tg_bot.command.commands import (
     exit_bot,
 )
 from main_tg_bot.google_sheets.sync_manager import GoogleSheetsCSVSync
-from scheduler.scheduler import AsyncScheduler
-
 from main_tg_bot.command.new_menu import (
     calculation_command,
     close_calculation_menu_handler
 )
-from telega.channel_monitor import ChannelMonitor
 from telega.telegram_client import telegram_client
 
 logger = setup_logger("booking_bot")
@@ -48,51 +46,11 @@ class BookingBot:
         self.allowed_usernames = [u.lower() for u in
                                   Config.ALLOWED_TELEGRAM_USERNAMES]
         self.application = None
-        self.scheduler_process = None
-        self.scheduler_task = None
-        self.channel_monitor = None
         self.remote_web_app_url = Config.REMOTE_WEB_APP_URL
         logger.info("BookingBot initialized")
         logger.info(f"Token: {self.token[:10]}...")
         logger.info(f"Allowed users: {self.allowed_usernames}")
         logger.info(f"Remote web app URL: {self.remote_web_app_url}")
-
-    async def start_scheduler_in_current_process(self):
-      """Запуск планировщика в текущем процессе (асинхронно)"""
-      try:
-        from scheduler.scheduler import AsyncScheduler
-        scheduler = AsyncScheduler()
-
-        # Запускаем планировщик в фоновой задаче
-        self.scheduler_task = asyncio.create_task(scheduler.run())
-        logger.info("Scheduler started in current process")
-      except Exception as e:
-        logger.error(f"Failed to start scheduler: {e}")
-
-    async def start_channel_monitor(self):
-        """Запуск мониторинга каналов в текущем процессе"""
-        try:
-          if not Config.TARGET_GROUP:
-            logger.warning(
-              "TARGET_GROUP not configured - channel monitor disabled")
-            return
-
-          self.channel_monitor = ChannelMonitor()
-          success = await self.channel_monitor.start_monitoring()
-
-          if success:
-            logger.info("Channel monitor started successfully")
-          else:
-            logger.error("Failed to start channel monitor")
-
-        except Exception as e:
-          logger.error(f"Error starting channel monitor: {e}")
-
-    async def stop_channel_monitor(self):
-      """Остановка мониторинга каналов"""
-      if self.channel_monitor:
-        await self.channel_monitor.stop_monitoring()
-        logger.info("Channel monitor stopped")
 
     async def check_user_permission(self, update):
         """Проверка прав доступа пользователя"""
@@ -153,33 +111,27 @@ class BookingBot:
         # Сохраняем URL веб-приложения в bot_data для доступа из обработчиков
         self.application.bot_data['web_app_url'] = self.remote_web_app_url
 
-        # В setup_handlers добавьте В САМОЕ НАЧАЛО (до других MessageHandler):
-        # Для логирования
-        #self.application.add_handler(MessageHandler(filters.ALL, self.debug_all_messages))
-
         # 1. Обработчики команд с проверкой доступа
         self._add_secure_command_handler("start", start)
         self._add_secure_command_handler("help", help_command)
         self._add_secure_command_handler("view_booking", view_booking_handler)
         self._add_secure_command_handler("view_available_dates", view_dates_handler)
-        self._add_secure_command_handler("calculation", calculation_command)  # Добавлено
+        self._add_secure_command_handler("calculation", calculation_command)
         self._add_secure_command_handler("sync_booking", sync_handler)
         self._add_secure_command_handler("exit", exit_bot)
 
-        # 4. CallbackHandler для view_booking с фильтром по префиксу
+        # 2. CallbackHandler для view_booking с фильтром по префиксу
         self._add_secure_callback_handler(
             view_booking_handler,
             pattern=f"^{VB_CALLBACK_PREFIX}.*"
         )
 
-        # 5. Обработчики для меню расчета (только закрытие меню)
+        # 3. Обработчики для меню расчета (только закрытие меню)
         self._add_secure_callback_handler(close_calculation_menu_handler, pattern="^close_calculation_menu$")
 
-        # 6. Обработчик JSON из приватного канала (фоновая передача данных форм)
+        # 4. Обработчик JSON из приватного канала (фоновая передача данных форм)
         if Config.TELEGRAM_DATA_CHANNEL_ID:
-            # Принимаем и документы, и текст (на случай, если кто-то отправит JSON как текст)
-            json_filter = filters.Document.MimeType('application/json') | filters.Document.FileExtension(
-                'json')
+            json_filter = filters.Document.MimeType('application/json') | filters.Document.FileExtension('json')
             self.application.add_handler(
                 MessageHandler(json_filter, self.handle_channel_document)
             )
@@ -187,12 +139,10 @@ class BookingBot:
         else:
             logger.warning("⚠️ TELEGRAM_DATA_CHANNEL_ID not set — form handler disabled")
 
-
-        # 7. Обработчик неизвестных команд
+        # 5. Обработчик неизвестных команд
         self.application.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self.unknown_command)
         )
-
 
         logger.info("Handlers setup completed")
 
@@ -318,123 +268,68 @@ class BookingBot:
             raise Exception("Remote web app URL not configured")
 
     def run(self):
-      """Запуск бота"""
-      try:
-        # Проверяем наличие URL удаленного сервера
-        if not self.remote_web_app_url:
-          logger.error("Remote web app URL not configured, bot cannot continue")
-          return
-
-        # Настраиваем обработчик завершения
-        def signal_handler(signum, frame):
-          logger.info("Received shutdown signal")
-          # Останавливаем планировщик и мониторинг асинхронно
-          if self.application and self.application.running:
-            self.application.create_task(self.stop_scheduler())
-            self.application.create_task(self.stop_channel_monitor())
-          # Закрываем Telegram клиент
-          loop = asyncio.get_event_loop()
-          loop.run_until_complete(telegram_client.close())
-          sys.exit(0)
-
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
-
-        self.setup_handlers()
-
-        # Запускаем планировщик и мониторинг при старте приложения
-        async def post_init(application):
-          await self.start_scheduler_in_current_process()
-          await self.start_channel_monitor()  # Запускаем мониторинг каналов
-
-        self.application.post_init = post_init
-
-        logger.info("Starting bot polling...")
-        print("=" * 50)
-        print("🤖 Бот запущен!")
-        print(f"🌐 Удаленный сервер форм: {self.remote_web_app_url}")
-        if Config.TARGET_GROUP:
-          print("📊 Мониторинг каналов: АКТИВЕН")
-        else:
-          print("📊 Мониторинг каналов: ОТКЛЮЧЕН (TARGET_GROUP не настроен)")
-        print("📋 Доступные команды:")
-        for cmd, desc in COMMANDS:
-          print(f"   /{cmd} - {desc}")
-        print("=" * 50)
-
-        self.application.run_polling(drop_pending_updates=True)
-      except Exception as e:
-        logger.error(f"Bot crashed: {e}", exc_info=True)
-        self.stop_scheduler()
-        self.stop_channel_monitor()
-        raise
-
-    def start_scheduler(self):
-      """ЗАМЕНА: Запуск планировщика в текущем процессе вместо отдельного"""
-      try:
-        # Создаем задачу для планировщика
-        #asyncio.create_task(self.start_scheduler_in_current_process())
-        # Задача будет создана позже в асинхронном контексте
-        logger.info("Scheduler will be started in async context")
-      except Exception as e:
-        logger.error(f"Failed to start scheduler: {e}")
-
-    async def stop_scheduler(self):
-      """Остановка планировщика"""
-      if self.scheduler_task:
-        self.scheduler_task.cancel()
+        """Запуск бота"""
         try:
-          await self.scheduler_task
-        except asyncio.CancelledError:
-          pass
-        logger.info("Scheduler stopped")
+            # Проверяем наличие URL удаленного сервера
+            if not self.remote_web_app_url:
+                logger.error("Remote web app URL not configured, bot cannot continue")
+                return
+
+            self.setup_handlers()
+
+            logger.info("Starting bot polling...")
+            print("=" * 50)
+            print("🤖 Бот запущен!")
+            print(f"🌐 Удаленный сервер форм: {self.remote_web_app_url}")
+            print("📋 Доступные команды:")
+            for cmd, desc in COMMANDS:
+                print(f"   /{cmd} - {desc}")
+            print("=" * 50)
+
+            self.application.run_polling(drop_pending_updates=True)
+        except Exception as e:
+            logger.error(f"Bot crashed: {e}", exc_info=True)
+            raise
+
 
 def sync_google_sheets():
     """Выполняет синхронизацию всех листов Google Sheets с локальными CSV."""
     try:
-        # Создаём экземпляр синхронизатора (без data_folder — пути теперь фиксированы)
         sync_manager = GoogleSheetsCSVSync()
-
-        # Синхронизация всех листов
         logger.info("Starting full Google Sheets sync...")
         results = sync_manager.sync_all_sheets("csv_to_google")
         success_count = sum(results.values())
         total_count = len(results)
         logger.info(f"Sync completed: {success_count}/{total_count} sheets successful")
         print(f"✅ Синхронизация завершена: {success_count}/{total_count} листов")
-
-        # Опционально: выводим список доступных листов
-        available_sheets = sync_manager.get_available_sheets()
-        logger.debug(f"Available sheets: {available_sheets}")
     except Exception as e:
         logger.error(f"Ошибка при синхронизации Google Sheets: {e}", exc_info=True)
         print(f"❌ Ошибка синхронизации: {e}")
         raise
+
 
 if __name__ == "__main__":
     try:
         load_dotenv()
     except Exception as e:
         print(f"Error loading .env file: {e}")
-        exit(1) 
+        exit(1)
+
     try:
-        logger.info("Sync booking start...")
         logger.info("Starting bot initialization...")
-        # Инициализируем Telethon синглтон
         logger.info("🔄 Initializing Telethon client...")
 
         loop = asyncio.get_event_loop()
         telethon_success = loop.run_until_complete(
-        telegram_client.ensure_connection())
+            telegram_client.ensure_connection()
+        )
 
         if not telethon_success:
             logger.error("❌ Cannot start bot without Telethon client")
             exit(1)
 
         logger.info("✅ Telethon client ready")
-        #Запускать только если все данные в гугл таблице актальнее чем локально. Напрмиер при первичной загрузке иначе из локала перетрет
-        #sync_google_sheets()
-        # ЯВНО ЗАГРУЗИТЬ КЭШ ENTITY
+
         logger.info("🔄 Preloading entity cache...")
         cache_loaded = loop.run_until_complete(
             telegram_client.preload_entity_cache()
@@ -448,11 +343,5 @@ if __name__ == "__main__":
         bot.run()
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
-        # Останавливаем мониторинг каналов при прерывании
-        loop.run_until_complete(bot.stop_channel_monitor())
-        bot.stop_scheduler()
     except Exception as e:
         logger.critical(f"Failed to start bot: {e}", exc_info=True)
-        # Останавливаем мониторинг каналов при ошибке
-        loop.run_until_complete(bot.stop_channel_monitor())
-        bot.stop_scheduler()

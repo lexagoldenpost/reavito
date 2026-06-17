@@ -1,4 +1,5 @@
-# channel_monitor.py
+# telega/channel_monitor.py
+
 import asyncio
 import io
 import sys
@@ -37,6 +38,9 @@ class ChannelMonitor:
         self.group_keywords: Dict[str, Set[str]] = {}
         self.client: TelegramClient = telegram_client.client
         self._is_authenticated = False
+        self.running = True
+        self._monitor_task = None
+        self._handlers_setup = False
 
     async def initialize(self) -> bool:
         """Initialize Telegram client with shared session."""
@@ -48,15 +52,19 @@ class ChannelMonitor:
 
             self._is_authenticated = True
             me = await self.client.get_me()
-            logger.info(
-                f"Authorized as: {me.first_name or 'Unknown'} (ID: {me.id})")
+
+            # Проверяем, что это не бот
+            if me and me.bot:
+                logger.error("❌ Bot account detected! Channel monitor requires a user account.")
+                return False
+
+            logger.info(f"✅ Authorized as: {me.first_name or 'Unknown'} (ID: {me.id})")
             await self._print_connection_info()
 
             if not await self._load_keywords_from_csv():
                 logger.error("Failed to load keywords from CSV")
                 return False
 
-            self._setup_handlers()
             logger.info("Channel monitoring initialized with shared client.")
             return True
 
@@ -65,39 +73,54 @@ class ChannelMonitor:
             return False
 
     async def start_monitoring(self):
-      """Запуск мониторинга в фоновом режиме"""
-      try:
-        if not await self.initialize():
-          logger.error("Failed to initialize channel monitor")
-          return False
+        """Запуск мониторинга в фоновом режиме"""
+        try:
+            if not await self.initialize():
+                logger.error("Failed to initialize channel monitor")
+                return False
 
-        # Запускаем мониторинг в фоне
-        asyncio.create_task(self._run_monitoring())
-        logger.info("Channel monitoring started in background")
-        return True
+            if not self._handlers_setup:
+                self._setup_handlers()
+                self._handlers_setup = True
 
-      except Exception as e:
-        logger.error(f"Error starting channel monitor: {e}")
-        return False
+            self.running = True
+            self._monitor_task = asyncio.create_task(self._run_monitoring())
+            logger.info("Channel monitoring started in background")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error starting channel monitor: {e}")
+            return False
 
     async def _run_monitoring(self):
         """Фоновая задача для мониторинга"""
         try:
-          logger.info("Channel monitor background task started")
-          await self.client.run_until_disconnected()
+            logger.info("Channel monitor background task started")
+
+            # Ждем события в цикле, не блокируя клиент
+            while self.running and self.client and self.client.is_connected():
+                await asyncio.sleep(1)
+
+        except asyncio.CancelledError:
+            logger.info("Channel monitor task cancelled")
         except Exception as e:
-          logger.error(f"Channel monitor background task error: {e}")
+            logger.error(f"Channel monitor background task error: {e}")
         finally:
-          await self.shutdown()
+            await self.shutdown()
 
     async def stop_monitoring(self):
-      """Остановка мониторинга"""
-      try:
-        if self.client and self.client.is_connected():
-          await self.client.disconnect()
-          logger.info("Channel monitor stopped")
-      except Exception as e:
-        logger.error(f"Error stopping channel monitor: {e}")
+        """Остановка мониторинга"""
+        self.running = False
+
+        if self._monitor_task:
+            self._monitor_task.cancel()
+            try:
+                await self._monitor_task
+            except asyncio.CancelledError:
+                pass
+            self._monitor_task = None
+
+        logger.info("Channel monitor stopped")
 
     async def _print_connection_info(self):
         """Print information about the current connection and subscribed channels."""
@@ -160,12 +183,6 @@ class ChannelMonitor:
 
     def _setup_handlers(self):
         """Setup message handlers for monitoring."""
-
-        # Проверяем, используем ли мы бот-токен для мониторинга
-        if hasattr(self.client, 'is_bot') and self.client.is_bot:
-            logger.warning("Channel monitor is using bot account! This will conflict with polling.")
-            logger.warning("Consider using a user account for channel monitoring.")
-            return  # Не добавляем handlers, если это бот
 
         @self.client.on(events.NewMessage())
         async def message_handler(event):
@@ -502,8 +519,18 @@ class ChannelMonitor:
                 raise RuntimeError("Initialization failed")
 
             logger.info("Starting channel monitoring")
-            await self.client.run_until_disconnected()
 
+            # Настраиваем обработчики
+            self._setup_handlers()
+            self.running = True
+
+            # Ждем в цикле, не блокируя клиент
+            while self.running and self.client and self.client.is_connected():
+                await asyncio.sleep(1)
+
+        except asyncio.CancelledError:
+            logger.info("Channel monitor was cancelled")
+            raise  # Важно: пробрасываем дальше для корректного завершения
         except Exception as e:
             logger.error(f"Monitoring error: {e}", exc_info=True)
         finally:
@@ -512,9 +539,9 @@ class ChannelMonitor:
     async def shutdown(self):
         """Shut down the monitor gracefully."""
         try:
-            if self.client and self.client.is_connected():
-                # Не отключаем клиент, так как он используется другими модулями
-                logger.info("Channel monitor stopped (client remains connected for other modules)")
+            self.running = False
+            # Не отключаем клиент, так как он используется другими модулями
+            logger.info("Channel monitor stopped (client remains connected for other modules)")
         except Exception as e:
             logger.error(f"Shutdown error: {e}", exc_info=True)
 

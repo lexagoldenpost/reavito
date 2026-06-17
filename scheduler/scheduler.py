@@ -131,3 +131,13 @@ class AsyncScheduler:
     """Останавливает планировщик"""
     self.running = False
     logger.info("🛑 Scheduler stopping...")
+
+if __name__ == "__main__":
+    try:
+        logger.info("🔧 Ручной запуск планировщика")
+        scheduler = AsyncScheduler()
+        asyncio.run(scheduler.run())
+    except KeyboardInterrupt:
+        logger.info("Планировщик остановлен пользователем")
+    except Exception as e:
+        logger.error(f"Критическая ошибка при работе планировщика: {e}", exc_info=True)
