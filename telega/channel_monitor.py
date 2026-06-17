@@ -187,8 +187,15 @@ class ChannelMonitor:
         @self.client.on(events.NewMessage())
         async def message_handler(event):
             try:
-                if not await self._should_process_message(event):
-                    return
+                # Обработка SQLite ошибок на верхнем уровне
+                try:
+                    if not await self._should_process_message(event):
+                        return
+                except sqlite3.OperationalError as e:
+                    if "database is locked" in str(e):
+                        logger.debug(f"⏳ SQLite locked, skipping event")
+                        return
+                    raise
 
                 chat = await event.get_chat()
                 message = event.message
@@ -210,17 +217,44 @@ class ChannelMonitor:
                     if self._is_channel_in_list(group_name, group_id, username):
                         logger.debug(f"Channel in list but no keyword matches: {group_name or group_id}")
 
+            except sqlite3.OperationalError as e:
+                if "database is locked" in str(e):
+                    logger.debug(f"⏳ SQLite locked during processing, skipping")
+                    return
+                logger.error(f"SQLite error in message_handler: {e}")
             except Exception as e:
                 logger.error(f"Message handling error: {e}", exc_info=True)
 
     async def _should_process_message(self, event) -> bool:
         """Check if a message should be processed."""
-        return (
-                event.is_group
-                and event.message
-                and event.message.text
-                and await event.get_chat()
-        )
+        try:
+            # Проверяем с повторными попытками при блокировке БД
+            for attempt in range(3):
+                try:
+                    return (
+                        event.is_group
+                        and event.message
+                        and event.message.text
+                        and await event.get_chat()
+                    )
+                except sqlite3.OperationalError as e:
+                    if "database is locked" in str(e) and attempt < 2:
+                        # Экспоненциальная задержка: 0.5, 1.0, 1.5 секунд
+                        wait_time = 0.5 * (attempt + 1)
+                        logger.debug(f"⏳ SQLite locked, retry {attempt + 1}/3 in {wait_time}s")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    raise
+        except sqlite3.OperationalError as e:
+            # Если после всех попыток всё ещё locked - логируем и возвращаем False
+            if "database is locked" in str(e):
+                logger.warning(f"⚠️ SQLite database locked, skipping message")
+                return False
+            logger.error(f"Error in _should_process_message: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Error in _should_process_message: {e}")
+            return False
 
     def _is_channel_in_list(self, group_name: str, group_id: str, username: str) -> bool:
         """Check if channel is in monitoring list."""

@@ -4,6 +4,7 @@ from typing import Optional, Union, List, Tuple, Dict
 import asyncio
 import json
 import time
+import sqlite3
 
 from telethon import TelegramClient, utils
 from telethon.tl.types import InputMediaUploadedPhoto, \
@@ -127,8 +128,6 @@ class TelegramClientManager:
     # Определяем путь к файлу сессии
     session_filename = f"{self.api_id}_{Config.TELEGRAM_SESSION_NAME}"
     self.session_file_path = sessions_dir / f"{session_filename}.session"
-
-    # Файл для хранения entity
     self.entity_file_path = sessions_dir / f"{session_filename}_entities.json"
 
     # Создаем менеджер файлов entity
@@ -145,15 +144,45 @@ class TelegramClientManager:
         system_version='4.16.30-vxCUSTOM',
         connection_retries=5,
         request_retries=3,
-        auto_reconnect=True
+        auto_reconnect=True,
     )
 
     self._connection_open = False
+    self._sqlite_configured = False
+    self._db_lock = asyncio.Lock()  # Блокировка для операций с БД
 
   @property
   def client(self) -> TelegramClient:
     """Получить экземпляр клиента"""
     return self._client
+
+  async def _configure_sqlite(self):
+    """Настройка SQLite для конкурентного доступа"""
+    if self._sqlite_configured:
+      return
+
+    try:
+      # Получаем сырое соединение SQLite
+      if hasattr(self._client, 'session') and hasattr(self._client.session, '_conn'):
+        conn = self._client.session._conn
+        if conn:
+          # WAL режим - ключевой для конкурентного доступа
+          conn.execute("PRAGMA journal_mode=WAL")
+          # Увеличиваем таймаут блокировки (30 секунд)
+          conn.execute("PRAGMA busy_timeout=30000")
+          # Отключаем синхронизацию для скорости
+          conn.execute("PRAGMA synchronous=NORMAL")
+          # Увеличиваем кэш
+          conn.execute("PRAGMA cache_size=10000")
+          self._sqlite_configured = True
+          logger.info("✅ SQLite настроен для конкурентного доступа (WAL режим)")
+    except Exception as e:
+      logger.warning(f"⚠️ Не удалось настроить SQLite: {e}")
+
+  async def with_db_lock(self, coro):
+    """Выполняет корутину с блокировкой БД"""
+    async with self._db_lock:
+      return await coro
 
   async def ensure_connection(self) -> bool:
     """Убедиться, что подключение установлено и клиент аутентифицирован"""
@@ -161,6 +190,8 @@ class TelegramClientManager:
       if not self._connection_open:
         await self.client.connect()
         self._connection_open = True
+        # Настраиваем SQLite после подключения
+        await self._configure_sqlite()
 
       if not await self.client.is_user_authorized():
         logger.info("No valid session found. Starting new authorization...")
@@ -248,96 +279,99 @@ class TelegramClientManager:
       self.entity_manager._cache_loading = False
 
   async def get_entity_cached(self, channel_identifier: Union[str, int]):
-    """Получение entity с использованием файлового хранилища"""
-    cache_key = str(channel_identifier)
+    """Получение entity с использованием файлового хранилища и блокировкой"""
+    async def _get():
+      cache_key = str(channel_identifier)
 
-    # Шаг 0: Загружаем entity из файла если еще не загружены
-    if not self.entity_manager._cache_loaded:
-      self.entities = self.entity_manager.load_entities()
-      self.entity_manager._cache_loaded = True
+      # Шаг 0: Загружаем entity из файла если еще не загружены
+      if not self.entity_manager._cache_loaded:
+        self.entities = self.entity_manager.load_entities()
+        self.entity_manager._cache_loaded = True
 
-    # Шаг 1: Прямой поиск по ключу
-    entity_data = self.entity_manager.get_entity(cache_key, self.entities)
-    if entity_data:
-      logger.debug(f"📦 Найдено entity в файле для {channel_identifier}")
-      entity = await self._create_entity_from_cache(entity_data)
-      if entity:
-        logger.debug(f"✅ Entity создано из кэша для {channel_identifier}")
-        return entity
-      else:
-        logger.debug(f"⚠️ Не удалось создать entity из кэша для {channel_identifier}")
-
-    # Шаг 1.1: Если это ID с префиксом -100, пробуем найти без префикса
-    if str(channel_identifier).startswith('-100'):
-      base_id = str(channel_identifier)[4:]  # Убираем префикс -100
-      entity_data = self.entity_manager.get_entity(base_id, self.entities)
+      # Шаг 1: Прямой поиск по ключу
+      entity_data = self.entity_manager.get_entity(cache_key, self.entities)
       if entity_data:
-        logger.debug(f"📦 Найдено entity по базовому ID {base_id} для {channel_identifier}")
+        logger.debug(f"📦 Найдено entity в файле для {channel_identifier}")
         entity = await self._create_entity_from_cache(entity_data)
         if entity:
-          logger.debug(f"✅ Entity создано из кэша по базовому ID для {channel_identifier}")
-          # Сохраняем также и для полного ID на будущее
-          self.entity_manager.add_entity(cache_key, entity_data, self.entities)
+          logger.debug(f"✅ Entity создано из кэша для {channel_identifier}")
           return entity
+        else:
+          logger.debug(f"⚠️ Не удалось создать entity из кэша для {channel_identifier}")
 
-    # Шаг 1.2: Если это ID без префикса, пробуем найти с префиксом -100
-    elif str(channel_identifier).isdigit():
-      full_id = f"-100{channel_identifier}"
-      entity_data = self.entity_manager.get_entity(full_id, self.entities)
-      if entity_data:
-        logger.debug(f"📦 Найдено entity по полному ID {full_id} для {channel_identifier}")
-        entity = await self._create_entity_from_cache(entity_data)
+      # Шаг 1.1: Если это ID с префиксом -100, пробуем найти без префикса
+      if str(channel_identifier).startswith('-100'):
+        base_id = str(channel_identifier)[4:]  # Убираем префикс -100
+        entity_data = self.entity_manager.get_entity(base_id, self.entities)
+        if entity_data:
+          logger.debug(f"📦 Найдено entity по базовому ID {base_id} для {channel_identifier}")
+          entity = await self._create_entity_from_cache(entity_data)
+          if entity:
+            logger.debug(f"✅ Entity создано из кэша по базовому ID для {channel_identifier}")
+            # Сохраняем также и для полного ID на будущее
+            self.entity_manager.add_entity(cache_key, entity_data, self.entities)
+            return entity
+
+      # Шаг 1.2: Если это ID без префикса, пробуем найти с префиксом -100
+      elif str(channel_identifier).isdigit():
+        full_id = f"-100{channel_identifier}"
+        entity_data = self.entity_manager.get_entity(full_id, self.entities)
+        if entity_data:
+          logger.debug(f"📦 Найдено entity по полному ID {full_id} для {channel_identifier}")
+          entity = await self._create_entity_from_cache(entity_data)
+          if entity:
+            logger.debug(f"✅ Entity создано из кэша по полному ID для {channel_identifier}")
+            # Сохраняем также и для базового ID на будущее
+            self.entity_manager.add_entity(cache_key, entity_data, self.entities)
+            return entity
+
+      # Шаг 2: Если нет в файле или не удалось создать - пробуем получить напрямую через API
+      logger.debug(f"🔄 Прямой поиск entity через API для {channel_identifier}")
+      try:
+        if not await self.ensure_connection():
+          return None
+
+        entity = await TelegramUtils.get_entity_safe(self.client,
+                                                     channel_identifier)
         if entity:
-          logger.debug(f"✅ Entity создано из кэша по полному ID для {channel_identifier}")
-          # Сохраняем также и для базового ID на будущее
+          # Сохраняем в файл
+          entity_data = {
+            'id': entity.id,
+            'title': getattr(entity, 'title', ''),
+            'username': getattr(entity, 'username', ''),
+            'type': type(entity).__name__,
+            'access_hash': getattr(entity, 'access_hash', ''),
+            'full_id': utils.get_peer_id(entity)
+          }
           self.entity_manager.add_entity(cache_key, entity_data, self.entities)
+          logger.debug(
+            f"✅ Entity для {channel_identifier} найдено через API и сохранено в файл")
           return entity
-
-    # Шаг 2: Если нет в файле или не удалось создать - пробуем получить напрямую через API
-    logger.debug(f"🔄 Прямой поиск entity через API для {channel_identifier}")
-    try:
-      if not await self.ensure_connection():
-        return None
-
-      entity = await TelegramUtils.get_entity_safe(self.client,
-                                                   channel_identifier)
-      if entity:
-        # Сохраняем в файл
-        entity_data = {
-          'id': entity.id,
-          'title': getattr(entity, 'title', ''),
-          'username': getattr(entity, 'username', ''),
-          'type': type(entity).__name__,
-          'access_hash': getattr(entity, 'access_hash', ''),
-          'full_id': utils.get_peer_id(entity)
-        }
-        self.entity_manager.add_entity(cache_key, entity_data, self.entities)
+      except Exception as e:
         logger.debug(
-          f"✅ Entity для {channel_identifier} найдено через API и сохранено в файл")
-        return entity
-    except Exception as e:
-      logger.debug(
-        f"⚠️ Не удалось получить entity через API для {channel_identifier}: {e}")
+          f"⚠️ Не удалось получить entity через API для {channel_identifier}: {e}")
 
-    # Шаг 3: Если не получилось - догружаем все entity
-    logger.info(
-      f"🔍 Entity для {channel_identifier} не найдено, догружаем все каналы...")
-    await self._supplement_cache()
-
-    # Шаг 4: После догрузки пробуем снова найти в файле
-    entity_data = self.entity_manager.get_entity(cache_key, self.entities)
-    if entity_data:
+      # Шаг 3: Если не получилось - догружаем все entity
       logger.info(
-        f"✅ Entity для {channel_identifier} найдено в файле после догрузки")
-      entity = await self._create_entity_from_cache(entity_data)
-      if entity:
-        logger.info(
-          f"✅ Entity создано после догрузки для {channel_identifier}")
-        return entity
+        f"🔍 Entity для {channel_identifier} не найдено, догружаем все каналы...")
+      await self._supplement_cache()
 
-    logger.error(
-      f"❌ Entity для {channel_identifier} не найдено после всех попыток")
-    return None
+      # Шаг 4: После догрузки пробуем снова найти в файле
+      entity_data = self.entity_manager.get_entity(cache_key, self.entities)
+      if entity_data:
+        logger.info(
+          f"✅ Entity для {channel_identifier} найдено в файле после догрузки")
+        entity = await self._create_entity_from_cache(entity_data)
+        if entity:
+          logger.info(
+            f"✅ Entity создано после догрузки для {channel_identifier}")
+          return entity
+
+      logger.error(
+        f"❌ Entity для {channel_identifier} не найдено после всех попыток")
+      return None
+
+    return await self.with_db_lock(_get())
 
   async def _supplement_cache(self) -> bool:
     """Дополняет кэш entity без очистки существующих данных"""
@@ -517,19 +551,17 @@ class TelegramClientManager:
         except Exception as e:
           logger.warning(f"Не удалось получить информацию об аккаунте: {e}")
 
-        # ✅ ФАЙЛОВОЕ ХРАНИЛИЩЕ: автоматически догружает entity при необходимости
+        # Файловое хранилище: автоматически догружает entity при необходимости
         entity = await self.get_entity_cached(channel_identifier)
         if not entity:
           logger.error(f"❌ Не удалось получить entity для {channel_identifier}")
           return (False, "") if return_message_link else False
 
         # Получаем реальный entity для отправки сообщения
-        # Если entity из кэша - это InputPeer, нужно получить полный entity
         from telethon.tl.types import InputPeerChannel, InputPeerChat, \
           InputPeerUser
 
         if isinstance(entity, (InputPeerChannel, InputPeerChat, InputPeerUser)):
-          # Для InputPeer объектов получаем полный entity
           try:
             full_entity = await TelegramUtils.get_entity_safe(self.client,
                                                               channel_identifier)
@@ -587,16 +619,15 @@ class TelegramClientManager:
         logger.error(f"Ошибка при отправке сообщения: {str(e)}")
         return (False, "") if return_message_link else False
 
-  # метод для экспорта сессии
   def get_session_string(self):
     """Возвращает строку сессии для использования в других процессах"""
     try:
-        if self._client and self._client.session:
-            return self._client.session.save()
-        return None
+      if self._client and self._client.session:
+        return self._client.session.save()
+      return None
     except Exception as e:
-        logger.error(f"Ошибка получения строки сессии: {e}")
-        return None
+      logger.error(f"Ошибка получения строки сессии: {e}")
+      return None
 
   async def close_connection(self):
     """Закрыть подключение"""
