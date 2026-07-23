@@ -1,4 +1,5 @@
 # scheduler/update_last_message_tg_info.py
+import sqlite3
 from datetime import datetime
 import csv
 import os
@@ -219,6 +220,20 @@ async def get_last_message_id_difference(chat_name, stored_message_id):
         return None, None
 
 
+async def get_last_message_id_difference_with_retry(chat_name, stored_message_id, max_retries=3):
+    """Получение разницы с повторными попытками"""
+    for attempt in range(max_retries):
+        try:
+            return await get_last_message_id_difference(chat_name, stored_message_id)
+        except sqlite3.OperationalError as e:
+            if "database is locked" in str(e) and attempt < max_retries - 1:
+                wait_time = 0.5 * (attempt + 1)
+                logger.debug(f"⏳ SQLite locked, retry {attempt + 1}/{max_retries} in {wait_time}s")
+                await asyncio.sleep(wait_time)
+                continue
+            raise
+    return None, None
+
 async def send_telegram_notification(http_session, chat_data: dict, message_count: int):
     """
     Отправляет уведомление в Telegram о большом количестве новых сообщений
@@ -329,7 +344,7 @@ async def process_chat_update(chat):
         logger.info(f"Processing chat: {chat_name}")
 
         # Получаем разницу ID сообщений
-        last_message_id, difference = await get_last_message_id_difference(
+        last_message_id, difference = await get_last_message_id_difference_with_retry(
             chat_name, stored_message_id
         )
 

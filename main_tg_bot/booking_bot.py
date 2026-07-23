@@ -1,10 +1,8 @@
-# booking_bot.py - исправленная версия (убраны channel_monitor)
+# booking_bot.py - исправленная версия
 
-import asyncio
 import json
-import multiprocessing
-import signal
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from telegram import Update
@@ -32,7 +30,9 @@ from main_tg_bot.command.new_menu import (
     calculation_command,
     close_calculation_menu_handler
 )
-from telega.telegram_client import telegram_client
+
+# НЕ ИНИЦИАЛИЗИРУЕМ telegram_client здесь - он будет инициализирован при первом использовании
+# from telega.telegram_client import telegram_client
 
 logger = setup_logger("booking_bot")
 
@@ -47,10 +47,37 @@ class BookingBot:
                                   Config.ALLOWED_TELEGRAM_USERNAMES]
         self.application = None
         self.remote_web_app_url = Config.REMOTE_WEB_APP_URL
+        self._telethon_initialized = False
         logger.info("BookingBot initialized")
         logger.info(f"Token: {self.token[:10]}...")
         logger.info(f"Allowed users: {self.allowed_usernames}")
         logger.info(f"Remote web app URL: {self.remote_web_app_url}")
+
+    async def _ensure_telethon(self):
+        """Ленивая инициализация Telethon клиента при первом использовании"""
+        if self._telethon_initialized:
+            return True
+
+        try:
+            from telega.telegram_client import telegram_client
+            logger.info("🔄 Initializing Telethon client for BookingBot...")
+
+            # Проверяем существование сессии
+            if not await telegram_client.check_existing_session():
+                logger.warning("⚠️ No existing session found, attempting to connect...")
+                if not await telegram_client.ensure_connection():
+                    logger.error("❌ Failed to initialize Telethon client")
+                    return False
+
+            # Загружаем кэш entity
+            await telegram_client.preload_entity_cache()
+            self._telethon_initialized = True
+            logger.info("✅ Telethon client ready for BookingBot")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Telethon client: {e}")
+            return False
 
     async def check_user_permission(self, update):
         """Проверка прав доступа пользователя"""
@@ -106,7 +133,16 @@ class BookingBot:
 
     def setup_handlers(self):
         """Настройка всех обработчиков с проверкой прав доступа"""
-        self.application = Application.builder().token(self.token).build()
+        # Создаем приложение с увеличенными таймаутами
+        self.application = (
+            Application.builder()
+            .token(self.token)
+            .connect_timeout(30.0)
+            .read_timeout(30.0)
+            .write_timeout(30.0)
+            .pool_timeout(30.0)
+            .build()
+        )
 
         # Сохраняем URL веб-приложения в bot_data для доступа из обработчиков
         self.application.bot_data['web_app_url'] = self.remote_web_app_url
@@ -255,6 +291,8 @@ class BookingBot:
             return
 
         try:
+            # Убеждаемся, что Telethon клиент инициализирован для обработки
+            await self._ensure_telethon()
             await handler_func(data, file_name)
             logger.info(f"✅ Обработка файла '{file_name}' завершена")
         except Exception as e:
@@ -286,7 +324,9 @@ class BookingBot:
                 print(f"   /{cmd} - {desc}")
             print("=" * 50)
 
+            # Запускаем бота - Telethon клиент будет инициализирован лениво
             self.application.run_polling(drop_pending_updates=True)
+
         except Exception as e:
             logger.error(f"Bot crashed: {e}", exc_info=True)
             raise
@@ -317,30 +357,12 @@ if __name__ == "__main__":
 
     try:
         logger.info("Starting bot initialization...")
-        logger.info("🔄 Initializing Telethon client...")
-
-        loop = asyncio.get_event_loop()
-        telethon_success = loop.run_until_complete(
-            telegram_client.ensure_connection()
-        )
-
-        if not telethon_success:
-            logger.error("❌ Cannot start bot without Telethon client")
-            exit(1)
-
-        logger.info("✅ Telethon client ready")
-
-        logger.info("🔄 Preloading entity cache...")
-        cache_loaded = loop.run_until_complete(
-            telegram_client.preload_entity_cache()
-        )
-        if cache_loaded:
-            logger.info("✅ Entity cache preloaded successfully")
-        else:
-            logger.warning("⚠️ Entity cache preload failed, but continuing...")
+        # НЕ инициализируем Telethon здесь - он будет инициализирован лениво
+        # при первом использовании через send_tg_reklama
 
         bot = BookingBot()
         bot.run()
+
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
     except Exception as e:

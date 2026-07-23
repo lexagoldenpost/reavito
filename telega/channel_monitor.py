@@ -2,6 +2,7 @@
 
 import asyncio
 import io
+import sqlite3
 import sys
 import csv
 from pathlib import Path
