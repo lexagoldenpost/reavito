@@ -1,5 +1,4 @@
 # scheduler/update_last_message_tg_info.py
-import sqlite3
 from datetime import datetime
 import csv
 import os
@@ -15,24 +14,19 @@ from telega.tg_notifier import send_message
 
 logger = setup_logger("update_last_message_tg_info")
 
-# Определяем путь к папке booking относительно корня проекта
 TASK_DATA_DIR = PROJECT_ROOT / Config.TASK_DATA_DIR
 
-# ID чатов для отправки уведомлений
 TELEGRAM_CHAT_IDS = Config.TELEGRAM_CHAT_NOTIFICATION_ID
 
 
 async def initialize_telegram_client():
     """Инициализирует Telegram клиент с существующей сессией"""
     try:
-        # Пробуем использовать существующее подключение
         if await telegram_client.ensure_connection():
             logger.info("✅ Используем существующую сессию Telegram")
             return True
 
-        # Если не удалось, пробуем переподключиться
-        logger.warning(
-            "⚠️ Существующая сессия недоступна, пробуем переподключиться...")
+        logger.warning("⚠️ Существующая сессия недоступна, пробуем переподключиться...")
         telegram_client.clear_entity_cache()
         if await telegram_client.ensure_connection():
             logger.info("✅ Переподключение успешно")
@@ -58,8 +52,6 @@ def load_chats_from_csv():
     try:
         with open(csv_file, 'r', encoding='utf-8') as file:
             reader = csv.DictReader(file)
-
-            # Получаем реальные названия колонок из заголовка
             fieldnames = reader.fieldnames
             logger.info(f"CSV fieldnames: {fieldnames}")
 
@@ -69,45 +61,36 @@ def load_chats_from_csv():
                     last_send = None
                     if last_send_str:
                         try:
-                            # Парсим дату из строки формата "YYYY-MM-DD HH:MM:SS"
                             last_send = datetime.strptime(last_send_str, "%Y-%m-%d %H:%M:%S")
                         except ValueError:
                             try:
-                                # Парсим дату из строки формата "DD.MM.YYYY HH:MM:SS"
-                                last_send = datetime.strptime(last_send_str,
-                                                              "%d.%m.%Y %H:%M:%S")
+                                last_send = datetime.strptime(last_send_str, "%d.%m.%Y %H:%M:%S")
                             except ValueError:
                                 try:
-                                    # Парсим дату из строки формата "DD.MM.YYYY" (без времени)
                                     last_send = datetime.strptime(last_send_str, "%d.%m.%Y")
                                 except ValueError:
-                                    logger.warning(
-                                        f"Could not parse last_send date: {last_send_str}")
+                                    logger.warning(f"Could not parse last_send date: {last_send_str}")
 
                     chat_data = {
                         'chat_name': row['Наименование чата'].strip(),
-                        'send_frequency': int(
-                            row['Срок в днях меньше которого не отправляем'].strip()),
-                        'accepts_images': row[
-                                              'Картинки принимает (Да/Нет)'].strip().lower() == 'да',
+                        'send_frequency': int(row['Срок в днях меньше которого не отправляем'].strip()),
+                        'accepts_images': row['Картинки принимает (Да/Нет)'].strip().lower() == 'да',
                         'channel_name': row['Название канала'].strip(),
                         'chat_object': row.get('Объект', '').strip(),
                         'last_send': last_send,
                         'last_message_id': row.get('ИД последнего сообщения', '').strip(),
-                        'message_count_after_last': row.get(
-                            'Количество сообщение после последней публикации', '').strip(),
+                        'message_count_after_last': row.get('Количество сообщение после последней публикации',
+                                                            '').strip(),
                         '_sync_id': row['_sync_id'].strip()
                     }
                     chats.append(chat_data)
-                    logger.debug(
-                        f"Loaded chat: {chat_data['chat_name']}, last_send: {last_send}")
+                    logger.debug(f"Loaded chat: {chat_data['chat_name']}, last_send: {last_send}")
 
                 except KeyError as e:
                     logger.error(f"Missing column in CSV: {e}")
                     continue
                 except ValueError as e:
-                    logger.error(
-                        f"Error parsing data for chat {row.get('Наименование чата', 'unknown')}: {e}")
+                    logger.error(f"Error parsing data for chat {row.get('Наименование чата', 'unknown')}: {e}")
                     continue
 
         logger.info(f"Loaded {len(chats)} chats from CSV")
@@ -122,36 +105,29 @@ def save_chats_to_csv(chats):
     try:
         csv_file = TASK_DATA_DIR / "channels.csv"
 
-        # Читаем текущую структуру файла
         with open(csv_file, 'r', encoding='utf-8') as file:
             reader = csv.DictReader(file)
             fieldnames = reader.fieldnames
 
-        # Обновляем данные
         updated_rows = []
         for chat in chats:
-            # Форматируем дату в единый формат "YYYY-MM-DD HH:MM:SS"
             last_send_formatted = ''
             if chat['last_send']:
                 last_send_formatted = chat['last_send'].strftime("%Y-%m-%d %H:%M:%S")
 
             row = {
                 'Наименование чата': chat['chat_name'],
-                'Срок в днях меньше которого не отправляем': str(
-                    chat['send_frequency']),
-                'Картинки принимает (Да/Нет)': 'Да' if chat[
-                    'accepts_images'] else 'Нет',
+                'Срок в днях меньше которого не отправляем': str(chat['send_frequency']),
+                'Картинки принимает (Да/Нет)': 'Да' if chat['accepts_images'] else 'Нет',
                 'Название канала': chat['channel_name'],
                 'Время последней отправки': last_send_formatted,
                 'Объект': chat.get('chat_object', ''),
-                'ИД последнего сообщения': chat.get('last_message_id', ''),
-                'Количество сообщение после последней публикации': chat.get(
-                    'message_count_after_last', ''),
+                'ИД последнего сообщения': chat.get('last_message_id', ''),  # ⚠️ НЕ МЕНЯЕМ
+                'Количество сообщение после последней публикации': chat.get('message_count_after_last', ''),
                 '_sync_id': chat['_sync_id']
             }
             updated_rows.append(row)
 
-        # Записываем обратно
         with open(csv_file, 'w', encoding='utf-8', newline='') as file:
             writer = csv.DictWriter(file, fieldnames=fieldnames)
             writer.writeheader()
@@ -159,7 +135,6 @@ def save_chats_to_csv(chats):
 
         logger.info(f"Successfully updated {len(chats)} chats in CSV")
 
-        # Синхронизируем с Google Sheets
         sync_manager = GoogleSheetsCSVSync()
         sync_success = sync_manager.sync_sheet(
             sheet_name="Отправка бронирований",
@@ -178,162 +153,150 @@ def save_chats_to_csv(chats):
 async def get_last_message_id_difference(chat_name, stored_message_id):
     """
     Получаем разницу между последним сообщением в канале и сохраненным ID
-    Возвращает: (last_message_id, difference) где difference - число или None при ошибке
+    Возвращает: difference (число) или None при ошибке
+    НЕ обновляет last_message_id в CSV
     """
     try:
         if not stored_message_id:
             logger.warning(f"Для канала {chat_name} отсутствует stored_message_id")
-            return None, None
+            return None
 
-        # Используем единого клиента
         if not await telegram_client.ensure_connection():
             logger.error(f"Нет подключения для канала {chat_name}")
-            return None, None
+            return None
 
-        # Получаем entity канала через единый кэшированный метод
         entity = await telegram_client.get_entity_cached(chat_name)
         if not entity:
             logger.error(f"Канал {chat_name} не найден")
-            return None, None
+            return None
 
-        # Получаем последнее сообщение через telethon
         messages = await telegram_client.client.get_messages(entity, limit=1)
         if not messages:
             logger.warning(f"В канале {chat_name} нет сообщений")
-            return None, None
+            return None
 
         last_message_id = messages[0].id
 
         try:
             stored_id = int(stored_message_id)
             difference = last_message_id - stored_id
-            return last_message_id, difference
+            logger.info(
+                f"📊 {chat_name}: last_message_id={last_message_id}, stored_id={stored_id}, difference={difference}")
+            return difference
         except ValueError:
             logger.error(f"Ошибка формата ID для канала {chat_name}: stored_message_id='{stored_message_id}'")
-            return None, None
+            return None
 
     except asyncio.TimeoutError:
         logger.error(f"Таймаут при получении ID сообщения для {chat_name}")
-        return None, None
+        return None
     except Exception as e:
         logger.error(f"Ошибка при получении ID сообщения для {chat_name}: {str(e)}", exc_info=True)
-        return None, None
+        return None
 
 
-async def get_last_message_id_difference_with_retry(chat_name, stored_message_id, max_retries=3):
-    """Получение разницы с повторными попытками"""
-    for attempt in range(max_retries):
-        try:
-            return await get_last_message_id_difference(chat_name, stored_message_id)
-        except sqlite3.OperationalError as e:
-            if "database is locked" in str(e) and attempt < max_retries - 1:
-                wait_time = 0.5 * (attempt + 1)
-                logger.debug(f"⏳ SQLite locked, retry {attempt + 1}/{max_retries} in {wait_time}s")
-                await asyncio.sleep(wait_time)
-                continue
-            raise
-    return None, None
-
-async def send_telegram_notification(http_session, chat_data: dict, message_count: int):
+def check_conditions(chat_data, difference) -> dict:
     """
-    Отправляет уведомление в Telegram о большом количестве новых сообщений
+    Проверяет условия для отбора каналов (как в PHP)
     """
-    try:
-        # Формируем сообщение
-        notification_title = (
-            "⚠️ <b>ВНИМАНИЕ: МНОГО НОВЫХ СООБЩЕНИЙ В КАНАЛЕ</b> ⚠️\n\n"
-            f"📢 <b>Канал:</b> {chat_data['chat_name']}\n"
-            f"🏠 <b>Объект:</b> {chat_data.get('chat_object', 'Не указан')}\n"
-            f"📊 <b>Новых сообщений:</b> {message_count}\n"
-            f"⏰ <b>Пороговое значение:</b> 8\n\n"
-            "<b>Рекомендация:</b> Требуется проверка и возможная публикация в чатах бронирований."
-        )
+    result = {
+        'passed': False,
+        'object_match': False,
+        'days_condition': False,
+        'time_condition': False,
+        'message_count': difference,
+        'days_since_last': None
+    }
 
-        detailed_info = (
-            f"📝 <b>Детали:</b>\n"
-            f"• С момента последней отправки прошло: {message_count} дней\n"
-            f"• Минимальный срок для отправки: {chat_data['send_frequency']} дней\n"
-            f"• Канал принимает изображения: {'Да' if chat_data['accepts_images'] else 'Нет'}\n"
-            f"• Название канала: {chat_data['channel_name']}\n\n"
-            f"<i>Для отправки сообщения используйте основной бот или выполните ручную проверку.</i>"
-        )
+    # 1. Проверка объекта
+    chat_object = chat_data.get('chat_object', '').strip()
+    result['object_match'] = chat_object == '' or chat_object == "Halo Title"
 
-        # Отправляем уведомления во все настроенные чаты
+    # 2. Проверка количества сообщений (> 8)
+    result['days_condition'] = difference > 8 if difference is not None else False
+    result['message_count'] = difference if difference is not None else 0
+
+    # 3. Проверка времени последней отправки
+    last_send = chat_data.get('last_send')
+    min_days = chat_data.get('send_frequency', 7)
+
+    if last_send is None:
+        result['time_condition'] = True
+        result['days_since_last'] = None
+    else:
+        current_time = datetime.now()
+        if last_send > current_time:
+            result['time_condition'] = False
+            result['days_since_last'] = 0
+        else:
+            days_since_last = (current_time - last_send).days
+            result['days_since_last'] = days_since_last
+            result['time_condition'] = days_since_last > min_days
+
+    result['passed'] = (
+            result['object_match'] and
+            result['days_condition'] and
+            result['time_condition']
+    )
+
+    return result
+
+
+async def send_summary_report(http_session, matched_channels: list):
+    """Отправляет лаконичный отчет со списком каналов для рассылки"""
+    if not matched_channels:
+        message = (
+            "📊 <b>Отчет по обновлению счетчиков</b>\n\n"
+            "✅ Данные обновлены\n"
+            "📭 Каналов для рассылки: <b>0</b>\n"
+            "⏰ Все каналы в норме"
+        )
         for chat_id in TELEGRAM_CHAT_IDS:
             try:
-                await send_message(http_session, chat_id, notification_title)
-                await send_message(http_session, chat_id, detailed_info)
-                logger.info(f"✅ Уведомление отправлено в чат {chat_id} для канала {chat_data['chat_name']}")
+                await send_message(http_session, chat_id, message)
+                logger.info(f"✅ Отчет отправлен в {chat_id}")
             except Exception as e:
-                logger.error(f"❌ Ошибка отправки в чат {chat_id}: {e}")
+                logger.error(f"❌ Ошибка отправки в {chat_id}: {e}")
+        return
 
-        return True
+    total = len(matched_channels)
 
-    except Exception as e:
-        logger.error(f"❌ Ошибка при формировании уведомления для {chat_data['chat_name']}: {e}")
-        return False
+    header = (
+        "📊 <b>Каналы для рассылки</b>\n\n"
+        f"📢 Найдено каналов: <b>{total}</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    )
 
+    channels_list = []
+    for i, chat in enumerate(matched_channels, 1):
+        chat_name = chat.get('channel_name', chat.get('chat_name', 'Без названия'))
+        message_count = chat.get('_message_count', 0)
+        days_since = chat.get('_days_since', '—')
+        accepts_images = '📷' if chat.get('accepts_images') else '📝'
 
-async def check_and_send_notification(chat_data: dict, old_message_count, new_message_count):
-    """
-    Проверяет условия и отправляет уведомление если:
-    1. Новое количество сообщений > 8
-    2. Старое значение было заполнено (не пустое)
-    3. С момента последней отправки прошло больше минимального срока
-    """
-    try:
-        # Проверяем что новое значение - число
-        try:
-            new_count = int(new_message_count)
-        except (ValueError, TypeError):
-            logger.debug(f"Новое значение не является числом для {chat_data['chat_name']}: {new_message_count}")
-            return False
+        if len(chat_name) > 35:
+            chat_name = chat_name[:32] + '...'
 
-        # Условие 1: новое количество > 8
-        if new_count <= 8:
-            logger.debug(
-                f"Количество сообщений ({new_count}) <= 8 для {chat_data['chat_name']}, уведомление не требуется")
-            return False
-
-        # Условие 2: было ли старое значение заполнено
-        if not old_message_count or str(old_message_count).strip() == '':
-            logger.info(f"Для {chat_data['chat_name']} старое значение не было заполнено, пропускаем уведомление")
-            return False
-
-        # Условие 3: проверяем время с последней отправки
-        last_send = chat_data.get('last_send')
-        if last_send:
-            days_since_last_send = (datetime.now() - last_send).days
-            min_days = chat_data.get('send_frequency', 7)
-
-            if days_since_last_send < min_days:
-                logger.info(
-                    f"Для {chat_data['chat_name']} с момента последней отправки прошло {days_since_last_send} дней, "
-                    f"что меньше минимального срока {min_days} дней. Уведомление не требуется."
-                )
-                return False
-        else:
-            logger.debug(f"Для {chat_data['chat_name']} нет даты последней отправки")
-
-        # Все условия выполнены - отправляем уведомление
-        logger.info(
-            f"🔔 Можно сделать рассылку для чата {chat_data['chat_name']}: "
-            f"новых сообщений={new_count}, старое значение={old_message_count}"
+        channels_list.append(
+            f"{i}. {accepts_images} <b>{chat_name}</b>\n"
+            f"   📨 {message_count} новых | ⏳ {days_since} дней"
         )
 
-        async with aiohttp.ClientSession() as session:
-            await send_telegram_notification(session, chat_data, new_count)
+    full_message = header + "\n".join(channels_list)
 
-        return True
-
-    except Exception as e:
-        logger.error(f"❌ Ошибка при проверке уведомления для {chat_data['chat_name']}: {e}")
-        return False
+    for chat_id in TELEGRAM_CHAT_IDS:
+        try:
+            await send_message(http_session, chat_id, full_message)
+            logger.info(f"✅ Отчет отправлен в {chat_id} ({total} каналов)")
+        except Exception as e:
+            logger.error(f"❌ Ошибка отправки в {chat_id}: {e}")
 
 
 async def process_chat_update(chat):
     """
     Обрабатывает обновление данных для одного канала
+    ТОЛЬКО обновляет message_count_after_last
+    НЕ обновляет ИД последнего сообщения
     """
     try:
         chat_name = chat['chat_name']
@@ -343,33 +306,25 @@ async def process_chat_update(chat):
 
         logger.info(f"Processing chat: {chat_name}")
 
-        # Получаем разницу ID сообщений
-        last_message_id, difference = await get_last_message_id_difference_with_retry(
+        # Получаем разницу ID сообщений (НО НЕ ОБНОВЛЯЕМ ID)
+        difference = await get_last_message_id_difference(
             chat_name, stored_message_id
         )
 
-        # Обновляем данные чата только если получили корректную разницу (число)
+        # Обновляем только Количество сообщение после последней публикации
         if difference is not None and isinstance(difference, int):
             new_value = str(difference)
             chat['message_count_after_last'] = new_value
-            # Также обновляем ID последнего сообщения, если нужно
-            if last_message_id is not None:
-                chat['last_message_id'] = str(last_message_id)
+            # ⚠️ НЕ обновляем last_message_id - его обновляют только при реальной отправке
             logger.info(f"✅ Обновлен {chat_name}: было '{old_value_str}', стало '{new_value}'")
-
-            # Проверяем нужно ли отправить уведомление
-            await check_and_send_notification(chat, old_value_str, new_value)
-
         else:
-            # При ошибке оставляем старое значение, ничего не записываем в CSV
-            # Но в логе ошибка уже залогирована в get_last_message_id_difference
             logger.error(f"⚠️ Не удалось обновить {chat_name}, сохраняем старое значение: '{old_value_str}'")
 
         return chat
 
     except Exception as e:
         logger.error(f"❌ Критическая ошибка при обработке канала {chat['chat_name']}: {e}", exc_info=True)
-        return chat  # Возвращаем исходный чат без изменений
+        return chat
 
 
 async def update_message_counts():
@@ -378,41 +333,21 @@ async def update_message_counts():
     """
     logger.info("Starting update of message counts...")
 
-    # Инициализируем Telegram клиент
     if not await initialize_telegram_client():
         logger.error("❌ Не удалось инициализировать Telegram клиент")
         return
 
-    # Загружаем чаты из CSV
     all_chats = load_chats_from_csv()
 
     if not all_chats:
         logger.error("No chats loaded from CSV")
         return
 
-    # Фильтруем чаты: у которых есть ИД последнего сообщения
-    # и время последней публикации меньше 8 дней
+    # Обновляем все чаты, у которых есть ИД последнего сообщения
     target_chats = []
-    current_time = datetime.now()
-
     for chat in all_chats:
-        # Проверяем наличие ID последнего сообщения
-        if not chat.get('last_message_id'):
-            logger.debug(f"Chat {chat.get('chat_name')} пропущен: нет ID последнего сообщения")
-            continue
-
-        # Проверяем время последней отправки (меньше 8 дней)
-        last_send = chat.get('last_send')
-        if last_send:
-            days_diff = (current_time - last_send).days
-            if days_diff < 8:
-                target_chats.append(chat)
-            else:
-                logger.debug(f"Chat {chat.get('chat_name')} пропущен: прошло {days_diff} дней (>7)")
-        else:
-            # Если нет времени отправки, но есть ID сообщения - включаем
+        if chat.get('last_message_id'):
             target_chats.append(chat)
-            logger.debug(f"Chat {chat.get('chat_name')} включен: нет времени последней отправки")
 
     logger.info(f"Found {len(target_chats)} chats to update")
 
@@ -420,22 +355,16 @@ async def update_message_counts():
         logger.info("No chats meet the criteria for update")
         return
 
-    # Предварительно загружаем entity для всех целевых чатов через единый метод
     logger.info("Preloading entity cache for target chats...")
     for chat in target_chats:
         await telegram_client.get_entity_cached(chat['chat_name'])
 
-    # Даем немного времени для загрузки кэша
     await asyncio.sleep(2)
 
-    # Создаем задачи для параллельной обработки
-    tasks = []
-    for chat in target_chats:
-        tasks.append(process_chat_update(chat))
+    tasks = [process_chat_update(chat) for chat in target_chats]
 
-    # Выполняем все задачи параллельно с ограничением
     if tasks:
-        semaphore = asyncio.Semaphore(3)  # Максимум 3 одновременных запроса
+        semaphore = asyncio.Semaphore(3)
 
         async def bounded_task(task):
             async with semaphore:
@@ -444,31 +373,42 @@ async def update_message_counts():
         bounded_tasks = [bounded_task(task) for task in tasks]
         results = await asyncio.gather(*bounded_tasks, return_exceptions=True)
 
-        # Собираем обновленные чаты
         updated_chats = []
+        matched_channels = []
         error_count = 0
+
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 logger.error(f"❌ Исключение при обработке канала {target_chats[i]['chat_name']}: {result}")
-                # Сохраняем оригинальный чат в случае ошибки
                 updated_chats.append(target_chats[i])
                 error_count += 1
             elif result:
                 updated_chats.append(result)
+
+                # Проверяем условия для отчета
+                difference = int(result.get('message_count_after_last', 0))
+                conditions = check_conditions(result, difference)
+                if conditions['passed']:
+                    result['_message_count'] = conditions['message_count']
+                    result['_days_since'] = conditions['days_since_last'] or '—'
+                    matched_channels.append(result)
+                    logger.info(f"✅ Канал в выборке: {result['chat_name']} ({conditions['message_count']} новых)")
             else:
-                # Сохраняем оригинальный чат если результат None
                 updated_chats.append(target_chats[i])
                 error_count += 1
 
-        # Обновляем основной список чатов
         chat_dict = {chat['_sync_id']: chat for chat in all_chats}
         for updated_chat in updated_chats:
             chat_dict[updated_chat['_sync_id']] = updated_chat
 
-        # Сохраняем все чаты обратно в CSV (только с числовыми значениями)
         save_chats_to_csv(list(chat_dict.values()))
 
         logger.info(f"✅ Обновление завершено. Успешно: {len(target_chats) - error_count}, Ошибок: {error_count}")
+        logger.info(f"📊 Каналов для рассылки: {len(matched_channels)}")
+
+        # Отправляем отчет
+        async with aiohttp.ClientSession() as session:
+            await send_summary_report(session, matched_channels)
 
     else:
         logger.info("No tasks to process")
@@ -479,16 +419,13 @@ async def main():
     try:
         logger.info("Starting scheduled update of message counts...")
 
-        # Инициализируем Telegram клиент
         if not await initialize_telegram_client():
             logger.error("Failed to authenticate Telegram client")
             return
 
-        # Предварительно загружаем entity кэш через единый метод
         logger.info("Preloading entity cache...")
         await telegram_client.preload_entity_cache()
 
-        # Выполняем обновление
         await update_message_counts()
 
         logger.info("Scheduled update completed successfully")
@@ -498,5 +435,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    # Запуск напрямую (для тестирования)
     asyncio.run(main())
