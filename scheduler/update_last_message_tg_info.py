@@ -122,7 +122,7 @@ def save_chats_to_csv(chats):
                 'Название канала': chat['channel_name'],
                 'Время последней отправки': last_send_formatted,
                 'Объект': chat.get('chat_object', ''),
-                'ИД последнего сообщения': chat.get('last_message_id', ''),  # ⚠️ НЕ МЕНЯЕМ
+                'ИД последнего сообщения': chat.get('last_message_id', ''),
                 'Количество сообщение после последней публикации': chat.get('message_count_after_last', ''),
                 '_sync_id': chat['_sync_id']
             }
@@ -243,20 +243,12 @@ def check_conditions(chat_data, difference) -> dict:
 
 
 async def send_summary_report(http_session, matched_channels: list):
-    """Отправляет лаконичный отчет со списком каналов для рассылки"""
+    """
+    Отправляет лаконичный отчет со списком каналов для рассылки
+    """
+    # ✅ Если нет каналов - НЕ отправляем отчет
     if not matched_channels:
-        message = (
-            "📊 <b>Отчет по обновлению счетчиков</b>\n\n"
-            "✅ Данные обновлены\n"
-            "📭 Каналов для рассылки: <b>0</b>\n"
-            "⏰ Все каналы в норме"
-        )
-        for chat_id in TELEGRAM_CHAT_IDS:
-            try:
-                await send_message(http_session, chat_id, message)
-                logger.info(f"✅ Отчет отправлен в {chat_id}")
-            except Exception as e:
-                logger.error(f"❌ Ошибка отправки в {chat_id}: {e}")
+        logger.info("📭 Нет каналов для рассылки, отчет не отправлен")
         return
 
     total = len(matched_channels)
@@ -306,16 +298,13 @@ async def process_chat_update(chat):
 
         logger.info(f"Processing chat: {chat_name}")
 
-        # Получаем разницу ID сообщений (НО НЕ ОБНОВЛЯЕМ ID)
         difference = await get_last_message_id_difference(
             chat_name, stored_message_id
         )
 
-        # Обновляем только Количество сообщение после последней публикации
         if difference is not None and isinstance(difference, int):
             new_value = str(difference)
             chat['message_count_after_last'] = new_value
-            # ⚠️ НЕ обновляем last_message_id - его обновляют только при реальной отправке
             logger.info(f"✅ Обновлен {chat_name}: было '{old_value_str}', стало '{new_value}'")
         else:
             logger.error(f"⚠️ Не удалось обновить {chat_name}, сохраняем старое значение: '{old_value_str}'")
@@ -343,7 +332,6 @@ async def update_message_counts():
         logger.error("No chats loaded from CSV")
         return
 
-    # Обновляем все чаты, у которых есть ИД последнего сообщения
     target_chats = []
     for chat in all_chats:
         if chat.get('last_message_id'):
@@ -385,7 +373,6 @@ async def update_message_counts():
             elif result:
                 updated_chats.append(result)
 
-                # Проверяем условия для отчета
                 difference = int(result.get('message_count_after_last', 0))
                 conditions = check_conditions(result, difference)
                 if conditions['passed']:
@@ -406,7 +393,7 @@ async def update_message_counts():
         logger.info(f"✅ Обновление завершено. Успешно: {len(target_chats) - error_count}, Ошибок: {error_count}")
         logger.info(f"📊 Каналов для рассылки: {len(matched_channels)}")
 
-        # Отправляем отчет
+        # Отправляем отчет ТОЛЬКО если есть каналы (проверка внутри send_summary_report)
         async with aiohttp.ClientSession() as session:
             await send_summary_report(session, matched_channels)
 
