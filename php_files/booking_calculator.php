@@ -1422,11 +1422,11 @@ if (!empty($files)) {
                 return;
             }
 
-            const conflictDate = checkDateConflict(selectedStartDate, selectedEndDate);
-            if (conflictDate) {
-                alert('Выбранные даты пересекаются с существующей бронировкой на дату: ' + formatDate(new Date(conflictDate)));
-                return;
-            }
+//             const conflictDate = checkDateConflict(selectedStartDate, selectedEndDate);
+//             if (conflictDate) {
+//                 alert('Выбранные даты пересекаются с существующей бронировкой на дату: ' + formatDate(new Date(conflictDate)));
+//                 return;
+//             }
 
             originalTotalCost = calculateTotalCost(selectedStartDate, selectedEndDate);
             document.getElementById('resultObjectName').textContent = currentObjectName;
