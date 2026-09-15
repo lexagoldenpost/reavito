@@ -7,7 +7,7 @@ function readBookedDates($filePath) {
     if (!file_exists($filePath)) return $booked;
     if (($handle = fopen($filePath, "r")) !== false) {
         fgetcsv($handle); // пропускаем заголовок
-        while (($row = fgetcsv($handle, 1000, ",")) !== false) {
+        while (($row = fgetcsv($handle, 0, ",")) !== false) {
             if (count($row) >= 4) {
                 $checkInStr = trim($row[2]); // Заезд
                 $checkOutStr = trim($row[3]); // Выезд
@@ -36,7 +36,7 @@ function readPriceData($filePath) {
     ];
     if (($handle = fopen($filePath, "r")) !== false) {
         fgetcsv($handle);
-        while (($row = fgetcsv($handle, 1000, ",")) !== false) {
+        while (($row = fgetcsv($handle, 0, ",")) !== false) {
             if (count($row) >= 4) {
                 $monthName = mb_strtolower(trim($row[0]), 'UTF-8');
                 $startDay = intval(trim($row[1]));

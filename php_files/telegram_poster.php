@@ -27,7 +27,7 @@ function readChannelsData($filePath, $selectedObject) {
 
         $normalizedSelectedObject = str_replace('_', ' ', $selectedObject);
 
-        while (($row = fgetcsv($handle, 1000, ",")) !== false) {
+        while (($row = fgetcsv($handle, 0, ",")) !== false) {
             if (count($row) >= 5) {
                 $chatName = trim($row[$headerIndexes['Наименование чата']] ?? '');
                 $daysSinceLastPost = trim($row[$headerIndexes['Количество сообщение после последней публикации']] ?? '');
@@ -148,7 +148,7 @@ function getFreeDates($object) {
             return ["error" => "Не найдены столбцы 'Заезд' и 'Выезд'", "has_free_dates" => false];
         }
 
-        while (($row = fgetcsv($handle, 1000, ",")) !== false) {
+        while (($row = fgetcsv($handle, 0, ",")) !== false) {
             $checkIn = trim($row[$checkInIndex] ?? '');
             $checkOut = trim($row[$checkOutIndex] ?? '');
 

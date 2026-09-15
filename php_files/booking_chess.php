@@ -6,7 +6,7 @@ function readBookedDatesWithGuests($filePath) {
     if (!file_exists($filePath)) return $booked;
     if (($handle = fopen($filePath, "r")) !== false) {
         fgetcsv($handle);
-        while (($row = fgetcsv($handle, 1000, ",")) !== false) {
+        while (($row = fgetcsv($handle, 0, ",")) !== false) {
             if (count($row) < 6) continue;
             $guestName = trim($row[0]);
             $checkInStr = trim($row[2]);
@@ -33,7 +33,7 @@ function readPriceData($filePath) {
     $monthMap = ["январь"=>1,"февраль"=>2,"март"=>3,"апрель"=>4,"май"=>5,"июнь"=>6,"июль"=>7,"август"=>8,"сентябрь"=>9,"октябрь"=>10,"ноябрь"=>11,"декабрь"=>12];
     if (($handle = fopen($filePath, "r")) !== false) {
         fgetcsv($handle);
-        while (($row = fgetcsv($handle, 1000, ",")) !== false) {
+        while (($row = fgetcsv($handle, 0, ",")) !== false) {
             if (count($row) >= 4) {
                 $monthName = trim(mb_strtolower($row[0], 'UTF-8'));
                 $startDay = intval(trim($row[1]));

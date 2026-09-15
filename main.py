@@ -97,12 +97,12 @@ def main():
     logger.info("✅ Scheduler: enabled")
 
     # 3. Мониторинг (только если настроен пользовательский аккаунт)
-    if Config.TELEGRAM_SEND_BOOKING_PHONE:
-        p3 = multiprocessing.Process(target=run_channel_monitor, name="ChannelMonitor")
-        processes.append(p3)
-        logger.info("✅ ChannelMonitor: enabled (user account configured)")
-    else:
-        logger.warning("⚠️ ChannelMonitor: DISABLED (TELEGRAM_SEND_BOOKING_PHONE not set)")
+    #if Config.TELEGRAM_SEND_BOOKING_PHONE:
+    #   p3 = multiprocessing.Process(target=run_channel_monitor, name="ChannelMonitor")
+    #   processes.append(p3)
+    #   logger.info("✅ ChannelMonitor: enabled (user account configured)")
+    #else:
+    #   logger.warning("⚠️ ChannelMonitor: DISABLED (TELEGRAM_SEND_BOOKING_PHONE not set)")
 
     # Запускаем процессы
     for p in processes:

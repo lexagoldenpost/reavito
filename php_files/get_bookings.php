@@ -14,7 +14,7 @@ if (!file_exists($filePath)) {
 }
 
 $handle = fopen($filePath, 'r');
-$headers = fgetcsv($handle, 1000, ',');
+$headers = fgetcsv($handle, 0, ',');
 
 if (!$headers) {
     fclose($handle);
@@ -41,7 +41,7 @@ if ($idx_sync_id === false || $idx_check_out === false) {
 $today = new DateTime();
 $bookings = [];
 
-while (($row = fgetcsv($handle, 1000, ',')) !== false) {
+while (($row = fgetcsv($handle, 0, ',')) !== false) {
     $checkOutStr = isset($row[$idx_check_out]) ? trim($row[$idx_check_out]) : '';
     if (!$checkOutStr) continue;
 

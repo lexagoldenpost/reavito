@@ -17,7 +17,7 @@ if (!file_exists($filePath)) {
 }
 
 $handle = fopen($filePath, 'r');
-$headers = fgetcsv($handle, 1000, ',');
+$headers = fgetcsv($handle, 0, ',');
 
 if (!$headers) {
     fclose($handle);
@@ -32,7 +32,7 @@ if ($idx_sync_id === false) {
     exit;
 }
 
-while (($row = fgetcsv($handle, 1000, ',')) !== false) {
+while (($row = fgetcsv($handle, 0, ',')) !== false) {
     if (isset($row[$idx_sync_id]) && trim($row[$idx_sync_id]) === $sync_id) {
         $map = [
             'Гость' => 'guest',

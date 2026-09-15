@@ -34,7 +34,7 @@ function getOwnersList() {
     
     if (file_exists($filePath)) {
         $handle = fopen($filePath, 'r');
-        $headers = fgetcsv($handle, 1000, ',');
+        $headers = fgetcsv($handle, 0, ',');
         
         if ($headers) {
             // Находим индексы нужных колонок
@@ -44,9 +44,9 @@ function getOwnersList() {
             
             if ($idx_name !== false && $idx_apartment !== false && $idx_owner !== false) {
                 // Пропускаем заголовок
-                fgetcsv($handle, 1000, ',');
+                fgetcsv($handle, 0, ',');
                 
-                while (($row = fgetcsv($handle, 1000, ',')) !== false) {
+                while (($row = fgetcsv($handle, 0, ',')) !== false) {
                     $name = isset($row[$idx_name]) ? trim($row[$idx_name]) : '';
                     $apartment = isset($row[$idx_apartment]) ? trim($row[$idx_apartment]) : '';
                     $owner = isset($row[$idx_owner]) ? trim($row[$idx_owner]) : '';
